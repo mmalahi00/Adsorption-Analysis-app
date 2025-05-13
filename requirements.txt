@@ -1,4 +1,4 @@
-﻿altair==5.5.0
+altair==5.5.0
 attrs==25.3.0
 blinker==1.9.0
 Brotli==1.1.0
@@ -23,6 +23,7 @@ numpy==2.2.5
 packaging==24.2
 pandas==2.2.3
 pillow==11.2.1
+plotly==5.22.0
 protobuf==6.30.2
 pyarrow==20.0.0
 pycparser==2.22
@@ -35,6 +36,7 @@ pytz==2025.2
 referencing==0.36.2
 requests==2.32.3
 rpds-py==0.24.0
+scipy==1.13.0
 six==1.17.0
 smmap==5.0.2
 streamlit==1.45.0
@@ -51,4 +53,3 @@ watchdog==6.0.0
 weasyprint==65.1
 webencodings==0.5.1
 zopfli==0.2.3.post1
-scipy==1.13.0 
