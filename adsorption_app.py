@@ -230,8 +230,6 @@ TRANSLATIONS = {
         "ph_effect_download_data_filename": "effet_ph_results.csv",
         "ph_effect_plot_header": "##### Graphique qe vs pH",
         "ph_effect_plot_title": "Effet du pH sur qe",
-        "ph_effect_plot_xaxis": "pH",
-        "ph_effect_plot_yaxis": "qe (mg/g)",
         "ph_effect_plot_legend_trend": "Tendance",
         "ph_effect_download_styled_plot_button": "📥 Télécharger Figure pH Stylisée (PNG)",
         "ph_effect_download_styled_plot_filename": "effet_ph_stylise.png",
@@ -300,29 +298,20 @@ TRANSLATIONS = {
         "thermo_error_vant_hoff_kd": "Erreur analyse Van't Hoff (Kd): {e_vth}",
         "thermo_warning_not_enough_distinct_temps_ce": "Moins de 2 T° distinctes avec Ce > 0 pour l'analyse thermo.",
         "thermo_calculated_params_header": "#### Paramètres Thermodynamiques Calculés",
-        "thermo_delta_h_metric": "ΔH° (kJ/mol)",
         "thermo_delta_h_help": "< 0: Exothermique, > 0: Endothermique.",
-        "thermo_delta_s_metric": "ΔS° (J/mol·K)",
         "thermo_delta_s_help": "> 0: Augmentation désordre.",
-        "thermo_r2_vant_hoff_metric": "R² (Van't Hoff)",
         "thermo_r2_vant_hoff_help": "Qualité ajustement ln(Kd) vs 1/T.",
         "thermo_delta_g_header": "ΔG° (kJ/mol) à différentes T°:",
-        "thermo_delta_g_table_temp_c": "T (°C)",
-        "thermo_delta_g_table_dg": "ΔG° (kJ/mol)",
         "thermo_delta_g_spontaneous_caption": "ΔG° < 0 : Spontané.",
         "thermo_delta_g_not_calculated": "Non calculé.",
         "thermo_vant_hoff_plot_header": "#### Graphique de Van't Hoff (ln(Kd) vs 1/T)",
         "thermo_vant_hoff_plot_title": "Graphique de Van't Hoff",
-        "thermo_vant_hoff_plot_xaxis": "1 / T (1/K)",
-        "thermo_vant_hoff_plot_yaxis": "ln(Kd)",
         "thermo_vant_hoff_plot_legend_fit": "Ajustement Linéaire (R²={r2_vt:.3f})",
         "thermo_download_vant_hoff_styled_button": "📥 Télécharger Van’t Hoff Stylisé (PNG)",
         "thermo_download_vant_hoff_styled_filename": "vant_hoff_stylise.png",
         "thermo_error_export_vant_hoff_styled": "Erreur export Van’t Hoff stylisé : {e}",
         "thermo_error_plot_vant_hoff": "Erreur traçage Van't Hoff: {e_vt_plot}",
         "thermo_kd_coeffs_header": "##### Coefficients de Distribution (Kd) utilisés",
-        "thermo_kd_table_temp_k": "T_K", # Internal, not directly shown usually
-        "thermo_kd_table_kd_lg": "Kd (L/g)",
         "thermo_kd_table_temp_c": "Température (°C)",
         "thermo_kd_unavailable": "Non disponible.",
         "thermo_download_params_kd_button": "📥 DL Paramètres Thermo (Kd)",
@@ -552,8 +541,6 @@ TRANSLATIONS = {
         "ph_effect_download_data_filename": "ph_effect_results.csv",
         "ph_effect_plot_header": "##### qe vs pH Plot",
         "ph_effect_plot_title": "Effect of pH on qe",
-        "ph_effect_plot_xaxis": "pH",
-        "ph_effect_plot_yaxis": "qe (mg/g)",
         "ph_effect_plot_legend_trend": "Trend",
         "ph_effect_download_styled_plot_button": "📥 Download Styled pH Figure (PNG)",
         "ph_effect_download_styled_plot_filename": "ph_effect_styled.png",
@@ -622,29 +609,20 @@ TRANSLATIONS = {
         "thermo_error_vant_hoff_kd": "Van't Hoff analysis error (Kd): {e_vth}",
         "thermo_warning_not_enough_distinct_temps_ce": "Fewer than 2 distinct T° with Ce > 0 for thermo analysis.",
         "thermo_calculated_params_header": "#### Calculated Thermodynamic Parameters",
-        "thermo_delta_h_metric": "ΔH° (kJ/mol)",
         "thermo_delta_h_help": "< 0: Exothermic, > 0: Endothermic.",
-        "thermo_delta_s_metric": "ΔS° (J/mol·K)",
         "thermo_delta_s_help": "> 0: Increased disorder.",
-        "thermo_r2_vant_hoff_metric": "R² (Van't Hoff)",
         "thermo_r2_vant_hoff_help": "Goodness of fit for ln(Kd) vs 1/T.",
         "thermo_delta_g_header": "ΔG° (kJ/mol) at different T°:",
-        "thermo_delta_g_table_temp_c": "T (°C)",
-        "thermo_delta_g_table_dg": "ΔG° (kJ/mol)",
         "thermo_delta_g_spontaneous_caption": "ΔG° < 0 : Spontaneous.",
         "thermo_delta_g_not_calculated": "Not calculated.",
         "thermo_vant_hoff_plot_header": "#### Van't Hoff Plot (ln(Kd) vs 1/T)",
         "thermo_vant_hoff_plot_title": "Van't Hoff Plot",
-        "thermo_vant_hoff_plot_xaxis": "1 / T (1/K)",
-        "thermo_vant_hoff_plot_yaxis": "ln(Kd)",
         "thermo_vant_hoff_plot_legend_fit": "Linear Fit (R²={r2_vt:.3f})",
         "thermo_download_vant_hoff_styled_button": "📥 Download Styled Van’t Hoff (PNG)",
         "thermo_download_vant_hoff_styled_filename": "vant_hoff_styled.png",
         "thermo_error_export_vant_hoff_styled": "Error exporting styled Van’t Hoff: {e}",
         "thermo_error_plot_vant_hoff": "Error plotting Van't Hoff: {e_vt_plot}",
         "thermo_kd_coeffs_header": "##### Distribution Coefficients (Kd) Used",
-        "thermo_kd_table_temp_k": "T_K",
-        "thermo_kd_table_kd_lg": "Kd (L/g)",
         "thermo_kd_table_temp_c": "Temperature (°C)",
         "thermo_kd_unavailable": "Not available.",
         "thermo_download_params_kd_button": "📥 DL Thermo Parameters (Kd)",
@@ -2331,24 +2309,24 @@ with tab_kin:
         st.info(_t("kinetic_info_enter_kinetic_data"))
 # --- Onglet 4: Effet pH ---
 with tab_ph:
-    st.header("Effet du pH sur la Capacité d'Adsorption (qe)")
+    st.header(_t("ph_effect_tab_header"))
     ph_input = st.session_state.get('ph_effect_input')
     calib_params = st.session_state.get('calibration_params')
     ph_results = st.session_state.get('ph_effect_results')
 
     if ph_input and calib_params:
         if ph_results is None:
-            with st.spinner("Calcul Ce/qe pour effet pH..."):
+            with st.spinner(_t("ph_effect_spinner_ce_qe")):
                 results_list_ph = []
                 df_ph_data = ph_input['data'].copy()
                 params_ph = ph_input['params']
                 try:
                     if abs(calib_params['slope']) < 1e-9:
-                        st.error("Erreur calcul Ce/qe: Pente de calibration nulle.")
+                        st.error(_t("ph_effect_error_slope_zero"))
                         raise ZeroDivisionError("Calibration slope is zero.")
                     m_fixed = params_ph['m']
                     if m_fixed <= 0:
-                        st.error(f"Erreur calcul qe: Masse fixe non positive ({m_fixed}g).")
+                        st.error(_t("ph_effect_error_mass_non_positive", m_fixed=m_fixed))
                         raise ValueError("Fixed mass is non-positive.")
 
                     for _, row in df_ph_data.iterrows():
@@ -2363,31 +2341,31 @@ with tab_ph:
                     if results_list_ph:
                         st.session_state['ph_effect_results'] = pd.DataFrame(results_list_ph)
                         ph_results = st.session_state['ph_effect_results']
-                        st.success("Calcul Ce/qe pour effet pH terminé.")
+                        st.success(_t("ph_effect_success_ce_qe_calc"))
                     else:
-                        st.warning("Aucun point pH valide après calcul Ce/qe.")
+                        st.warning(_t("ph_effect_warning_no_valid_points"))
                         st.session_state['ph_effect_results'] = pd.DataFrame(columns=['pH', 'Abs_Eq', 'Ce', 'qe', 'C0_fixe', 'Masse_fixe_g', 'Volume_fixe_L'])
 
                 except (ZeroDivisionError, ValueError):
                      st.session_state['ph_effect_results'] = None # Error already shown
                 except Exception as e:
-                    st.error(f"Erreur lors du calcul Ce/qe pour l'effet pH: {e}")
+                    st.error(_t("ph_effect_error_ce_qe_calc_general", e=e))
                     st.session_state['ph_effect_results'] = None
 
         if ph_results is not None and not ph_results.empty:
-            st.markdown("##### Données Calculées (qe vs pH)")
+            st.markdown(_t("ph_effect_calculated_data_header"))
             st.dataframe(ph_results[['pH', 'Abs_Eq', 'Ce', 'qe']].style.format({'pH': '{:.2f}', 'Abs_Eq': '{:.4f}', 'Ce': '{:.4f}', 'qe': '{:.4f}'}))
-            st.caption(f"Conditions fixes: C0={ph_input['params']['C0']}mg/L, m={ph_input['params']['m']}g, V={ph_input['params']['V']}L")
+            st.caption(_t("ph_effect_conditions_caption", C0=ph_input['params']['C0'], m=ph_input['params']['m'], V=ph_input['params']['V']))
 
             # --- Download Button for Data ---
             csv_ph_res = convert_df_to_csv(ph_results)
-            st.download_button("📥 DL Données Effet pH", csv_ph_res, "effet_ph_results.csv", "text/csv", key='dl_ph_eff_data')
+            st.download_button(_t("ph_effect_download_data_button"), csv_ph_res, _t("ph_effect_download_data_filename"), "text/csv", key='dl_ph_eff_data')
 
-            st.markdown("##### Graphique qe vs pH")
+            st.markdown(_t("ph_effect_plot_header"))
             try: # Plotting code starts here
-                fig_ph = px.scatter(ph_results, x='pH', y='qe', title="Effet du pH sur qe", labels={'pH': 'pH', 'qe': 'qe (mg/g)'}, hover_data=ph_results.columns)
+                fig_ph = px.scatter(ph_results, x='pH', y='qe', title=_t("ph_effect_plot_title"), labels={'pH': 'pH', 'qe': 'qe (mg/g)'}, hover_data=ph_results.columns)
                 ph_results_sorted = ph_results.sort_values('pH')
-                fig_ph.add_trace(go.Scatter(x=ph_results_sorted['pH'], y=ph_results_sorted['qe'], mode='lines', name='Tendance', showlegend=False))
+                fig_ph.add_trace(go.Scatter(x=ph_results_sorted['pH'], y=ph_results_sorted['qe'], mode='lines', name=_t("ph_effect_plot_legend_trend"), showlegend=False))
                 fig_ph.update_layout(template="simple_white")
                 st.plotly_chart(fig_ph, use_container_width=True)
 
@@ -2441,50 +2419,48 @@ with tab_ph:
 
                     # Bouton de téléchargement
                     st.download_button(
-                        label="📥 Télécharger Figure pH Stylisée (PNG)",
+                        label=_t("ph_effect_download_styled_plot_button"),
                         data=ph_img_buffer,
-                        file_name="effet_ph_stylise.png",
+                        file_name=_t("ph_effect_download_styled_plot_filename"),
                         mime="image/png",
                         key='dl_ph_fig_stylisee' # Added a unique key
                     )
                 except Exception as e_export_ph:
-                    st.warning(f"Erreur export figure pH stylisée : {e_export_ph}")
+                    st.warning(_t("ph_effect_error_export_styled_plot", e_export_ph=e_export_ph))
                 # --- END: Figure stylisée ---
 
             except Exception as e_ph_plot:
-                 st.warning(f"Erreur lors du traçage Effet pH: {e_ph_plot}")
+                 st.warning(_t("ph_effect_error_plot_general", e_ph_plot=e_ph_plot))
 
         elif ph_results is not None and ph_results.empty:
-            st.warning("Le calcul Ce/qe n'a produit aucun résultat valide pour l'effet pH.")
+            st.warning(_t("ph_effect_warning_ce_qe_no_results"))
 
     elif not calib_params:
-        st.warning("Veuillez d'abord fournir des données d'étalonnage valides.")
+        st.warning(_t("isotherm_warning_provide_calib_data"))
     else:
-        st.info("Veuillez entrer des données pour l'étude de l'effet du pH.")
-
-# --- NOUVEAU: Onglet 6: Dosage (Ajouter AVANT l'onglet Thermodynamique) ---
+        st.info(_t("ph_effect_info_enter_ph_data"))
 # --- NOUVEAU: Onglet 6: Dosage (Ajouter AVANT l'onglet Thermodynamique) ---
 with tab_dosage:
-    st.header("Effet de la Dose d'Adsorbant (Masse)")
+    st.header(_t("dosage_tab_header"))
     dosage_input = st.session_state.get('dosage_input')
     calib_params = st.session_state.get('calibration_params')
     dosage_results = st.session_state.get('dosage_results')
 
     if dosage_input and calib_params:
         if dosage_results is None:
-            with st.spinner("Calcul Ce/qe pour effet dosage..."):
+            with st.spinner(_t("dosage_spinner_ce_qe")):
                 results_list_dos = []
                 df_dos_data = dosage_input['data'].copy()
                 params_dos = dosage_input['params']
                 try:
                     if abs(calib_params['slope']) < 1e-9:
-                        st.error("Erreur calcul Ce/qe: Pente de calibration nulle.")
+                        st.error(_t("dosage_error_slope_zero"))
                         raise ZeroDivisionError("Calibration slope is zero.")
 
                     v_fixed = params_dos.get('V', 0)
                     c0_fixed = params_dos.get('C0', 0)
                     if v_fixed <= 0:
-                        st.error(f"Erreur calcul qe: Volume fixe ({v_fixed}L) non valide.")
+                        st.error(_t("dosage_error_volume_non_positive", v_fixed=v_fixed))
                         raise ValueError("Fixed volume is non-positive.")
 
                     for _, row in df_dos_data.iterrows():
@@ -2505,44 +2481,44 @@ with tab_dosage:
                     if results_list_dos:
                         st.session_state['dosage_results'] = pd.DataFrame(results_list_dos)
                         dosage_results = st.session_state['dosage_results'] # Update local variable
-                        st.success("Calcul Ce/qe pour effet dosage terminé.")
+                        st.success(_t("dosage_success_ce_qe_calc"))
                     else:
-                        st.warning("Aucun point de dosage valide après calcul Ce/qe.")
+                        st.warning(_t("dosage_warning_no_valid_points"))
                         st.session_state['dosage_results'] = pd.DataFrame(columns=['Masse_Adsorbant_g', 'Abs_Eq', 'Ce', 'qe', 'C0_fixe', 'Volume_fixe_L'])
 
                 except (ZeroDivisionError, ValueError) as calc_err_dos:
                      # Error message displayed above
                      if 'dosage_results' not in st.session_state or st.session_state['dosage_results'] is not None:
-                          st.error(f"Erreur lors du calcul Ce/qe pour l'effet dosage: {calc_err_dos}")
+                          st.error(_t("dosage_error_ce_qe_calc_general", calc_err_dos=calc_err_dos))
                      st.session_state['dosage_results'] = None
                 except Exception as e:
-                    st.error(f"Erreur inattendue lors du calcul Ce/qe pour l'effet dosage: {e}")
+                    st.error(_t("dosage_error_ce_qe_calc_unexpected", e=e))
                     st.session_state['dosage_results'] = None
 
         # --- Affichage des résultats et graphique ---
         if dosage_results is not None and not dosage_results.empty:
-            st.markdown("##### Données Calculées (qe vs Masse Adsorbant)")
+            st.markdown(_t("dosage_calculated_data_header"))
             # Display relevant columns
             display_cols = ['Masse_Adsorbant_g', 'Abs_Eq', 'Ce', 'qe']
             st.dataframe(dosage_results[display_cols].style.format({'Masse_Adsorbant_g': '{:.4f}', 'Abs_Eq': '{:.4f}', 'Ce': '{:.4f}', 'qe': '{:.4f}'}))
-            st.caption(f"Conditions fixes: C0={dosage_input.get('params', {}).get('C0', 'N/A')}mg/L, V={dosage_input.get('params', {}).get('V', 'N/A')}L")
+            st.caption(_t("dosage_conditions_caption", C0=dosage_input.get('params', {}).get('C0', 'N/A'), V=dosage_input.get('params', {}).get('V', 'N/A')))
 
              # Download Button for Data
             csv_dos_res = convert_df_to_csv(dosage_results)
-            st.download_button("📥 DL Données Effet Dosage", csv_dos_res, "effet_dosage_results.csv", "text/csv", key='dl_dos_eff_data')
+            st.download_button(_t("dosage_download_data_button"), csv_dos_res, _t("dosage_download_data_filename"), "text/csv", key='dl_dos_eff_data')
 
 
-            st.markdown("##### Graphique qe vs Masse Adsorbant")
+            st.markdown(_t("dosage_plot_header"))
             try:
                 # Sort by mass for plotting the line correctly
                 dosage_results_sorted = dosage_results.sort_values('Masse_Adsorbant_g')
                 fig_dos = px.scatter(dosage_results_sorted, x='Masse_Adsorbant_g', y='qe',
-                                     title="Effet de la Masse d'Adsorbant sur qe",
-                                     labels={'Masse_Adsorbant_g': 'Masse Adsorbant (g)', 'qe': 'qe (mg/g)'},
+                                     title=_t("dosage_plot_title"),
+                                     labels={'Masse_Adsorbant_g': _t("dosage_plot_xaxis"), 'qe': 'qe (mg/g)'},
                                      hover_data=dosage_results_sorted.columns)
                 # Add a line trace connecting the points
                 fig_dos.add_trace(go.Scatter(x=dosage_results_sorted['Masse_Adsorbant_g'], y=dosage_results_sorted['qe'],
-                                             mode='lines', name='Tendance', showlegend=False))
+                                             mode='lines', name=_t("dosage_plot_legend_trend"), showlegend=False))
                 fig_dos.update_layout(template="simple_white")
                 st.plotly_chart(fig_dos, use_container_width=True)
 
@@ -2571,7 +2547,7 @@ with tab_dosage:
                         font=dict(family="Times New Roman", size=22, color="black"),
                         margin=dict(l=80, r=40, t=60, b=80),
                         xaxis=dict(
-                            title="Masse Adsorbant (g)", # Updated axis title
+                            title=_t("dosage_plot_xaxis"), # Updated axis title
                             linecolor='black',
                             mirror=True,
                             ticks='outside',
@@ -2596,51 +2572,49 @@ with tab_dosage:
 
                     # Bouton de téléchargement
                     st.download_button(
-                        label="📥 Télécharger Figure Dosage Stylisée (PNG)",
+                        label=_t("dosage_download_styled_plot_button"),
                         data=dos_img_buffer,
-                        file_name="effet_dosage_stylise.png",
+                        file_name=_t("dosage_download_styled_plot_filename"),
                         mime="image/png",
                         key='dl_dos_fig_stylisee' # Added a unique key
                     )
                 except Exception as e_export_dos:
-                    st.warning(f"Erreur export figure dosage stylisée : {e_export_dos}")
+                    st.warning(_t("dosage_error_export_styled_plot", e_export_dos=e_export_dos))
                 # --- END: Figure stylisée ---
 
             except Exception as e_dos_plot:
-                st.warning(f"Erreur lors du traçage Effet Dosage: {e_dos_plot}")
+                st.warning(_t("dosage_error_plot_general", e_dos_plot=e_dos_plot))
 
         elif dosage_results is not None and dosage_results.empty:
-            st.warning("Le calcul Ce/qe n'a produit aucun résultat valide pour l'effet dosage.")
+            st.warning(_t("dosage_warning_ce_qe_no_results"))
 
     elif not calib_params:
-        st.warning("Veuillez d'abord fournir des données d'étalonnage valides.")
+        st.warning(_t("isotherm_warning_provide_calib_data"))
     else: # dosage_input is None
-        st.info("Veuillez entrer des données pour l'étude de l'effet de la dose (masse adsorbant).")
+        st.info(_t("dosage_info_enter_dosage_data"))
 
 # --- FIN de l'onglet Dosage ---
-# --- FIN de l'onglet Dosage ---
 
-# --- Onglet 5: Effet T° ---
 # --- Onglet 5: Effet T° ---
 with tab_temp:
-    st.header("Effet de la Température sur la Capacité d'Adsorption (qe)")
+    st.header(_t("temp_effect_tab_header"))
     temp_input = st.session_state.get('temp_effect_input')
     calib_params = st.session_state.get('calibration_params')
     temp_results = st.session_state.get('temp_effect_results')
 
     if temp_input and calib_params:
         if temp_results is None:
-            with st.spinner("Calcul Ce/qe pour effet T°..."):
+            with st.spinner(_t("temp_effect_spinner_ce_qe")):
                 results_list_temp = []
                 df_temp_data = temp_input['data'].copy()
                 params_temp = temp_input['params']
                 try:
                     if abs(calib_params['slope']) < 1e-9:
-                        st.error("Erreur calcul Ce/qe: Pente de calibration nulle.")
+                        st.error(_t("temp_effect_error_slope_zero"))
                         raise ZeroDivisionError("Calibration slope is zero.")
                     m_fixed = params_temp['m']
                     if m_fixed <= 0:
-                        st.error(f"Erreur calcul qe: Masse fixe non positive ({m_fixed}g).")
+                        st.error(_t("temp_effect_error_mass_non_positive", m_fixed=m_fixed))
                         raise ValueError("Fixed mass is non-positive.")
 
                     for _, row in df_temp_data.iterrows():
@@ -2655,32 +2629,32 @@ with tab_temp:
                     if results_list_temp:
                         st.session_state['temp_effect_results'] = pd.DataFrame(results_list_temp)
                         temp_results = st.session_state['temp_effect_results']
-                        st.success("Calcul Ce/qe pour effet T° terminé.")
+                        st.success(_t("temp_effect_success_ce_qe_calc"))
                         st.session_state['thermo_params'] = None # Reset thermo params
                     else:
-                        st.warning("Aucun point T° valide après calcul Ce/qe.")
+                        st.warning(_t("temp_effect_warning_no_valid_points"))
                         st.session_state['temp_effect_results'] = pd.DataFrame(columns=['Temperature_C', 'Abs_Eq', 'Ce', 'qe', 'C0_fixe', 'Masse_fixe_g', 'Volume_fixe_L'])
 
                 except (ZeroDivisionError, ValueError):
                     st.session_state['temp_effect_results'] = None # Error already shown
                 except Exception as e:
-                    st.error(f"Erreur lors du calcul Ce/qe pour l'effet T°: {e}")
+                    st.error(_t("temp_effect_error_ce_qe_calc_general", e=e))
                     st.session_state['temp_effect_results'] = None
 
         if temp_results is not None and not temp_results.empty:
-            st.markdown("##### Données Calculées (qe vs T°)")
+            st.markdown(_t("temp_effect_calculated_data_header"))
             st.dataframe(temp_results[['Temperature_C', 'Abs_Eq', 'Ce', 'qe']].style.format({'Temperature_C': '{:.1f}', 'Abs_Eq': '{:.4f}', 'Ce': '{:.4f}', 'qe': '{:.4f}'}))
-            st.caption(f"Conditions fixes: C0={temp_input['params']['C0']}mg/L, m={temp_input['params']['m']}g, V={temp_input['params']['V']}L")
+            st.caption(_t("temp_effect_conditions_caption", C0=temp_input['params']['C0'], m=temp_input['params']['m'], V=temp_input['params']['V']))
 
             # --- Download Button for Data ---
             csv_t_res = convert_df_to_csv(temp_results)
-            st.download_button("📥 DL Données Effet T°", csv_t_res, "effet_temp_results.csv", "text/csv", key='dl_t_eff_data')
+            st.download_button(_t("temp_effect_download_data_button"), csv_t_res, _t("temp_effect_download_data_filename"), "text/csv", key='dl_t_eff_data')
 
-            st.markdown("##### Graphique qe vs T°")
+            st.markdown(_t("temp_effect_plot_header"))
             try:
                 temp_results_sorted = temp_results.sort_values('Temperature_C')
-                fig_t = px.scatter(temp_results_sorted, x='Temperature_C', y='qe', title="Effet de la T° sur qe", labels={'Temperature_C': 'Température (°C)', 'qe': 'qe (mg/g)'}, hover_data=temp_results.columns)
-                fig_t.add_trace(go.Scatter(x=temp_results_sorted['Temperature_C'], y=temp_results_sorted['qe'], mode='lines', name='Tendance', showlegend=False))
+                fig_t = px.scatter(temp_results_sorted, x='Temperature_C', y='qe', title=_t("temp_effect_plot_title"), labels={'Temperature_C': _t("temp_effect_plot_xaxis"), 'qe': 'qe (mg/g)'}, hover_data=temp_results.columns)
+                fig_t.add_trace(go.Scatter(x=temp_results_sorted['Temperature_C'], y=temp_results_sorted['qe'], mode='lines', name=_t("temp_effect_plot_legend_trend"), showlegend=False))
                 fig_t.update_layout(template="simple_white")
                 st.plotly_chart(fig_t, use_container_width=True)
 
@@ -2709,7 +2683,7 @@ with tab_temp:
                         font=dict(family="Times New Roman", size=22, color="black"),
                         margin=dict(l=80, r=40, t=60, b=80),
                         xaxis=dict(
-                            title="Température (°C)", # Updated axis title
+                            title=_t("temp_effect_plot_xaxis"), # Updated axis title
                             linecolor='black',
                             mirror=True,
                             ticks='outside',
@@ -2734,39 +2708,36 @@ with tab_temp:
 
                     # Bouton de téléchargement
                     st.download_button(
-                        label="📥 Télécharger Figure Température Stylisée (PNG)",
+                        label=_t("temp_effect_download_styled_plot_button"),
                         data=temp_img_buffer,
-                        file_name="effet_temperature_stylise.png",
+                        file_name=_t("temp_effect_download_styled_plot_filename"),
                         mime="image/png",
                         key='dl_temp_fig_stylisee' # Added a unique key
                     )
                 except Exception as e_export_temp:
-                    st.warning(f"Erreur export figure température stylisée : {e_export_temp}")
+                    st.warning(_t("temp_effect_error_export_styled_plot", e_export_temp=e_export_temp))
                 # --- END: Figure stylisée ---
 
             except Exception as e_t_plot:
-                st.warning(f"Erreur lors du traçage Effet T°: {e_t_plot}")
+                st.warning(_t("temp_effect_error_plot_general", e_t_plot=e_t_plot))
 
         elif temp_results is not None and temp_results.empty:
-            st.warning("Le calcul Ce/qe n'a produit aucun résultat valide pour l'effet T°.")
+            st.warning(_t("temp_effect_warning_ce_qe_no_results"))
 
     elif not calib_params:
-        st.warning("Veuillez d'abord fournir des données d'étalonnage valides.")
+        st.warning(_t("isotherm_warning_provide_calib_data"))
     else:
-        st.info("Veuillez entrer des données pour l'étude de l'effet de la température.")
+        st.info(_t("temp_effect_info_enter_temp_data"))
 
 # --- Onglet 6: Thermodynamique ---
 with tab_thermo:
-    st.header("Analyse Thermodynamique")
-    st.markdown("""
-    Cette analyse utilise les données de l'étude **Effet Température**.
-    Elle calcule Kd = qe / Ce (L/g) puis utilise **Van't Hoff** (ln(Kd) vs 1/T) pour déterminer ΔH° et ΔS°.
-    """)
+    st.header(_t("thermo_tab_header"))
+    st.markdown(_t("thermo_tab_intro_markdown"))
     temp_results_for_thermo = st.session_state.get('temp_effect_results')
     thermo_params = st.session_state.get('thermo_params')
 
     if temp_results_for_thermo is not None and not temp_results_for_thermo.empty and thermo_params is None:
-        with st.spinner("Analyse thermodynamique basée sur Kd..."):
+        with st.spinner(_t("thermo_spinner_analysis")):
             R = 8.314 # J/mol·K
             df_thermo = temp_results_for_thermo.copy()
             df_thermo = df_thermo[(df_thermo['Ce'] > 1e-9) & (df_thermo['qe'] >= 0)].copy() # qe >= 0 is fine here
@@ -2787,7 +2758,7 @@ with tab_thermo:
                         kd_values_valid = df_thermo_valid_kd['Kd'].values
 
                         if df_thermo_valid_kd['inv_T_K'].nunique() < 2 or df_thermo_valid_kd['ln_Kd'].nunique() < 2:
-                             st.warning("Analyse Van't Hoff impossible: variation insuffisante dans 1/T ou ln(Kd).")
+                             st.warning(_t("thermo_warning_insufficient_variation_vant_hoff"))
                              raise ValueError("Insufficient variation for Van't Hoff")
 
                         slope, intercept, r_val, p_val, std_err = linregress(inv_T_valid, ln_Kd_valid)
@@ -2805,49 +2776,49 @@ with tab_thermo:
                             'temps_K_valid': temps_K_valid.tolist(), 'K_values': dict(zip(temps_K_valid, kd_values_valid)),
                             'Analysis_Type': 'Kd' }
                         thermo_params = st.session_state['thermo_params']
-                        st.success("Analyse thermodynamique basée sur Kd terminée.")
+                        st.success(_t("thermo_success_analysis_kd"))
 
                     else:
-                        st.warning("Pas assez de T° distinctes avec Kd > 0 pour Van't Hoff.")
+                        st.warning(_t("thermo_warning_not_enough_distinct_temps_kd"))
                         st.session_state['thermo_params'] = None
 
                 except ValueError as ve: # Catch variation errors
                      st.session_state['thermo_params'] = None # Message already shown
                 except Exception as e_vth:
-                    st.error(f"Erreur analyse Van't Hoff (Kd): {e_vth}")
+                    st.error(_t("thermo_error_vant_hoff_kd", e_vth=e_vth))
                     st.session_state['thermo_params'] = None
             else:
-                st.warning("Moins de 2 T° distinctes avec Ce > 0 pour l'analyse thermo.")
+                st.warning(_t("thermo_warning_not_enough_distinct_temps_ce"))
                 st.session_state['thermo_params'] = None
 
     # --- Affichage Thermo ---
     if thermo_params and thermo_params.get('Analysis_Type') == 'Kd':
-        st.markdown("#### Paramètres Thermodynamiques Calculés")
+        st.markdown(_t("thermo_calculated_params_header"))
         col_th1, col_th2 = st.columns(2)
         with col_th1:
-            st.metric("ΔH° (kJ/mol)", f"{thermo_params['Delta_H_kJ_mol']:.2f}", help="< 0: Exothermique, > 0: Endothermique.")
-            st.metric("ΔS° (J/mol·K)", f"{thermo_params['Delta_S_J_mol_K']:.2f}", help="> 0: Augmentation désordre.")
-            st.metric("R² (Van't Hoff)", f"{thermo_params['R2_Van_t_Hoff']:.3f}", help="Qualité ajustement ln(Kd) vs 1/T.")
+            st.metric("ΔH° (kJ/mol)", f"{thermo_params['Delta_H_kJ_mol']:.2f}", help=_t("thermo_delta_h_help"))
+            st.metric("ΔS° (J/mol·K)", f"{thermo_params['Delta_S_J_mol_K']:.2f}", help=_t("thermo_delta_s_help"))
+            st.metric("R² (Van't Hoff)", f"{thermo_params['R2_Van_t_Hoff']:.3f}", help=_t("thermo_r2_vant_hoff_help"))
         with col_th2:
-            st.write("ΔG° (kJ/mol) à différentes T°:")
+            st.write(_t("thermo_delta_g_header"))
             if thermo_params['Delta_G_kJ_mol']:
                  dG_df = pd.DataFrame(list(thermo_params['Delta_G_kJ_mol'].items()), columns=['T (°C)', 'ΔG° (kJ/mol)'])
                  dG_df = dG_df.sort_values(by='T (°C)').reset_index(drop=True)
                  st.dataframe(dG_df.style.format({'T (°C)': '{:.1f}','ΔG° (kJ/mol)': '{:.2f}'}), height=min(200, (len(dG_df)+1)*35 + 3))
-                 st.caption("ΔG° < 0 : Spontané.")
-            else: st.write("Non calculé.")
+                 st.caption(_t("thermo_delta_g_spontaneous_caption"))
+            else: st.write(_t("thermo_delta_g_not_calculated"))
 
-        st.markdown("#### Graphique de Van't Hoff (ln(Kd) vs 1/T)")
+        st.markdown(_t("thermo_vant_hoff_plot_header"))
         try:
             if thermo_params.get('inv_T') and thermo_params.get('ln_K'):
                 df_vt = pd.DataFrame({'1/T (1/K)': thermo_params['inv_T'], 'ln(Kd)': thermo_params['ln_K']})
-                fig_vt = px.scatter(df_vt, x='1/T (1/K)', y='ln(Kd)', title="Graphique de Van't Hoff", labels={'1/T (1/K)': '1 / T (1/K)', 'ln(Kd)': 'ln(Kd)'})
+                fig_vt = px.scatter(df_vt, x='1/T (1/K)', y='ln(Kd)', title=_t("thermo_vant_hoff_plot_title"), labels={'1/T (1/K)': '1 / T (1/K)', 'ln(Kd)': 'ln(Kd)'})
                 R_gas = 8.314
                 slope_vt = -thermo_params['Delta_H_kJ_mol'] * 1000 / R_gas
                 intercept_vt = thermo_params['Delta_S_J_mol_K'] / R_gas
                 inv_T_line = np.linspace(min(thermo_params['inv_T']), max(thermo_params['inv_T']), 50)
                 ln_K_line = slope_vt * inv_T_line + intercept_vt
-                fig_vt.add_trace(go.Scatter(x=inv_T_line, y=ln_K_line, mode='lines', name=f'Ajustement Linéaire (R²={thermo_params["R2_Van_t_Hoff"]:.3f})'))
+                fig_vt.add_trace(go.Scatter(x=inv_T_line, y=ln_K_line, mode='lines', name=_t("thermo_vant_hoff_plot_legend_fit", r2_vt=thermo_params["R2_Van_t_Hoff"])))
                 fig_vt.update_layout(template="simple_white")
                 st.plotly_chart(fig_vt, use_container_width=True)
 
@@ -2920,25 +2891,25 @@ with tab_thermo:
                 vt_img_buffer.seek(0)
 
                 st.download_button(
-                    label="📥 Télécharger Van’t Hoff Stylisé (PNG)",
+                    label=_t("thermo_download_vant_hoff_styled_button"),
                     data=vt_img_buffer,
-                    file_name="vant_hoff_stylise.png",
-                    mime="image/png",
+                    file_name=_t("thermo_download_vant_hoff_styled_filename"),
+                    mime=_t("thermo_error_export_vant_hoff_styled", e=e),
                     key="dl_vt_stylise"
                 )
             except Exception as e:
-                st.warning(f"Erreur export Van’t Hoff stylisé : {e}")    
+                st.warning(_t("thermo_error_export_vant_hoff_styled", e=e))    
         except Exception as e_vt_plot:
-            st.warning(f"Erreur traçage Van't Hoff: {e_vt_plot}")
+            st.warning(_t("thermo_error_plot_vant_hoff", e_vt_plot=e_vt_plot))
 
-        st.markdown("##### Coefficients de Distribution (Kd) utilisés")
+        st.markdown(_t("thermo_kd_coeffs_header"))
         if thermo_params.get('K_values'):
             k_vals_list = [{'T_K': T_k, 'Kd (L/g)': Kd} for T_k, Kd in thermo_params['K_values'].items()]
             k_vals_df = pd.DataFrame(k_vals_list)
             k_vals_df['Température (°C)'] = k_vals_df['T_K'] - 273.15
             k_vals_df = k_vals_df[['Température (°C)', 'Kd (L/g)']].sort_values(by='Température (°C)').reset_index(drop=True)
             st.dataframe(k_vals_df.style.format({'Température (°C)': '{:.1f}','Kd (L/g)': '{:.4g}'}))
-        else: st.write("Non disponible.")
+        else: st.write(_t("thermo_kd_unavailable"))
 
         # --- Download Thermo Data ---
         col_dlt1, col_dlt2 = st.columns(2)
@@ -2946,21 +2917,21 @@ with tab_thermo:
             thermo_res_export = {'Delta_H_kJ_mol': thermo_params['Delta_H_kJ_mol'], 'Delta_S_J_mol_K': thermo_params['Delta_S_J_mol_K'], 'R2_Van_t_Hoff': thermo_params['R2_Van_t_Hoff'], **{f'Delta_G_kJ_mol_{T_C}C': G for T_C, G in thermo_params['Delta_G_kJ_mol'].items()}}
             thermo_df_export = pd.DataFrame([thermo_res_export])
             csv_t_params = convert_df_to_csv(thermo_df_export)
-            st.download_button("📥 DL Paramètres Thermo (Kd)", csv_t_params, "params_thermo_kd.csv", "text/csv", key="dl_t_p_kd_tab")
+            st.download_button(_t("thermo_download_params_kd_button"), csv_t_params, _t("thermo_download_params_kd_filename"), "text/csv", key="dl_t_p_kd_tab")
         with col_dlt2:
              if thermo_params.get('inv_T') and thermo_params.get('ln_K'):
                 df_vt_export = pd.DataFrame({'1/T (1/K)': thermo_params['inv_T'], 'ln(Kd)': thermo_params['ln_K']})
                 csv_vt_data = convert_df_to_csv(df_vt_export)
-                st.download_button("📥 DL Données Van't Hoff (Kd)", csv_vt_data, "vant_hoff_data_kd.csv", "text/csv", key="dl_vt_d_kd_tab")
+                st.download_button(_t("thermo_download_data_vant_hoff_kd_button"), csv_vt_data, _t("thermo_download_data_vant_hoff_kd_filename"), "text/csv", key="dl_vt_d_kd_tab")
 
     elif temp_results_for_thermo is None or temp_results_for_thermo.empty:
-         st.info("Veuillez fournir des données valides pour l'étude Effet T°.")
+         st.info(_t("thermo_info_provide_temp_data"))
     elif len(temp_results_for_thermo['Temperature_C'].unique()) < 2:
-         st.warning("Moins de 2 T° distinctes pour l'analyse thermo.")
+         st.warning(_t("thermo_warning_less_than_2_distinct_temps"))
     elif thermo_params is None and st.session_state.get('temp_effect_results') is not None:
-         st.warning("Analyse thermo basée sur Kd non réalisée (vérifiez messages/données).")
+         st.warning(_t("thermo_warning_analysis_not_done_kd"))
     elif thermo_params and thermo_params.get('Analysis_Type') != 'Kd':
-        st.warning("Paramètres thermo existants calculés différemment. Réinitialisez si besoin.")
+        st.warning(_t("thermo_warning_params_calculated_differently"))
 
 
 # --- Pied de page ---
