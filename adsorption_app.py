@@ -1,5 +1,4 @@
 # --- START OF FILE adsorption_app.py ---
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -9,7 +8,6 @@ from scipy.stats import linregress
 from scipy.optimize import curve_fit
 import io
 import plotly.io as pio
-
 # --- Internationalization Setup ---
 TRANSLATIONS = {
     "fr": {
@@ -650,11 +648,11 @@ def _t(key, **kwargs):
 
 # --- Initialize session state for language ---
 if 'language' not in st.session_state:
-    st.session_state.language = 'fr' # Default language
+    st.session_state.language = 'en' # Default language
 
 # --- Configuration de la Page ---
 st.set_page_config(
-    page_title="app_page_title",
+    page_title=_t("app_page_title"),
     page_icon="🔬",
     layout="wide"
 )
@@ -679,7 +677,7 @@ if selected_lang != st.session_state.language:
     st.session_state.language = selected_lang
     st.rerun()
 
-# --- Définition des Fonctions Modèles (Gardées pour Cinétique, etc.) ---
+# --- Définition des Fonctions Modèles ---
 def langmuir_model(Ce, qm, KL):
     KL = max(KL, 0)
     Ce_safe = np.maximum(0, Ce)
@@ -718,11 +716,11 @@ def pso_model(t, qe, k2):
 def convert_df_to_csv(df):
     return df.to_csv(index=False, sep=';').encode('utf-8')
 
-# --- Initialisation de l'état de session (Corrigée) ---
+# --- Initialisation de l'état de session ---
 default_keys = {
     'calib_df_input': None, 'calibration_params': None,
     'isotherm_input': None, 'isotherm_results': None,
-    'langmuir_params_lin': None, 'freundlich_params_lin': None, # Clés pour les paramètres linéaires
+    'langmuir_params_lin': None, 'freundlich_params_lin': None, 
     'ph_effect_input': None, 'ph_effect_results': None,
     'temp_effect_input': None, 'temp_effect_results': None, 'thermo_params': None,
     'kinetic_input': None, 'kinetic_results_df': None, 'pfo_params': None, 'pso_params': None, 'dosage_input': None, 'dosage_results': None, 'ipd_params_list': []
@@ -744,9 +742,9 @@ def validate_data_editor(edited_df, required_cols, success_message_key, error_me
                  return None
 
             for col in required_cols:
-                 if col in temp_df.columns: # Vérifier si la colonne existe avant conversion
+                 if col in temp_df.columns: 
                     temp_df[col] = pd.to_numeric(temp_df[col], errors='coerce')
-                 else: # Ne devrait pas arriver grace a la verification all_cols_present, mais securite
+                 else: 
                      st.sidebar.error(_t("validate_col_not_found_error", col=col))
                      return None
 
@@ -775,7 +773,7 @@ def validate_data_editor(edited_df, required_cols, success_message_key, error_me
     return validated_df
 
 
-# --- SIDEBAR (Entrées Organisées par Expander) ---
+# --- SIDEBAR ---
 st.sidebar.header(_t("sidebar_header"))
 
 with st.sidebar.expander(_t("sidebar_expander_calib"), expanded=False):
@@ -824,8 +822,8 @@ with st.sidebar.expander(_t("sidebar_expander_isotherm"), expanded=False):
         if needs_update:
             st.session_state['isotherm_input'] = new_iso_input
             st.session_state['isotherm_results'] = None
-            st.session_state['langmuir_params_lin'] = None # Effacer params linéaires
-            st.session_state['freundlich_params_lin'] = None # Effacer params linéaires
+            st.session_state['langmuir_params_lin'] = None 
+            st.session_state['freundlich_params_lin'] = None 
 
     elif current_iso_input_in_state is not None: # Input became invalid, clear state if it was previously valid
         st.session_state['isotherm_input'] = None
@@ -926,7 +924,6 @@ with st.sidebar.expander(_t("sidebar_expander_ph"), expanded=False):
     elif current_ph_input_in_state is not None: # Input became invalid
         st.session_state['ph_effect_input'] = None
         st.session_state['ph_effect_results'] = None
-
 
 with st.sidebar.expander(_t("sidebar_expander_temp"), expanded=False):
     st.write(_t("sidebar_temp_fixed_conditions"))
@@ -1116,9 +1113,9 @@ with tab_calib:
                     y_max_data = calib_data['Absorbance'].max()
                     fig.update_layout(
                         title=_t("calib_tab_plot_title"), 
-                        xaxis_title="Concentration (mg/L)", # French X Label (assuming mg/L)
-                        yaxis_title="Absorbance (A)",      # French Y Label
-                        plot_bgcolor='white',              # White background
+                        xaxis_title="Concentration (mg/L)", 
+                        yaxis_title="Absorbance (A)",      
+                        plot_bgcolor='white',             
                         xaxis=dict(
                             showgrid=True,
                             gridcolor='LightGrey',
@@ -1176,7 +1173,6 @@ with tab_calib:
                         name=_t("calib_tab_legend_reg")
                     ))
 
-                    # Style global – imitation OriginLab
                     fig_styled.update_layout(
                         width=1000,
                         height=800,
@@ -1190,7 +1186,8 @@ with tab_calib:
                             mirror=True,
                             ticks='outside',
                             showline=True,
-                            showgrid=False
+                            showgrid=False,
+                            zeroline=False
                         ),
                         yaxis=dict(
                             title="Absorbance (%)",
@@ -1198,7 +1195,8 @@ with tab_calib:
                             mirror=True,
                             ticks='outside',
                             showline=True,
-                            showgrid=False
+                            showgrid=False,
+                            zeroline=False
                         ),
                         showlegend=False
                     )
@@ -1364,7 +1362,6 @@ with tab_iso:
                     name=_t("isotherm_exp_plot_legend")
                 ))
 
-                # Mise en forme style OriginLab
                 fig_exp_styled.update_layout(
                     width=1000,
                     height=800,
@@ -1378,7 +1375,8 @@ with tab_iso:
                         mirror=True,
                         ticks='outside',
                         showline=True,
-                        showgrid=False
+                        showgrid=False,
+                        zeroline=False
                     ),
                     yaxis=dict(
                         title="qe (mg/g)",
@@ -1386,7 +1384,8 @@ with tab_iso:
                         mirror=True,
                         ticks='outside',
                         showline=True,
-                        showgrid=False
+                        showgrid=False,
+                        zeroline=False
                     ),
                     showlegend=False
                 )
@@ -1479,7 +1478,6 @@ with tab_iso:
                                     name=_t("calib_tab_legend_reg")
                                 ))
 
-                                # Mise en forme style OriginLab
                                 fig_lang_1_over.update_layout(
                                     width=1000,
                                     height=800,
@@ -1493,7 +1491,8 @@ with tab_iso:
                                         mirror=True,
                                         ticks='outside',
                                         showline=True,
-                                        showgrid=False
+                                        showgrid=False,
+                                        zeroline=False
                                     ),
                                     yaxis=dict(
                                         title="1 / qe (g/mg)",
@@ -1501,7 +1500,8 @@ with tab_iso:
                                         mirror=True,
                                         ticks='outside',
                                         showline=True,
-                                        showgrid=False
+                                        showgrid=False,
+                                        zeroline=False
                                     ),
                                     showlegend=False
                                 )
@@ -1616,7 +1616,6 @@ with tab_iso:
                                     name=_t("calib_tab_legend_reg")
                                 ))
 
-                                # Mise en forme style OriginLab
                                 fig_freund_lin.update_layout(
                                     width=1000,
                                     height=800,
@@ -1630,7 +1629,8 @@ with tab_iso:
                                         mirror=True,
                                         ticks='outside',
                                         showline=True,
-                                        showgrid=False
+                                        showgrid=False,
+                                        zeroline=False
                                     ),
                                     yaxis=dict(
                                         title="log₁₀(qe)",
@@ -1638,7 +1638,8 @@ with tab_iso:
                                         mirror=True,
                                         ticks='outside',
                                         showline=True,
-                                        showgrid=False
+                                        showgrid=False,
+                                        zeroline=False
                                     ),
                                     showlegend=False
                                 )
@@ -1811,7 +1812,6 @@ with tab_kin:
                         name=_t("isotherm_exp_plot_legend")
                     ))
 
-                    # Mise en forme style OriginLab
                     fig_qt_styled.update_layout(
                         width=1000,
                         height=800,
@@ -1825,7 +1825,8 @@ with tab_kin:
                             mirror=True,
                             ticks='outside',
                             showline=True,
-                            showgrid=False
+                            showgrid=False,
+                            zeroline=False
                         ),
                         yaxis=dict(
                             title="qt (mg/g)",
@@ -1833,7 +1834,8 @@ with tab_kin:
                             mirror=True,
                             ticks='outside',
                             showline=True,
-                            showgrid=False
+                            showgrid=False,
+                            zeroline=False
                         ),
                         showlegend=False
                     )
@@ -1996,7 +1998,6 @@ with tab_kin:
                                         name=_t("calib_tab_legend_reg")
                                     ))
 
-                                    # Mise en forme style OriginLab
                                     fig_pfo_styled.update_layout(
                                         width=1000,
                                         height=800,
@@ -2010,7 +2011,8 @@ with tab_kin:
                                             mirror=True,
                                             ticks='outside',
                                             showline=True,
-                                            showgrid=False
+                                            showgrid=False,
+                                            zeroline=False
                                         ),
                                         yaxis=dict(
                                             title="ln(qe - qt)",
@@ -2018,7 +2020,8 @@ with tab_kin:
                                             mirror=True,
                                             ticks='outside',
                                             showline=True,
-                                            showgrid=False
+                                            showgrid=False,
+                                            zeroline=False
                                         ),
                                         showlegend=False
                                     )
@@ -2117,7 +2120,6 @@ with tab_kin:
                                     name=_t("calib_tab_legend_reg")
                                 ))
 
-                                # Mise en forme style OriginLab
                                 fig_pso_styled.update_layout(
                                     width=1000,
                                     height=800,
@@ -2131,7 +2133,8 @@ with tab_kin:
                                         mirror=True,
                                         ticks='outside',
                                         showline=True,
-                                        showgrid=False
+                                        showgrid=False,
+                                        zeroline=False
                                     ),
                                     yaxis=dict(
                                         title="t / qt (min·g/mg)",
@@ -2139,7 +2142,8 @@ with tab_kin:
                                         mirror=True,
                                         ticks='outside',
                                         showline=True,
-                                        showgrid=False
+                                        showgrid=False,
+                                        zeroline=False
                                     ),
                                     showlegend=False
                                 )
@@ -2242,7 +2246,6 @@ with tab_kin:
                                             align="left"
                                         )
 
-                                    # Mise en forme style OriginLab
                                     fig_ipd_styled.update_layout(
                                         width=1000,
                                         height=800,
@@ -2256,7 +2259,8 @@ with tab_kin:
                                             mirror=True,
                                             ticks='outside',
                                             showline=True,
-                                            showgrid=False
+                                            showgrid=False,
+                                            zeroline=False
                                         ),
                                         yaxis=dict(
                                             title="qt (mg/g)",
@@ -2264,7 +2268,8 @@ with tab_kin:
                                             mirror=True,
                                             ticks='outside',
                                             showline=True,
-                                            showgrid=False
+                                            showgrid=False,
+                                            zeroline=False
                                         ),
                                         showlegend=False
                                     )
@@ -2385,7 +2390,6 @@ with tab_ph:
                         name=_t("isotherm_exp_plot_legend")
                     ))
 
-                    # Mise en forme style OriginLab
                     fig_ph_styled.update_layout(
                         width=1000,
                         height=800,
@@ -2399,7 +2403,8 @@ with tab_ph:
                             mirror=True,
                             ticks='outside',
                             showline=True,
-                            showgrid=False
+                            showgrid=False,
+                            zeroline=False
                         ),
                         yaxis=dict(
                             title="qe (mg/g)", # Updated axis title
@@ -2407,7 +2412,8 @@ with tab_ph:
                             mirror=True,
                             ticks='outside',
                             showline=True,
-                            showgrid=False
+                            showgrid=False,
+                            zeroline=False
                         ),
                         showlegend=False # No legend needed for single trace
                     )
@@ -2439,7 +2445,7 @@ with tab_ph:
         st.warning(_t("isotherm_warning_provide_calib_data"))
     else:
         st.info(_t("ph_effect_info_enter_ph_data"))
-# --- NOUVEAU: Onglet 6: Dosage (Ajouter AVANT l'onglet Thermodynamique) ---
+# ---  Onglet 6: Dosage ---
 with tab_dosage:
     st.header(_t("dosage_tab_header"))
     dosage_input = st.session_state.get('dosage_input')
@@ -2537,8 +2543,6 @@ with tab_dosage:
                         line=dict(color='red', width=3),
                         name=_t("isotherm_exp_plot_legend")
                     ))
-
-                    # Mise en forme style OriginLab
                     fig_dos_styled.update_layout(
                         width=1000,
                         height=800,
@@ -2552,7 +2556,8 @@ with tab_dosage:
                             mirror=True,
                             ticks='outside',
                             showline=True,
-                            showgrid=False
+                            showgrid=False,
+                            zeroline=False
                         ),
                         yaxis=dict(
                             title="qe (mg/g)", # Updated axis title
@@ -2560,7 +2565,8 @@ with tab_dosage:
                             mirror=True,
                             ticks='outside',
                             showline=True,
-                            showgrid=False
+                            showgrid=False,
+                            zeroline=False
                         ),
                         showlegend=False # No legend needed for single trace
                     )
@@ -2592,7 +2598,6 @@ with tab_dosage:
         st.warning(_t("isotherm_warning_provide_calib_data"))
     else: # dosage_input is None
         st.info(_t("dosage_info_enter_dosage_data"))
-
 # --- FIN de l'onglet Dosage ---
 
 # --- Onglet 5: Effet T° ---
@@ -2674,7 +2679,6 @@ with tab_temp:
                         name=_t("isotherm_exp_plot_legend")
                     ))
 
-                    # Mise en forme style OriginLab
                     fig_temp_styled.update_layout(
                         width=1000,
                         height=800,
@@ -2688,7 +2692,8 @@ with tab_temp:
                             mirror=True,
                             ticks='outside',
                             showline=True,
-                            showgrid=False
+                            showgrid=False,
+                            zeroline=False
                         ),
                         yaxis=dict(
                             title="qe (mg/g)", # Updated axis title
@@ -2696,7 +2701,8 @@ with tab_temp:
                             mirror=True,
                             ticks='outside',
                             showline=True,
-                            showgrid=False
+                            showgrid=False,
+                            zeroline=False
                         ),
                         showlegend=False # No legend needed for single trace
                     )
@@ -2821,8 +2827,6 @@ with tab_thermo:
                 fig_vt.add_trace(go.Scatter(x=inv_T_line, y=ln_K_line, mode='lines', name=_t("thermo_vant_hoff_plot_legend_fit", r2_vt=thermo_params["R2_Van_t_Hoff"])))
                 fig_vt.update_layout(template="simple_white")
                 st.plotly_chart(fig_vt, use_container_width=True)
-
-            # --- Export PNG stylisé Van’t Hoff ---
             try:
                 fig_vt_styled = go.Figure()
 
@@ -2848,7 +2852,8 @@ with tab_thermo:
                         mirror=True,
                         ticks='outside',
                         showline=True,
-                        showgrid=False
+                        showgrid=False,
+                        zeroline=False
                     ),
                     yaxis=dict(
                         title="ln(Kd)",
@@ -2856,7 +2861,8 @@ with tab_thermo:
                         mirror=True,
                         ticks='outside',
                         showline=True,
-                        showgrid=False
+                        showgrid=False,
+                        zeroline=False
                     ),
                     showlegend=False
                 )
@@ -2894,7 +2900,7 @@ with tab_thermo:
                     label=_t("thermo_download_vant_hoff_styled_button"),
                     data=vt_img_buffer,
                     file_name=_t("thermo_download_vant_hoff_styled_filename"),
-                    mime=_t("thermo_error_export_vant_hoff_styled", e=e),
+                    mime="image/png",
                     key="dl_vt_stylise"
                 )
             except Exception as e:
@@ -2933,8 +2939,6 @@ with tab_thermo:
     elif thermo_params and thermo_params.get('Analysis_Type') != 'Kd':
         st.warning(_t("thermo_warning_params_calculated_differently"))
 
-
-# --- Pied de page ---
 st.markdown("---")
 st.caption("Analyse Adsorption v2.4")
 
