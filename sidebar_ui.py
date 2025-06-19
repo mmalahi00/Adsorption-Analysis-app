@@ -30,7 +30,7 @@ def _render_isotherm_input():
             help="File must contain 'Concentration_Initiale_C0' and 'Absorbance_Equilibre' columns."
         )
 
-        # --- MODIFIED: Logic to handle uploaded file ---
+        # --- Logic to handle uploaded file ---
         initial_iso_data = pd.DataFrame({'Concentration_Initiale_C0': [], 'Absorbance_Equilibre': []})
         
         if uploaded_file_iso is not None:
