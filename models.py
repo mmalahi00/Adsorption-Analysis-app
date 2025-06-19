@@ -43,8 +43,6 @@ def temkin_model_nonlinear(Ce, B1, K_T):
     B1 = RT/bT
     K_T = Temkin equilibrium binding constant
     """
-    Ce_safe = np.maximum(Ce, 1e-9) # Avoid log(0)
-    K_T = max(K_T, 1e-9) # Ensure K_T is positive
-    # B1 can be positive or negative depending on the system, so no strict positive constraint here during fitting.
-    # However, for physical meaning, bT is usually positive.
+    Ce_safe = np.maximum(Ce, 1e-9) 
+    K_T = max(K_T, 1e-9) 
     return B1 * np.log(K_T * Ce_safe)
