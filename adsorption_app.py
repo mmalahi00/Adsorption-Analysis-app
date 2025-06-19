@@ -3,19 +3,15 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from scipy.stats import linregress 
-
-# Assuming files are in the same directory or tabs is a subdirectory
 from translations import _t, TRANSLATIONS 
-
 import sidebar_ui
 from tabs import calibration_tab, isotherm_tab, kinetic_tab, ph_effect_tab, dosage_tab, temperature_tab, thermodynamics_tab
 
 # --- Initialize session state for language FIRST ---
 if 'language' not in st.session_state:
-    st.session_state.language = 'en' # Default language
+    st.session_state.language = 'en' 
 
 # --- Page Configuration ---
-
 st.set_page_config(
     page_title=_t("app_page_title"),
     page_icon="🔬",
