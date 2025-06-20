@@ -1,40 +1,11 @@
 # tabs/calibration_tab.py
 import streamlit as st
-import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from scipy.stats import linregress
 import io
 from translations import _t 
-from utils import convert_df_to_csv
 
-# --- AUTOMATIC CALIBRATION LOGIC ---
-new_calib_df = st.session_state.get('calib_df_input')
-old_calib_df = st.session_state.get('previous_calib_df')
-
-if new_calib_df is not None and len(new_calib_df) >= 2:
-    if old_calib_df is None or not new_calib_df.equals(old_calib_df):
-        try:
-            slope, intercept, r_value, _, _ = linregress(new_calib_df['Concentration'], new_calib_df['Absorbance'])
-            if abs(slope) > 1e-9: # Avoid near-zero slope issues
-                st.session_state['calibration_params'] = {'slope': slope, 'intercept': intercept, 'r_squared': r_value**2}
-            else:
-                st.session_state['calibration_params'] = None
-                st.sidebar.warning(_t("calib_slope_near_zero_warning"), icon="⚠️")
-        except Exception as e:
-            st.session_state['calibration_params'] = None
-            st.sidebar.error(_t("calib_error_calc_warning", error=e), icon="🔥")
-        
-        st.session_state['previous_calib_df'] = new_calib_df.copy() # Store current data for future comparison
-
-elif new_calib_df is None or len(new_calib_df) < 2:
-    # Reset calibration if input becomes invalid or insufficient
-    if st.session_state.get('calibration_params') is not None:
-        st.session_state['calibration_params'] = None
-    if st.session_state.get('previous_calib_df') is not None: 
-        st.session_state['previous_calib_df'] = None
-        
 def render():
     st.subheader(_t("calib_tab_subheader"))
     calib_params = st.session_state.get('calibration_params')
@@ -76,7 +47,7 @@ def render():
                     equation_text = f"y = {slope:.4f}x {intercept:+.4f}"
                     fig.add_annotation(
                         x=x_max_data * 0.95, 
-                        y=y_line[-1] * 0.1 + intercept * 0.9, # Heuristic positioning
+                        y=y_line[-1] * 0.1 + intercept * 0.9, 
                         text=equation_text, showarrow=False,
                         font=dict(family="Times New Roman, serif", size=12, color="red"),
                         align='right'
@@ -103,14 +74,8 @@ def render():
                         mode='markers', marker=dict(symbol='square', color='black', size=10),
                         name=_t("calib_tab_legend_exp")
                     ))
-                    # Ensure x_vals_dl covers the data range, even if only one point for regression line
-                    if len(calib_data['Concentration']) > 1 :
-                        x_vals_dl_min = calib_data['Concentration'].min()
-                        x_vals_dl_max = calib_data['Concentration'].max()
-                    else: # Handle single point case for line drawing
-                        x_vals_dl_min = calib_data['Concentration'].iloc[0] - 0.5 
-                        x_vals_dl_max = calib_data['Concentration'].iloc[0] + 0.5
-                    x_vals_dl = np.array([x_vals_dl_min, x_vals_dl_max])
+
+                    x_vals_dl = np.array([calib_data['Concentration'].min(), calib_data['Concentration'].max()])
 
                     y_vals_dl = slope * x_vals_dl + intercept
                     fig_styled.add_trace(go.Scatter(
@@ -148,9 +113,8 @@ def render():
         
         elif len(calib_data) < 2:
              st.warning(_t("calib_tab_min_2_points_warning"))
-        else: # calib_params is None but data is present
+        else: 
              st.warning(_t("calib_tab_params_not_calc_warning"), icon="⚠️")
-             # Optionally display the raw data plot without regression
              fig_raw = px.scatter(calib_data, x='Concentration', y='Absorbance',
                                  title=_t("calib_tab_raw_data_plot_title"), 
                                  labels={'Concentration': 'Concentration', 'Absorbance': 'Absorbance'})

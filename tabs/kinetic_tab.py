@@ -42,15 +42,7 @@ def render():
                         df_kin['qt'] = df_kin['qt'].clip(lower=0)
                         df_kin['sqrt_t'] = np.sqrt(df_kin['Temps_min'])
 
-                        st.session_state['kinetic_results_df'] = df_kin[['Temps_min', 'Absorbance_t', 'Ct', 'qt', 'sqrt_t']].copy()
-                        # Reset all derived kinetic parameters upon recalculation
-                        st.session_state['pfo_params_nonlinear'] = None
-                        st.session_state['pso_params_nonlinear'] = None
-                        st.session_state['ipd_params_list'] = []
-                        # Also reset local variables
-                        pfo_params_nl = None 
-                        pso_params_nl = None 
-                        ipd_params_list = [] 
+                        st.session_state['kinetic_results_df'] = df_kin[['Temps_min', 'Absorbance_t', 'Ct', 'qt', 'sqrt_t']].copy() 
                         st.success(_t("kinetic_success_qt_calc"))
                     except ZeroDivisionError:
                         if 'kinetic_results_df' not in st.session_state or st.session_state.get('kinetic_results_df') is not None:
@@ -96,7 +88,6 @@ def render():
                 qe_exp_kin = qt_data_kin[-1] if len(qt_data_kin) > 0 else np.nan
 
                 # PFO Non-Linear Fit (re-fetch or calculate)
-                pfo_params_nl = st.session_state.get('pfo_params_nonlinear') # Re-get from state
                 if pfo_params_nl is None: 
                      with st.spinner(_t("kinetic_spinner_pfo_nl_calc")):
                          try:
@@ -285,7 +276,6 @@ def render():
 
                 # IPD
                 st.subheader(_t("kinetic_ipd_subheader"))
-                ipd_params_list = st.session_state.get('ipd_params_list', []) # Re-fetch
                 if not ipd_params_list and not kinetic_results.empty:
                      with st.spinner(_t("kinetic_spinner_ipd_analysis")):
                          ipd_df_calc_sec = kinetic_results[kinetic_results['Temps_min'] > 1e-9].copy()

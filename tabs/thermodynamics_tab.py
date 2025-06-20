@@ -6,8 +6,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from scipy.stats import linregress
 import io
-# from ..translations import _t
-# from ..utils import convert_df_to_csv
 from translations import _t
 from utils import convert_df_to_csv
 
@@ -97,9 +95,8 @@ def render():
             if thermo_params.get('inv_T') and thermo_params.get('ln_K'):
                 df_vt = pd.DataFrame({'1/T (1/K)': thermo_params['inv_T'], 'ln(Kd)': thermo_params['ln_K']})
                 fig_vt = px.scatter(df_vt, x='1/T (1/K)', y='ln(Kd)', title=_t("thermo_vant_hoff_plot_title"), labels={'1/T (1/K)': '1 / T (1/K)', 'ln(Kd)': 'ln(Kd)'})
-                R_gas = 8.314 # Re-define locally for clarity, though it's a const
-                slope_vt_plot = -thermo_params['Delta_H_kJ_mol'] * 1000 / R_gas
-                intercept_vt_plot = thermo_params['Delta_S_J_mol_K'] / R_gas
+                slope_vt_plot = -thermo_params['Delta_H_kJ_mol'] * 1000 / R_gas_const
+                intercept_vt_plot = thermo_params['Delta_S_J_mol_K'] / R_gas_const
                 inv_T_line = np.linspace(min(thermo_params['inv_T']), max(thermo_params['inv_T']), 50)
                 ln_K_line = slope_vt_plot * inv_T_line + intercept_vt_plot
                 fig_vt.add_trace(go.Scatter(x=inv_T_line, y=ln_K_line, mode='lines', name=_t("thermo_vant_hoff_plot_legend_fit", r2_vt=thermo_params["R2_Van_t_Hoff"])))

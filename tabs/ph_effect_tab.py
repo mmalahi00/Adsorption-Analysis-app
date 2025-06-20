@@ -1,12 +1,9 @@
 # tabs/ph_effect_tab.py
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import io
-# from ..translations import _t
-# from ..utils import convert_df_to_csv
 from translations import _t
 from utils import convert_df_to_csv
 

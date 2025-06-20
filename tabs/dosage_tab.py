@@ -14,7 +14,7 @@ def render():
     dosage_results = st.session_state.get('dosage_results')
 
     if dosage_input and calib_params:
-        if dosage_results is None: # Calculate Ce/qe
+        if dosage_results is None: 
             with st.spinner(_t("dosage_spinner_ce_qe")):
                 results_list_dos = []
                 df_dos_data = dosage_input['data'].copy()
@@ -30,7 +30,7 @@ def render():
                         st.session_state['dosage_results'] = None; return
 
                     for _, row in df_dos_data.iterrows():
-                        m_adsorbant = row['Masse_Adsorbant_g'] # Variable mass
+                        m_adsorbant = row['Masse_Adsorbant_g']
                         abs_eq = row['Absorbance_Equilibre']
                         ce = max(0, (abs_eq - calib_params['intercept']) / calib_params['slope'])
                         qe = max(0, (c0_fixed - ce) * v_fixed / m_adsorbant)
@@ -49,7 +49,7 @@ def render():
                 except Exception as e:
                     st.error(_t("dosage_error_ce_qe_calc_unexpected", e=e))
                     st.session_state['dosage_results'] = None
-                dosage_results = st.session_state.get('dosage_results') # Re-fetch
+                dosage_results = st.session_state.get('dosage_results') 
 
         if dosage_results is not None and not dosage_results.empty:
             st.markdown(_t("dosage_calculated_data_header"))
@@ -57,7 +57,7 @@ def render():
             st.dataframe(dosage_results[display_cols].style.format({'Masse_Adsorbant_g': '{:.4f}', 'Abs_Eq': '{:.4f}', 'Ce': '{:.4f}', 'qe': '{:.4f}'}))
             st.caption(_t("dosage_conditions_caption", C0=dosage_input.get('params', {}).get('C0', 'N/A'), V=dosage_input.get('params', {}).get('V', 'N/A')))
             csv_dos_res = convert_df_to_csv(dosage_results)
-            st.download_button(_t("dosage_download_data_button"), csv_dos_res, _t("dosage_download_data_filename"), "text/csv", key='dl_dos_eff_data_tab_dos') # Unique key
+            st.download_button(_t("dosage_download_data_button"), csv_dos_res, _t("dosage_download_data_filename"), "text/csv", key='dl_dos_eff_data_tab_dos') 
             st.markdown(_t("dosage_plot_header"))
             try:
                 dosage_results_sorted = dosage_results.sort_values('Masse_Adsorbant_g')
@@ -71,7 +71,7 @@ def render():
                     fig_dos_styled.add_trace(go.Scatter(x=df_dos_styled_dl['Masse_Adsorbant_g'],y=df_dos_styled_dl['qe'],mode='markers+lines',marker=dict(symbol='square', color='black', size=10),line=dict(color='red', width=3),name=_t("isotherm_exp_plot_legend")))
                     fig_dos_styled.update_layout(width=1000,height=800,plot_bgcolor='white',paper_bgcolor='white',font=dict(family="Times New Roman", size=22, color="black"),margin=dict(l=80, r=40, t=60, b=80),xaxis=dict(title=_t("dosage_plot_xaxis"),linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),yaxis=dict(title="qe (mg/g)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),showlegend=False)
                     dos_img_buffer = io.BytesIO(); fig_dos_styled.write_image(dos_img_buffer, format="png", width=1000, height=800, scale=2); dos_img_buffer.seek(0)
-                    st.download_button(label=_t("download_png_button"),data=dos_img_buffer,file_name=_t("dosage_download_styled_plot_filename"),mime="image/png",key='dl_dos_fig_stylisee_tab_dos') # Unique key
+                    st.download_button(label=_t("download_png_button"),data=dos_img_buffer,file_name=_t("dosage_download_styled_plot_filename"),mime="image/png",key='dl_dos_fig_stylisee_tab_dos') 
                 except Exception as e_export_dos: st.warning(_t("dosage_error_export_styled_plot", e_export_dos=e_export_dos))
             except Exception as e_dos_plot: st.warning(_t("dosage_error_plot_general", e_dos_plot=e_dos_plot))
 

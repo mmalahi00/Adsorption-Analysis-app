@@ -17,17 +17,10 @@ def render():
     calib_params = st.session_state.get('calibration_params')
     iso_results = st.session_state.get('isotherm_results')
 
-    # Initialize params in session state if not present
-    if 'langmuir_params_nl' not in st.session_state: st.session_state['langmuir_params_nl'] = None
-    if 'freundlich_params_nl' not in st.session_state: st.session_state['freundlich_params_nl'] = None
-    if 'temkin_params_lin' not in st.session_state: st.session_state['temkin_params_lin'] = None
-    if 'temkin_params_nl' not in st.session_state: st.session_state['temkin_params_nl'] = None
-
     R_GAS_CONSTANT = 8.314
 
     if iso_input and calib_params:
-        # Calculate Ce/qe if results are not available or input has changed
-        # The check for input change and resetting isotherm_results=None is handled in sidebar_ui.py
+        
         if iso_results is None:
             with st.spinner(_t("isotherm_spinner_ce_qe")):
                 results_list = []
@@ -43,7 +36,7 @@ def render():
                         c0 = row['Concentration_Initiale_C0']
                         abs_eq = row['Absorbance_Equilibre']
                         ce = (abs_eq - calib_params['intercept']) / calib_params['slope']
-                        ce = max(0.0, ce) # Ensure Ce is not negative
+                        ce = max(0.0, ce) 
 
                         m_adsorbant = params_iso['m']
                         volume = params_iso['V']
@@ -51,7 +44,7 @@ def render():
                             st.warning(_t("isotherm_error_mass_non_positive", m_adsorbant=m_adsorbant, c0=c0), icon="⚠️")
                             continue
                         qe = (c0 - ce) * volume / m_adsorbant
-                        qe = max(0.0, qe) # Ensure qe is not negative
+                        qe = max(0.0, qe) 
 
                         results_list.append({
                             'C0': c0, 'Abs_Eq': abs_eq, 'Ce': ce, 'qe': qe,
@@ -60,19 +53,10 @@ def render():
 
                     if not results_list:
                          st.warning(_t("isotherm_warning_no_valid_points"))
-                         # Assign empty dataframe to state to indicate calculation attempted
                          st.session_state['isotherm_results'] = pd.DataFrame(columns=['C0', 'Abs_Eq', 'Ce', 'qe', 'Masse_Adsorbant_g', 'Volume_L'])
                     else:
                         st.session_state['isotherm_results'] = pd.DataFrame(results_list)
                         st.success(_t("isotherm_success_ce_qe_calc"))
-
-                    # Reset all derived isotherm parameters when Ce/qe is recalculated
-                    st.session_state['langmuir_params_lin'] = None
-                    st.session_state['freundlich_params_lin'] = None
-                    st.session_state['temkin_params_lin'] = None
-                    st.session_state['langmuir_params_nl'] = None
-                    st.session_state['freundlich_params_nl'] = None
-                    st.session_state['temkin_params_nl'] = None
 
                 except ZeroDivisionError:
                      if 'isotherm_results' not in st.session_state or st.session_state.get('isotherm_results') is not None:
@@ -81,8 +65,6 @@ def render():
                 except Exception as e:
                     st.error(_t("isotherm_error_ce_qe_calc_general", e=e))
                     st.session_state['isotherm_results'] = None
-
-                # Re-fetch results from state after calculation attempt
                 iso_results = st.session_state.get('isotherm_results')
 
 
@@ -144,7 +126,7 @@ def render():
                 iso_filtered_lang_lin = iso_filtered_lin_main.copy()
                 if not iso_filtered_lang_lin.empty and len(iso_filtered_lang_lin) >=2 :
                     try:
-                        # New linearization: Ce/qe = (1/qm) * Ce + 1/(qm*KL)
+                        
                         iso_filtered_lang_lin['Ce_div_qe'] = iso_filtered_lang_lin['Ce'] / iso_filtered_lang_lin['qe']
 
                         # Check for variation in Ce and Ce_div_qe
@@ -190,11 +172,9 @@ def render():
                             img_buffer_lang_Ce_div_qe.seek(0)
                             # Use the new translation key for the filename
                             st.download_button(label=_t("download_png_button"),data=img_buffer_lang_Ce_div_qe,file_name=_t("isotherm_download_langmuir_lin_Ce_div_qe_filename"),mime="image/png", key="dl_lang_lin_Ce_div_qe_iso_tab")
-                        # Use the new translation key for the error message
                         except Exception as e_dl_L: st.warning(_t("isotherm_error_export_langmuir_lin_Ce_div_qe", e=e_dl_L))
 
                     except ValueError as ve:
-                         # Update error message if needed, but current one is general enough
                          if "Insufficient variation" not in str(ve): st.warning(_t("isotherm_error_langmuir_lin_regression", ve=ve))
                          st.session_state['langmuir_params_lin'] = None
                     except Exception as e_lin_L:
@@ -413,7 +393,7 @@ def render():
                         try:
                             qm_guess_nl = qe_data_nl.max() if len(qe_data_nl) > 0 else 1.0
                             KL_guess_nl = 0.1
-                            popt_L_nl, pcov_L_nl = curve_fit(langmuir_model, Ce_data_nl, qe_data_nl, p0=[qm_guess_nl, KL_guess_nl], bounds=([0,0], [np.inf, np.inf]), maxfev=5000)
+                            popt_L_nl, _ = curve_fit(langmuir_model, Ce_data_nl, qe_data_nl, p0=[qm_guess_nl, KL_guess_nl], bounds=([0,0], [np.inf, np.inf]), maxfev=5000)
                             qm_nl, KL_nl = popt_L_nl
                             qe_pred_L_nl = langmuir_model(Ce_data_nl, qm_nl, KL_nl)
                             ss_res_L_nl = np.sum((qe_data_nl - qe_pred_L_nl)**2)
@@ -446,7 +426,7 @@ def render():
                         try:
                             KF_guess_nl = np.median(qe_data_nl) / (np.median(Ce_data_nl)**0.5) if len(Ce_data_nl) > 0 and np.median(Ce_data_nl) > 0 else 1.0
                             n_inv_guess_nl = 0.5
-                            popt_F_nl, pcov_F_nl = curve_fit(freundlich_model, Ce_data_nl, qe_data_nl, p0=[KF_guess_nl, n_inv_guess_nl], bounds=([0,0], [np.inf, np.inf]), maxfev=5000)
+                            popt_F_nl, _ = curve_fit(freundlich_model, Ce_data_nl, qe_data_nl, p0=[KF_guess_nl, n_inv_guess_nl], bounds=([0,0], [np.inf, np.inf]), maxfev=5000)
                             KF_nl, n_inv_nl = popt_F_nl
                             n_nl = 1 / n_inv_nl if abs(n_inv_nl) > 1e-9 else np.nan
                             qe_pred_F_nl = freundlich_model(Ce_data_nl, KF_nl, n_inv_nl)
@@ -490,7 +470,6 @@ def render():
                 # Recalculate if iso_results has changed OR the temperature input has changed
                 if temkin_params_nl_in_state_before_calc is None and Ce_data_nl.size >=2: recalc_temkin_nl = True
                 elif isinstance(temkin_params_nl_in_state_before_calc, dict) and temkin_params_nl_in_state_before_calc.get('T_K_used') != temp_K_for_bT_nl and Ce_data_nl.size >=2 : recalc_temkin_nl = True
-                # Note: We no longer need the data_hash check here because the upstream iso_results=None ensures recalc when data changes.
 
                 if recalc_temkin_nl and Ce_data_nl.size >= 2:
                     with st.spinner(_t("isotherm_nl_fitting_spinner", model_name="Temkin")):
