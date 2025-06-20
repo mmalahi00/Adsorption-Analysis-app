@@ -1,15 +1,15 @@
 # adsorption_app.py
 import streamlit as st
 import pandas as pd
-import numpy as np
 from scipy.stats import linregress 
-from translations import _t, TRANSLATIONS 
+from translations import _t 
+
 import sidebar_ui
 from tabs import calibration_tab, isotherm_tab, kinetic_tab, ph_effect_tab, dosage_tab, temperature_tab, thermodynamics_tab
 
 # --- Initialize session state for language FIRST ---
 if 'language' not in st.session_state:
-    st.session_state.language = 'en' 
+    st.session_state.language = 'en' # Default language
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -55,8 +55,7 @@ selected_lang = st.sidebar.selectbox(
 if selected_lang != st.session_state.language:
     st.session_state.language = selected_lang
     st.rerun() 
-
-# Render the rest of the sidebar content using the dedicated module
+    
 sidebar_ui.render_sidebar_content()
 
 # --- AUTOMATIC CALIBRATION LOGIC ---

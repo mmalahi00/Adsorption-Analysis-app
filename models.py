@@ -33,7 +33,6 @@ def pso_model(t, qe, k2):
     t_safe = np.clip(t, 0, None)
     epsilon = 1e-12
     denominator = 1 + k2_safe * qe_safe * t_safe
-    # Ensure denominator is not zero
     denominator = np.where(np.abs(denominator) < epsilon, 1e-9 * np.sign(denominator + epsilon), denominator)
     return (k2_safe * qe_safe**2 * t_safe) / denominator
 def temkin_model_nonlinear(Ce, B1, K_T):

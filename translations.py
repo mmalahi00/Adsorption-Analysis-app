@@ -110,7 +110,7 @@ TRANSLATIONS = {
         "isotherm_exp_plot_error": "Erreur lors du traçage de la courbe expérimentale : {e_exp_plot}",
         "isotherm_linearization_header": "##### Linéarisation des Modèles",
         "isotherm_linearization_caption": "Les paramètres (qm, KL, KF, n, KT, B₁) sont déterminés à partir de ces régressions linéaires.",
-        "isotherm_langmuir_lin_header": "###### Langmuir Linéarisé (Ce/qe vs Ce)", # Modified
+        "isotherm_langmuir_lin_header": "###### Langmuir Linéarisé (Ce/qe vs Ce)", 
         "isotherm_insufficient_variation_warning": "Variation insuffisante dans {var1} ou {var2} pour la régression {model}.",
         "isotherm_lin_plot_legend_fit": "Ajustement Linéaire",
         "isotherm_langmuir_lin_caption": "Pente = {slope_L_lin:.4f} (1 / qm), Intercept = {intercept_L_lin:.4f} (1 / (qm·KL))",
@@ -122,7 +122,6 @@ TRANSLATIONS = {
         "isotherm_freundlich_lin_header": "###### Freundlich Linéarisé (ln qe vs ln Ce)", 
         "isotherm_warning_filter_log_freundlich": "Filtrage Ce>0 et qe>0 appliqué pour le log Freundlich.",
         "isotherm_info_no_valid_data_freundlich_lin": "Pas de données valides (Ce>0, qe>0) pour le graphique Freundlich linéarisé.",
-        # Modified caption to reflect ln(KF) and exp(intercept)
         "isotherm_freundlich_lin_caption": "Pente = {slope_F_lin:.4f} (1/n), Intercept = {intercept_F_lin:.4f} (ln KF)\nKF = exp({intercept_F_lin:.4f}) = {KF_F_lin:.4f}", # Modified
         "isotherm_download_freundlich_lin_filename": "freundlich_lineaire.png",
         "isotherm_error_export_freundlich_lin": "Erreur export Freundlich linéarisé : {e}",
@@ -154,10 +153,6 @@ TRANSLATIONS = {
         "isotherm_bT_calculated": "bᴛ (calculé) = {bT_calc:.2f} J/mol",
         "isotherm_b1_zero_warn": "B₁ (pente/paramètre) est proche de zéro, Kᴛ ou bᴛ ne peut pas être calculé de manière fiable.",
         "isotherm_no_valid_data_temkin_lin": "Pas de données valides (Ce>0, qe>=0) pour le graphique Temkin linéarisé.",
-        "isotherm_button_ai_interpret_langmuir_nl": "🔬 Interpréter Langmuir NL (IA)",
-        "isotherm_button_ai_interpret_freundlich_nl": "🔬 Interpréter Freundlich NL (IA)",
-        "isotherm_button_ai_interpret_temkin_nl": "🔬 Interpréter Temkin NL (IA)",
-        "isotherm_header_ai_interpretation": "Interprétation par l'IA",
 
 
         # Kinetic Tab
@@ -175,7 +170,6 @@ TRANSLATIONS = {
         "kinetic_calculated_data_subheader": "Données Calculées (qt vs t)",
         "kinetic_download_data_button": "📥 Télécharger Données Cinétiques (qt)",
         "kinetic_download_data_filename": "resultats_cinetiques.csv",
-        "kinetic_plot_qt_vs_t_subheader": "1. Effet du Temps de Contact (qt vs t)",
         "kinetic_plot_qt_vs_t_title": "Évolution de l'Adsorption au Cours du Temps",
         "kinetic_plot_qt_vs_t_xaxis": "Temps (min)",
         "kinetic_plot_qt_vs_t_legend": "Données Exp.",
@@ -481,10 +475,6 @@ TRANSLATIONS = {
         "isotherm_bT_calculated": "bᴛ (calculated) = {bT_calc:.2f} J/mol",
         "isotherm_b1_zero_warn": "B₁ (slope/parameter) is close to zero, Kᴛ or bᴛ cannot be reliably calculated.",
         "isotherm_no_valid_data_temkin_lin": "No valid data (Ce>0, qe>=0) for the linearized Temkin plot.",
-        "isotherm_button_ai_interpret_langmuir_nl": "🔬 Interpret Langmuir NL (AI)",
-        "isotherm_button_ai_interpret_freundlich_nl": "🔬 Interpret Freundlich NL (AI)",
-        "isotherm_button_ai_interpret_temkin_nl": "🔬 Interpret Temkin NL (AI)",
-        "isotherm_header_ai_interpretation": "AI Interpretation",
 
 
         # Kinetic Tab
@@ -502,7 +492,6 @@ TRANSLATIONS = {
         "kinetic_calculated_data_subheader": "Calculated Data (qt vs t)",
         "kinetic_download_data_button": "📥 DL Kinetic Data (qt)",
         "kinetic_download_data_filename": "kinetic_results.csv",
-        "kinetic_plot_qt_vs_t_subheader": "1. Effect of Contact Time (qt vs t)",
         "kinetic_plot_qt_vs_t_title": "Evolution of Adsorption Over Time",
         "kinetic_plot_qt_vs_t_xaxis": "Time (min)",
         "kinetic_plot_qt_vs_t_legend": "Exp. Data",

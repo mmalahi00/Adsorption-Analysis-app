@@ -1,7 +1,7 @@
 # utils.py
 import streamlit as st
 import pandas as pd
-from translations import _t # Assuming translations.py is in the same directory or accessible via PYTHONPATH
+from translations import _t 
 
 @st.cache_data
 def convert_df_to_csv(df):
@@ -43,11 +43,6 @@ def validate_data_editor(edited_df, required_cols, success_message_key="validate
                  if (temp_df['Masse_Adsorbant_g'] <= 0).any():
                      st.sidebar.warning(_t("validate_mass_non_positive_warning"), icon="⚠️")
                      temp_df = temp_df[temp_df['Masse_Adsorbant_g'] > 0]
-
-            if 'Volume_L' in temp_df.columns: # Assuming 'Volume_L' is a potential column name
-                 if (temp_df['Volume_L'] <= 0).any():
-                     st.sidebar.warning(_t("validate_volume_non_positive_warning"), icon="⚠️")
-                     temp_df = temp_df[temp_df['Volume_L'] > 0]
             
             # After all filtering, check if any valid data remains
             if not temp_df.empty:

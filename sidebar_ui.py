@@ -7,7 +7,29 @@ from utils import validate_data_editor
 def _render_calibration_input():
     with st.sidebar.expander(_t("sidebar_expander_calib"), expanded=False):
         st.write(_t("sidebar_calib_intro"))
+        uploaded_file_calib = st.file_uploader(
+            "Upload Calibration Data",
+            type=['csv', 'xlsx'], 
+            key="calib_uploader",
+            help="File must contain 'Concentration' and 'Absorbance' columns."
+        )
+
         initial_calib_data = pd.DataFrame({'Concentration': [], 'Absorbance': []})
+
+        if uploaded_file_calib is not None:
+            try:
+                if uploaded_file_calib.name.endswith('.csv'):
+                    df = pd.read_csv(uploaded_file_calib, sep=';')
+                else:
+                    df = pd.read_excel(uploaded_file_calib)
+                
+                if 'Concentration' in df.columns and 'Absorbance' in df.columns:
+                    initial_calib_data = df[['Concentration', 'Absorbance']]
+                else:
+                    st.sidebar.warning("Uploaded file must contain 'Concentration' and 'Absorbance' columns.")
+            except Exception as e:
+                st.sidebar.error(f"Error reading calibration file: {e}")
+        
         edited_calib = st.data_editor(
             initial_calib_data.astype(float), num_rows="dynamic", key="calib_editor",
             column_config={
@@ -22,7 +44,7 @@ def _render_isotherm_input():
         m_iso = st.number_input(_t("sidebar_isotherm_mass_label"), min_value=1e-9, value=0.02, format="%.4f", key="m_iso_input_sidebar", help=_t("sidebar_isotherm_mass_help"))
         V_iso = st.number_input(_t("sidebar_isotherm_volume_label"), min_value=1e-6, value=0.05, format="%.4f", key="V_iso_input_sidebar", help=_t("sidebar_isotherm_volume_help"))
         
-        # --- ADDED: File Uploader ---
+        # ---  File Uploader ---
         uploaded_file_iso = st.file_uploader(
             "Upload Isotherm Data",
             type=['csv', 'xlsx'], 
@@ -47,7 +69,7 @@ def _render_isotherm_input():
             except Exception as e:
                 st.sidebar.error(f"Error reading isotherm file: {e}")
 
-        # --- UNCHANGED: The data editor logic ---
+        # --- The data editor logic ---
         st.write(_t("sidebar_isotherm_c0_abs_intro"))
         edited_iso = st.data_editor(
             initial_iso_data,
@@ -75,11 +97,9 @@ def _render_isotherm_input():
             if needs_update:
                 st.session_state['isotherm_input'] = new_iso_input
                 st.session_state['isotherm_results'] = None
-                # Also reset non-linear params when data changes
                 st.session_state['langmuir_params_nl'] = None 
                 st.session_state['freundlich_params_nl'] = None
                 st.session_state['temkin_params_nl'] = None
-                # And linear params
                 st.session_state['langmuir_params_lin'] = None 
                 st.session_state['freundlich_params_lin'] = None 
                 st.session_state['temkin_params_lin'] = None
