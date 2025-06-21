@@ -13,8 +13,6 @@ The app is fully internationalized, supporting both **English** and **French**.
 
 **Experience the application live at: [https://adsorption.streamlit.app/](https://adsorption.streamlit.app/)**
 
-![App Screenshot](./screenshot.png)
-*(Replace this placeholder with a real screenshot of your app)*
 
 ## ✨ Features
 
