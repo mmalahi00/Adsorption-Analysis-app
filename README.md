@@ -63,4 +63,4 @@ This application provides a full suite of tools for analyzing different types of
 This project is licensed under the MIT License. See the `LICENSE` file for more details.
 
 ---
-*Developed by [Mohamed MALLAHI](https://github.com/mmalahi00)*
+*Developed by [Mohamed EL MALLAHI](https://github.com/mmalahi00)*
