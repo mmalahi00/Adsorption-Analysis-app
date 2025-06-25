@@ -122,7 +122,7 @@ TRANSLATIONS = {
         "isotherm_freundlich_lin_header": "###### Freundlich Linéarisé (ln qe vs ln Ce)", 
         "isotherm_warning_filter_log_freundlich": "Filtrage Ce>0 et qe>0 appliqué pour le log Freundlich.",
         "isotherm_info_no_valid_data_freundlich_lin": "Pas de données valides (Ce>0, qe>0) pour le graphique Freundlich linéarisé.",
-        "isotherm_freundlich_lin_caption": "Pente = {slope_F_lin:.4f} (1/n), Intercept = {intercept_F_lin:.4f} (ln KF)\nKF = exp({intercept_F_lin:.4f}) = {KF_F_lin:.4f}", # Modified
+        "isotherm_freundlich_lin_caption": "Pente = {slope_F_lin:.4f} (1/n), Intercept = {intercept_F_lin:.4f} (ln KF)\nKF = exp({intercept_F_lin:.4f}) = {KF_F_lin:.4f}", 
         "isotherm_download_freundlich_lin_filename": "freundlich_lineaire.png",
         "isotherm_error_export_freundlich_lin": "Erreur export Freundlich linéarisé : {e}",
         "isotherm_error_freundlich_lin_regression": "Erreur régression Freundlich linéarisé: {ve}",
@@ -444,7 +444,7 @@ TRANSLATIONS = {
         "isotherm_freundlich_lin_header": "###### Linearized Freundlich (ln qe vs ln Ce)", 
         "isotherm_warning_filter_log_freundlich": "Filtering Ce>0 and qe>0 applied for the log Freundlich.",
         "isotherm_info_no_valid_data_freundlich_lin": "No valid data (Ce>0, qe>0) for linearized Freundlich plot.",
-        "isotherm_freundlich_lin_caption": "Pente = {slope_F_lin:.4f} (1/n), Intercept = {intercept_F_lin:.4f} (ln KF)\nKF = exp({intercept_F_lin:.4f}) = {KF_F_lin:.4f}", # Modified
+        "isotherm_freundlich_lin_caption": "Pente = {slope_F_lin:.4f} (1/n), Intercept = {intercept_F_lin:.4f} (ln KF)\nKF = exp({intercept_F_lin:.4f}) = {KF_F_lin:.4f}", 
         "isotherm_download_freundlich_lin_filename": "freundlich_linear.png",
         "isotherm_error_export_freundlich_lin": "Error exporting linearized Freundlich: {e}",
         "isotherm_error_freundlich_lin_regression": "Error in linearized Freundlich regression: {ve}",

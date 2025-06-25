@@ -1,7 +1,6 @@
 # models.py
 import numpy as np
 
-# --- Définition des Fonctions Modèles ---
 def langmuir_model(Ce, qm, KL):
     KL = max(KL, 0)
     Ce_safe = np.maximum(0, Ce)
@@ -18,11 +17,10 @@ def freundlich_model(Ce, KF, n_inv):
     return KF * Ce_safe**n_inv
 
 def pfo_model(t, qe, k1):
+    qe = max(qe, 0)
     k1 = max(k1, 0)
-    k1_safe = max(k1, 1e-12)
     t_safe = np.clip(t, 0, None)
-    exp_arg = -k1 * np.clip(t_safe, 0, 700 / k1_safe if k1_safe > 0 else 700) 
-    exp_term = np.exp(exp_arg)
+    exp_term = np.exp(-k1 * t_safe) 
     return qe * (1 - exp_term)
 
 def pso_model(t, qe, k2):

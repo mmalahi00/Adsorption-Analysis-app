@@ -173,13 +173,13 @@ def _render_kinetic_input():
                 st.session_state['kinetic_results_df'] = None
                 st.session_state['pfo_params_nonlinear'] = None
                 st.session_state['pso_params_nonlinear'] = None
-                st.session_state['ipd_params_list'] = []
+                st.session_state['ipd_params_list'] = None
         elif current_kin_input_in_state is not None:
             st.session_state['kinetic_input'] = None
             st.session_state['kinetic_results_df'] = None
             st.session_state['pfo_params_nonlinear'] = None
             st.session_state['pso_params_nonlinear'] = None
-            st.session_state['ipd_params_list'] = []
+            st.session_state['ipd_params_list'] = None
 
 def _render_ph_input():
     with st.sidebar.expander(_t("sidebar_expander_ph"), expanded=False):
@@ -353,4 +353,3 @@ def render_sidebar_content():
     _render_dosage_input()
     _render_ph_input() 
     _render_temp_input()
-    

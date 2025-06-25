@@ -22,29 +22,27 @@ def validate_data_editor(edited_df, required_cols, success_message_key="validate
             all_cols_present = all(col in temp_df.columns for col in required_cols)
             if not all_cols_present:
                  missing_cols = [col for col in required_cols if col not in temp_df.columns]
-                 # Using _t directly as it's imported
                  st.sidebar.warning(_t("validate_missing_cols_warning", missing_cols=', '.join(missing_cols)), icon="⚠️")
                  return None
 
-            # Convert required columns to numeric
             for col in required_cols:
                  if col in temp_df.columns: 
                     temp_df[col] = pd.to_numeric(temp_df[col], errors='coerce')
                  else: 
-                     # This case should be caught by all_cols_present check, but as a safeguard:
                      st.sidebar.error(_t("validate_col_not_found_error", col=col))
                      return None
             
-            # Drop rows with NaNs in any of the required columns (after numeric conversion)
             temp_df.dropna(subset=required_cols, inplace=True)
 
-            # Specific checks for mass and volume if columns exist
             if 'Masse_Adsorbant_g' in temp_df.columns:
                  if (temp_df['Masse_Adsorbant_g'] <= 0).any():
                      st.sidebar.warning(_t("validate_mass_non_positive_warning"), icon="⚠️")
                      temp_df = temp_df[temp_df['Masse_Adsorbant_g'] > 0]
+            if 'Volume_L' in temp_df.columns:
+                if (temp_df['Volume_L'] <= 0).any():
+                    st.sidebar.warning(_t("validate_volume_non_positive_warning"), icon="⚠️")
+                    temp_df = temp_df[temp_df['Volume_L'] > 0]
             
-            # After all filtering, check if any valid data remains
             if not temp_df.empty:
                 validated_df = temp_df
                 st.sidebar.success(_t(success_message_key, count=len(validated_df)))
@@ -54,7 +52,6 @@ def validate_data_editor(edited_df, required_cols, success_message_key="validate
         except Exception as e:
             st.sidebar.error(_t(error_message_key, error=e))
     else:
-        # No data entered or DataFrame is empty initially
         st.sidebar.info(_t("validate_enter_data_info"))
         
     return validated_df
