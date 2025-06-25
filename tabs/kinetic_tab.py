@@ -17,7 +17,6 @@ def render():
     calib_params = st.session_state.get('calibration_params')
     kinetic_results = st.session_state.get('kinetic_results_df')
     
-    # Initialize local variables from session state at the beginning
     pfo_params_nl = st.session_state.get('pfo_params_nonlinear')
     pso_params_nl = st.session_state.get('pso_params_nonlinear') 
     ipd_params_list = st.session_state.get('ipd_params_list', [])
@@ -58,7 +57,7 @@ def render():
                      st.error(_t("kinetic_error_mass_volume_non_positive"))
                      st.session_state['kinetic_results_df'] = None
                 
-                kinetic_results = st.session_state.get('kinetic_results_df') # Re-fetch after calculation
+                kinetic_results = st.session_state.get('kinetic_results_df') 
 
         if kinetic_results is not None and not kinetic_results.empty:
             st.subheader(_t("kinetic_calculated_data_subheader"))
@@ -68,12 +67,9 @@ def render():
             st.caption(f"Conditions: C0={kinetic_input['params']['C0']}mg/L, m={kinetic_input['params']['m']}g, V={kinetic_input['params']['V']}L")
             st.markdown("---")
 
-            # --- [BUG FIX] NON-LINEAR KINETIC MODEL FITTING & PLOT (Moved to be primary) ---
-            # This section is moved before the linearized models because the linearized PFO
-            # model depends on the 'qe' value calculated here.
             st.subheader(_t("kinetic_nonlinear_header")) 
 
-            fig_qt_vs_t_combined = go.Figure() # Initialize figure for experimental data + NL fits
+            fig_qt_vs_t_combined = go.Figure()
             fig_qt_vs_t_combined.add_trace(go.Scatter(
                 x=kinetic_results['Temps_min'], 
                 y=kinetic_results['qt'], 
@@ -87,7 +83,6 @@ def render():
                 qt_data_kin = kinetic_results['qt'].values
                 qe_exp_kin = qt_data_kin[-1] if len(qt_data_kin) > 0 else np.nan
 
-                # PFO Non-Linear Fit (re-fetch or calculate)
                 if pfo_params_nl is None: 
                      with st.spinner(_t("kinetic_spinner_pfo_nl_calc")):
                          try:
@@ -99,7 +94,7 @@ def render():
                              ss_tot_PFO_nl = np.sum((qt_data_kin - np.mean(qt_data_kin))**2)
                              r2_PFO_nl_val = 1 - (ss_res_PFO_nl / ss_tot_PFO_nl) if ss_tot_PFO_nl > 1e-9 else 0.0
                              st.session_state['pfo_params_nonlinear'] = {'qe_PFO_nl': qe_PFO_nl_val, 'k1_nl': k1_PFO_nl_val, 'R2_PFO_nl': r2_PFO_nl_val}
-                             pfo_params_nl = st.session_state['pfo_params_nonlinear'] # Update local var
+                             pfo_params_nl = st.session_state['pfo_params_nonlinear'] 
                          except Exception as e_pfo_nl_fit:
                              st.warning(_t("kinetic_warning_pfo_nl_calc_failed", e=e_pfo_nl_fit))
                              st.session_state['pfo_params_nonlinear'] = {'qe_PFO_nl': np.nan, 'k1_nl': np.nan, 'R2_PFO_nl': np.nan}
@@ -110,8 +105,8 @@ def render():
                     qt_pfo_fit_on_plot = pfo_model(t_line_kin_nl_plot, pfo_params_nl['qe_PFO_nl'], pfo_params_nl['k1_nl'])
                     fig_qt_vs_t_combined.add_trace(go.Scatter(x=t_line_kin_nl_plot, y=qt_pfo_fit_on_plot, mode='lines', name=_t("kinetic_nl_legend_fit", model_name="PFO")))
 
-                # PSO Non-Linear Fit (re-fetch or calculate)
-                pso_params_nl = st.session_state.get('pso_params_nonlinear') # Re-get from state
+                # PSO Non-Linear Fit 
+                pso_params_nl = st.session_state.get('pso_params_nonlinear') 
                 if pso_params_nl is None:
                      with st.spinner(_t("kinetic_spinner_pso_nl_calc")):
                          try:
@@ -125,7 +120,7 @@ def render():
                              ss_tot_PSO_nl = np.sum((qt_data_kin - np.mean(qt_data_kin))**2)
                              r2_PSO_nl_val = 1 - (ss_res_PSO_nl / ss_tot_PSO_nl) if ss_tot_PSO_nl > 1e-9 else 0.0
                              st.session_state['pso_params_nonlinear'] = {'qe_PSO_nl': qe_PSO_nl_val, 'k2_nl': k2_PSO_nl_val, 'R2_PSO_nl': r2_PSO_nl_val}
-                             pso_params_nl = st.session_state['pso_params_nonlinear'] # Update local var
+                             pso_params_nl = st.session_state['pso_params_nonlinear'] 
                          except Exception as e_pso_nl_fit:
                              st.warning(_t("kinetic_warning_pso_nl_calc_failed", e=e_pso_nl_fit))
                              st.session_state['pso_params_nonlinear'] = {'qe_PSO_nl': np.nan, 'k2_nl': np.nan, 'R2_PSO_nl': np.nan}
@@ -181,15 +176,12 @@ def render():
             else:
                 st.info("Paramètres cinétiques non-linéaires non calculés ou erreur de calcul.")
             st.markdown("---")
-            # --- END OF MOVED NON-LINEAR SECTION ---
 
 
             # --- LINEARIZED MODELS ---
             st.subheader(_t("kinetic_linearized_models_subheader"))
             if len(kinetic_results) >= 3:
-                # PFO Linearized
                 st.markdown(_t("kinetic_pfo_lin_header"))
-                # This now correctly uses the pfo_params_nl calculated in the section above
                 if pfo_params_nl and not np.isnan(pfo_params_nl.get('qe_PFO_nl', np.nan)):
                     qe_calc_pfo_for_lin = pfo_params_nl['qe_PFO_nl']
                     df_pfo_lin = kinetic_results[(kinetic_results['qt'] < qe_calc_pfo_for_lin - 1e-9) & (kinetic_results['qt'] >= 0) & (kinetic_results['Temps_min'] > 1e-9)].copy()

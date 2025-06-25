@@ -15,7 +15,7 @@ def render():
     temp_results = st.session_state.get('temp_effect_results')
 
     if temp_input and calib_params:
-        if temp_results is None: # Calculate Ce/qe
+        if temp_results is None: 
             with st.spinner(_t("temp_effect_spinner_ce_qe")):
                 results_list_temp = []
                 df_temp_data = temp_input['data'].copy()
@@ -44,19 +44,19 @@ def render():
                     else:
                         st.warning(_t("temp_effect_warning_no_valid_points"))
                         st.session_state['temp_effect_results'] = pd.DataFrame(columns=['Temperature_C', 'Abs_Eq', 'Ce', 'qe', 'C0_fixe', 'Masse_fixe_g', 'Volume_fixe_L'])
-                except (ZeroDivisionError, ValueError): # Specific errors already handled
+                except (ZeroDivisionError, ValueError): 
                     st.session_state['temp_effect_results'] = None
                 except Exception as e:
                     st.error(_t("temp_effect_error_ce_qe_calc_general", e=e))
                     st.session_state['temp_effect_results'] = None
-                temp_results = st.session_state.get('temp_effect_results') # Re-fetch
+                temp_results = st.session_state.get('temp_effect_results') 
 
         if temp_results is not None and not temp_results.empty:
             st.markdown(_t("temp_effect_calculated_data_header"))
             st.dataframe(temp_results[['Temperature_C', 'Abs_Eq', 'Ce', 'qe']].style.format({'Temperature_C': '{:.1f}', 'Abs_Eq': '{:.4f}', 'Ce': '{:.4f}', 'qe': '{:.4f}'}))
             st.caption(_t("temp_effect_conditions_caption", C0=temp_input['params']['C0'], m=temp_input['params']['m'], V=temp_input['params']['V']))
             csv_t_res = convert_df_to_csv(temp_results)
-            st.download_button(_t("temp_effect_download_data_button"), csv_t_res, _t("temp_effect_download_data_filename"), "text/csv", key='dl_t_eff_data_tab_temp') # Unique key
+            st.download_button(_t("temp_effect_download_data_button"), csv_t_res, _t("temp_effect_download_data_filename"), "text/csv", key='dl_t_eff_data_tab_temp') 
             st.markdown(_t("temp_effect_plot_header"))
             try:
                 temp_results_sorted = temp_results.sort_values('Temperature_C')
@@ -70,7 +70,7 @@ def render():
                     fig_temp_styled.add_trace(go.Scatter(x=df_temp_styled_dl['Temperature_C'],y=df_temp_styled_dl['qe'],mode='markers+lines',marker=dict(symbol='square', color='black', size=10),line=dict(color='red', width=3),name=_t("isotherm_exp_plot_legend")))
                     fig_temp_styled.update_layout(width=1000,height=800,plot_bgcolor='white',paper_bgcolor='white',font=dict(family="Times New Roman", size=22, color="black"),margin=dict(l=80, r=40, t=60, b=80),xaxis=dict(title=_t("temp_effect_plot_xaxis"),linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),yaxis=dict(title="qe (mg/g)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),showlegend=False)
                     temp_img_buffer = io.BytesIO(); fig_temp_styled.write_image(temp_img_buffer, format="png", width=1000, height=800, scale=2); temp_img_buffer.seek(0)
-                    st.download_button(label=_t("download_png_button"),data=temp_img_buffer,file_name=_t("temp_effect_download_styled_plot_filename"),mime="image/png",key='dl_temp_fig_stylisee_tab_temp') # Unique key
+                    st.download_button(label=_t("download_png_button"),data=temp_img_buffer,file_name=_t("temp_effect_download_styled_plot_filename"),mime="image/png",key='dl_temp_fig_stylisee_tab_temp') 
                 except Exception as e_export_temp: st.warning(_t("temp_effect_error_export_styled_plot", e_export_temp=e_export_temp))
             except Exception as e_t_plot: st.warning(_t("temp_effect_error_plot_general", e_t_plot=e_t_plot))
 

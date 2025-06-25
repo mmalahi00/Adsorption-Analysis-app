@@ -14,7 +14,7 @@ def render():
     ph_results = st.session_state.get('ph_effect_results')
 
     if ph_input and calib_params:
-        if ph_results is None: # Calculate Ce/qe
+        if ph_results is None:
             with st.spinner(_t("ph_effect_spinner_ce_qe")):
                 results_list_ph = []
                 df_ph_data = ph_input['data'].copy()
@@ -42,12 +42,12 @@ def render():
                     else:
                         st.warning(_t("ph_effect_warning_no_valid_points"))
                         st.session_state['ph_effect_results'] = pd.DataFrame(columns=['pH', 'Abs_Eq', 'Ce', 'qe', 'C0_fixe', 'Masse_fixe_g', 'Volume_fixe_L'])
-                except (ZeroDivisionError, ValueError): # Specific errors already handled with st.error
+                except (ZeroDivisionError, ValueError): 
                     st.session_state['ph_effect_results'] = None 
                 except Exception as e:
                     st.error(_t("ph_effect_error_ce_qe_calc_general", e=e))
                     st.session_state['ph_effect_results'] = None
-                ph_results = st.session_state.get('ph_effect_results') # Re-fetch
+                ph_results = st.session_state.get('ph_effect_results') 
 
 
         if ph_results is not None and not ph_results.empty:
@@ -69,7 +69,7 @@ def render():
                     fig_ph_styled.add_trace(go.Scatter(x=df_ph_styled_dl['pH'],y=df_ph_styled_dl['qe'],mode='markers+lines',marker=dict(symbol='square', color='black', size=10),line=dict(color='red', width=3),name=_t("isotherm_exp_plot_legend")))
                     fig_ph_styled.update_layout(width=1000,height=800,plot_bgcolor='white',paper_bgcolor='white',font=dict(family="Times New Roman", size=22, color="black"),margin=dict(l=80, r=40, t=60, b=80),xaxis=dict(title="pH",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),yaxis=dict(title="qe (mg/g)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),showlegend=False)
                     ph_img_buffer = io.BytesIO(); fig_ph_styled.write_image(ph_img_buffer, format="png", width=1000, height=800, scale=2); ph_img_buffer.seek(0)
-                    st.download_button(label=_t("download_png_button"),data=ph_img_buffer,file_name=_t("ph_effect_download_styled_plot_filename"),mime="image/png",key='dl_ph_fig_stylisee_tab_ph') # Unique key
+                    st.download_button(label=_t("download_png_button"),data=ph_img_buffer,file_name=_t("ph_effect_download_styled_plot_filename"),mime="image/png",key='dl_ph_fig_stylisee_tab_ph') 
                 except Exception as e_export_ph: st.warning(_t("ph_effect_error_export_styled_plot", e_export_ph=e_export_ph))
             except Exception as e_ph_plot: st.warning(_t("ph_effect_error_plot_general", e_ph_plot=e_ph_plot))
 

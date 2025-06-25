@@ -117,49 +117,37 @@ def render():
             # --- LINEAR MODEL FITTING ---
             st.markdown(_t("isotherm_linearization_header"))
             st.caption(_t("isotherm_linearization_caption"))
-            # Filter for linearization plots: require Ce > 0 and qe > 0
             iso_filtered_lin_main = iso_results[(iso_results['Ce'] > 1e-9) & (iso_results['qe'] > 1e-9)].copy()
 
             if len(iso_filtered_lin_main) >= 2:
-                # Langmuir Linearized (using Ce/qe vs Ce)
+                # Langmuir Linearized 
                 st.markdown(_t("isotherm_langmuir_lin_header"))
                 iso_filtered_lang_lin = iso_filtered_lin_main.copy()
                 if not iso_filtered_lang_lin.empty and len(iso_filtered_lang_lin) >=2 :
                     try:
                         
                         iso_filtered_lang_lin['Ce_div_qe'] = iso_filtered_lang_lin['Ce'] / iso_filtered_lang_lin['qe']
-
-                        # Check for variation in Ce and Ce_div_qe
                         if iso_filtered_lang_lin['Ce'].nunique() < 2 or iso_filtered_lang_lin['Ce_div_qe'].nunique() < 2:
                             st.warning(_t("isotherm_insufficient_variation_warning", var1="Ce", var2="Ce/qe", model="Langmuir"))
                             raise ValueError("Insufficient variation for Langmuir linregress (Ce/qe vs Ce)")
-
-                        # Linregress on Ce (x) vs Ce/qe (y)
                         slope_L_lin, intercept_L_lin, r_val_L_lin, _, _ = linregress(iso_filtered_lang_lin['Ce'], iso_filtered_lang_lin['Ce_div_qe'])
                         r2_L_lin = r_val_L_lin**2
-
-                        # Calculate qm and KL from the new slope and intercept
-                        # slope_L_lin = 1 / qm => qm = 1 / slope_L_lin
-                        # intercept_L_lin = 1 / (qm * KL) => KL = 1 / (qm * intercept_L_lin) = 1 / ((1/slope_L_lin) * intercept_L_lin) = slope_L_lin / intercept_L_lin
                         qm_L_lin = 1 / slope_L_lin if abs(slope_L_lin) > 1e-12 else np.nan
-                        KL_L_lin = slope_L_lin / intercept_L_lin if abs(intercept_L_lin) > 1e-12 and abs(slope_L_lin) > 1e-12 else np.nan # Ensure slope is not zero for KL calc
+                        KL_L_lin = slope_L_lin / intercept_L_lin if abs(intercept_L_lin) > 1e-12 and abs(slope_L_lin) > 1e-12 else np.nan 
                         st.session_state['langmuir_params_lin'] = {'qm': qm_L_lin, 'KL': KL_L_lin, 'r_squared': r2_L_lin}
 
                         # Plotting
                         fig_L_lin = px.scatter(iso_filtered_lang_lin, x='Ce', y='Ce_div_qe', title=f"Ce/qe vs Ce (R²={r2_L_lin:.4f})", labels={'Ce': 'Ce (mg/L)', 'Ce_div_qe': 'Ce / qe (g/mg)'})
                         x_min_L_lin_plot, x_max_L_lin_plot = iso_filtered_lang_lin['Ce'].min(), iso_filtered_lang_lin['Ce'].max()
                         x_range_L_lin_plot = x_max_L_lin_plot - x_min_L_lin_plot if x_max_L_lin_plot > x_min_L_lin_plot else 1.0
-                        x_line_L_lin = np.linspace(max(0.0, x_min_L_lin_plot - 0.1 * x_range_L_lin_plot), x_max_L_lin_plot + 0.1 * x_range_L_lin_plot, 100) # Ensure starting from 0
+                        x_line_L_lin = np.linspace(max(0.0, x_min_L_lin_plot - 0.1 * x_range_L_lin_plot), x_max_L_lin_plot + 0.1 * x_range_L_lin_plot, 100) 
                         y_line_L_lin = intercept_L_lin + slope_L_lin * x_line_L_lin
                         fig_L_lin.add_trace(go.Scatter(x=x_line_L_lin, y=y_line_L_lin, mode='lines', name=_t("isotherm_lin_plot_legend_fit")))
                         fig_L_lin.update_layout(template="simple_white", width=600, height=500)
                         st.plotly_chart(fig_L_lin, use_container_width=False)
-                        # Update caption text to reflect the new slope/intercept meaning
                         st.caption(_t("isotherm_langmuir_lin_caption", slope_L_lin=slope_L_lin, intercept_L_lin=intercept_L_lin))
 
                         try:
-                            # Download for Langmuir Linearized (Ce/qe vs Ce)
-                            # Use data range for styled plot line
                             x_vals_lang_dl = np.array([iso_filtered_lang_lin['Ce'].min(), iso_filtered_lang_lin['Ce'].max()])
                             y_vals_lang_dl = intercept_L_lin + slope_L_lin * x_vals_lang_dl
                             fig_lang_Ce_div_qe = go.Figure()
@@ -170,7 +158,7 @@ def render():
                             img_buffer_lang_Ce_div_qe = io.BytesIO()
                             fig_lang_Ce_div_qe.write_image(img_buffer_lang_Ce_div_qe, format="png", width=1000, height=800, scale=2)
                             img_buffer_lang_Ce_div_qe.seek(0)
-                            # Use the new translation key for the filename
+                            
                             st.download_button(label=_t("download_png_button"),data=img_buffer_lang_Ce_div_qe,file_name=_t("isotherm_download_langmuir_lin_Ce_div_qe_filename"),mime="image/png", key="dl_lang_lin_Ce_div_qe_iso_tab")
                         except Exception as e_dl_L: st.warning(_t("isotherm_error_export_langmuir_lin_Ce_div_qe", e=e_dl_L))
 
@@ -181,21 +169,17 @@ def render():
                         st.warning(_t("isotherm_error_langmuir_lin_plot_creation", e_lin_L=e_lin_L))
                         st.session_state['langmuir_params_lin'] = None
                 else:
-                    # Keep the existing warning for no valid data
                     st.info(_t("isotherm_no_valid_data_langmuir_lin"))
                 st.markdown("---")
 
-                # Freundlich Linearized (ln qe vs ln Ce)
+                # Freundlich Linearized 
                 st.markdown(_t("isotherm_freundlich_lin_header"))
-                # Filter for Freundlich: requires Ce > 0 and qe > 0 
-                iso_filtered_freund_lin = iso_filtered_lin_main.copy() # Use the already filtered df
+                iso_filtered_freund_lin = iso_filtered_lin_main.copy() 
                 if not iso_filtered_freund_lin.empty and len(iso_filtered_freund_lin) >= 2:
                     try:
-                        # The Freundlich linearization is ln(qe) = ln(KF) + (1/n) ln(Ce)
                         iso_filtered_freund_lin['ln_Ce'] = np.log(iso_filtered_freund_lin['Ce'])
                         iso_filtered_freund_lin['ln_qe'] = np.log(iso_filtered_freund_lin['qe'])
 
-                        # Check for variation in ln(Ce) and ln(qe)
                         if iso_filtered_freund_lin['ln_Ce'].nunique() < 2 or iso_filtered_freund_lin['ln_qe'].nunique() < 2:
                             st.warning(_t("isotherm_insufficient_variation_warning", var1="ln(Ce)", var2="ln(qe)", model="Freundlich"))
                             raise ValueError("Insufficient variation for Freundlich linregress")
@@ -220,7 +204,6 @@ def render():
                         st.plotly_chart(fig_F_lin, use_container_width=False)
                         st.caption(_t("isotherm_freundlich_lin_caption", slope_F_lin=slope_F_lin, intercept_F_lin=intercept_F_lin, KF_F_lin=KF_F_lin))
                         try:
-                            # Download for Freundlich Linearized
                             x_vals_freund_dl = np.array([iso_filtered_freund_lin['ln_Ce'].min(), iso_filtered_freund_lin['ln_Ce'].max()])
                             y_vals_freund_dl = intercept_F_lin + slope_F_lin * x_vals_freund_dl
                             fig_freund_lin = go.Figure()
@@ -243,28 +226,21 @@ def render():
                     st.info(_t("isotherm_info_no_valid_data_freundlich_lin"))
                 st.markdown("---")
 
-                # Temkin Linearized (qe vs ln Ce)
+                # Temkin Linearized 
                 st.markdown(_t("isotherm_temkin_lin_header"))
-                 # Filter for Temkin: requires Ce > 0 and qe >= 0. The main filter used is qe > 0, which is fine.
-                iso_filtered_temkin_lin = iso_results[(iso_results['Ce'] > 1e-9) & (iso_results['qe'] >= 0)].copy() # Use the slightly less strict filter here as qe can be 0 in Temkin.
+                iso_filtered_temkin_lin = iso_results[(iso_results['Ce'] > 1e-9) & (iso_results['qe'] >= 0)].copy() 
                 if not iso_filtered_temkin_lin.empty and len(iso_filtered_temkin_lin) >= 2:
                     try:
-                        # The Temkin linearization qe = B1 * ln(KT) + B1 * ln(Ce) is done by plotting qe vs ln(Ce)
+                        # The Temkin linearization 
                         iso_filtered_temkin_lin_plot_df = iso_filtered_temkin_lin.copy()
                         iso_filtered_temkin_lin_plot_df['ln_Ce'] = np.log(iso_filtered_temkin_lin_plot_df['Ce'])
-
-                        # Check for variation in ln(Ce) and qe
                         if iso_filtered_temkin_lin_plot_df['ln_Ce'].nunique() < 2 or iso_filtered_temkin_lin_plot_df['qe'].nunique() < 2:
                             st.warning(_t("isotherm_insufficient_variation_warning", var1="ln(Ce)", var2="qe", model="Temkin"))
                             raise ValueError("Insufficient variation for Temkin linregress")
 
-                        # Linregress on ln(Ce) (x) vs qe (y)
                         slope_T_lin, intercept_T_lin, r_val_T_lin, _, _ = linregress(iso_filtered_temkin_lin_plot_df['ln_Ce'], iso_filtered_temkin_lin_plot_df['qe'])
                         r2_T_lin = r_val_T_lin**2
 
-                        # Calculate B1 and KT from slope and intercept
-                        # slope_T_lin = B1 => B1 = slope_T_lin
-                        # intercept_T_lin = B1 * ln(KT) => ln(KT) = intercept_T_lin / B1 => KT = exp(intercept_T_lin / B1)
                         B1_T_lin = slope_T_lin
                         KT_T_lin = np.exp(intercept_T_lin / B1_T_lin) if abs(B1_T_lin) > 1e-9 else np.nan
 
@@ -285,7 +261,6 @@ def render():
                         if abs(B1_T_lin) < 1e-9:
                             st.warning(_t("isotherm_b1_zero_warn"))
                         try:
-                            # Download for Temkin Linearized
                             x_vals_temkin_dl_lin = np.linspace(iso_filtered_temkin_lin_plot_df['ln_Ce'].min(), iso_filtered_temkin_lin_plot_df['ln_Ce'].max(), 100)
                             y_vals_temkin_dl_lin = intercept_T_lin + slope_T_lin * x_vals_temkin_dl_lin
                             fig_temkin_lin_styled = go.Figure()
@@ -338,10 +313,9 @@ def render():
                 if params_lin_data_display['Modèle']:
                     params_lin_df_display = pd.DataFrame(params_lin_data_display)
                     st.dataframe(params_lin_df_display.set_index('Modèle'), use_container_width=True)
-                    # Download button for Linearized Parameters Table
                     csv_lin_params = convert_df_to_csv(params_lin_df_display)
                     st.download_button(
-                        label=_t("isotherm_download_data_button") + " (Param. Linéarisés)", # Modifying label slightly
+                        label=_t("isotherm_download_data_button"), 
                         data=csv_lin_params,
                         file_name="isotherm_params_linearized.csv",
                         mime="text/csv",
@@ -364,16 +338,15 @@ def render():
             if not iso_filtered_nl.empty and len(iso_filtered_nl) >= 2:
                 Ce_data_nl = iso_filtered_nl['Ce'].values
                 qe_data_nl = iso_filtered_nl['qe'].values
-                # Define Ce_line_for_plot_nl safely, even if Ce_data_nl is small or has no range
                 if Ce_data_nl.size > 0:
                     min_ce_nl, max_ce_nl = Ce_data_nl.min(), Ce_data_nl.max()
-                    if min_ce_nl == max_ce_nl: # Handle case with only one unique Ce value or all Ce values are the same
+                    if min_ce_nl == max_ce_nl:
                         Ce_line_for_plot_nl = np.linspace(min_ce_nl * 0.8, min_ce_nl * 1.2, 200)
                     else:
                         Ce_line_for_plot_nl = np.linspace(min_ce_nl * 0.9, max_ce_nl * 1.1, 200)
-                    Ce_line_for_plot_nl = np.maximum(Ce_line_for_plot_nl, 1e-9) # Ensure positive for models like Temkin
+                    Ce_line_for_plot_nl = np.maximum(Ce_line_for_plot_nl, 1e-9) 
                 else:
-                    Ce_line_for_plot_nl = np.array([]) # Empty array if no data
+                    Ce_line_for_plot_nl = np.array([]) 
 
                 fig_nl_fits = go.Figure()
                 if Ce_data_nl.size > 0:
@@ -386,9 +359,7 @@ def render():
                 # Langmuir Non-Linear
                 st.markdown(_t("isotherm_langmuir_nl_header"))
                 params_L_nl_current = st.session_state.get('langmuir_params_nl')
-                # Recalculate NL fit only if iso_results has changed or params are missing
-                # We detect iso_results change because the state is set to None when iso_input changes
-                if params_L_nl_current is None and Ce_data_nl.size >= 2: # Ensure data exists for fitting
+                if params_L_nl_current is None and Ce_data_nl.size >= 2:
                     with st.spinner(_t("isotherm_nl_fitting_spinner", model_name="Langmuir")):
                         try:
                             qm_guess_nl = qe_data_nl.max() if len(qe_data_nl) > 0 else 1.0
@@ -420,7 +391,6 @@ def render():
                 # Freundlich Non-Linear
                 st.markdown(_t("isotherm_freundlich_nl_header"))
                 params_F_nl_current = st.session_state.get('freundlich_params_nl')
-                 # Recalculate NL fit only if iso_results has changed or params are missing
                 if params_F_nl_current is None and Ce_data_nl.size >= 2:
                     with st.spinner(_t("isotherm_nl_fitting_spinner", model_name="Freundlich")):
                         try:
@@ -467,7 +437,6 @@ def render():
 
                 temkin_params_nl_in_state_before_calc = st.session_state.get('temkin_params_nl')
                 recalc_temkin_nl = False
-                # Recalculate if iso_results has changed OR the temperature input has changed
                 if temkin_params_nl_in_state_before_calc is None and Ce_data_nl.size >=2: recalc_temkin_nl = True
                 elif isinstance(temkin_params_nl_in_state_before_calc, dict) and temkin_params_nl_in_state_before_calc.get('T_K_used') != temp_K_for_bT_nl and Ce_data_nl.size >=2 : recalc_temkin_nl = True
 
@@ -482,7 +451,7 @@ def render():
 
                             popt_T_nl, _ = curve_fit(temkin_model_nonlinear, Ce_data_nl, qe_data_nl,
                                                      p0=[B1_guess_nl_temkin, KT_guess_nl_temkin],
-                                                     bounds=([-np.inf, 1e-9], [np.inf, np.inf]), # KT must be > 0
+                                                     bounds=([-np.inf, 1e-9], [np.inf, np.inf]), 
                                                      maxfev=5000)
                             B1_nl, KT_nl = popt_T_nl
                             qe_pred_T_nl = temkin_model_nonlinear(Ce_data_nl, B1_nl, KT_nl)
@@ -512,7 +481,7 @@ def render():
                         fig_nl_fits.add_trace(go.Scatter(x=Ce_line_for_plot_nl, y=qe_temkin_fit_on_plot, mode='lines', name=_t("isotherm_nl_legend_fit", model_name="Temkin")))
 
 
-                if Ce_data_nl.size > 0 or Ce_line_for_plot_nl.size > 0 : # Only show plot if there's data or lines to plot
+                if Ce_data_nl.size > 0 or Ce_line_for_plot_nl.size > 0 : 
                     fig_nl_fits.update_layout(
                         title="Ajustements Non-Linéaires et Données Expérimentales",
                         xaxis_title="Ce (mg/L)", yaxis_title="qe (mg/g)",
@@ -571,10 +540,9 @@ def render():
             if params_nl_data_disp['Modèle']:
                 params_nl_df_disp = pd.DataFrame(params_nl_data_disp)
                 st.dataframe(params_nl_df_disp.set_index('Modèle'), use_container_width=True)
-                # Download button for Non-Linearized Parameters Table
                 csv_nl_params = convert_df_to_csv(params_nl_df_disp)
                 st.download_button(
-                    label=_t("isotherm_download_data_button") + " (Param. Non-Linéarisés)", # Modifying label slightly
+                    label=_t("isotherm_download_data_button") + " (Param. Non-Linéarisés)", 
                     data=csv_nl_params,
                     file_name="isotherm_params_nonlinear.csv",
                     mime="text/csv",
@@ -582,12 +550,10 @@ def render():
                 )
             else:
                 st.info("Paramètres non-linéaires non calculés ou erreur de calcul.")
-
-            # --- CORRECTLY PLACED AND ROBUST MODEL COMPARISON SECTION ---
             st.markdown("---")
             st.markdown("### Synthèse de Comparaison des Modèles / Model Comparison Summary")
                 
-            # Fetch all calculated parameters from session state, ensuring an empty dict if the key is None or missing
+            # Fetch all calculated parameters from session state
             params_L_lin = st.session_state.get('langmuir_params_lin') or {}
             params_F_lin = st.session_state.get('freundlich_params_lin') or {}
             params_T_lin = st.session_state.get('temkin_params_lin') or {}
@@ -634,7 +600,6 @@ def render():
                     ]
                 }
             summary_df = pd.DataFrame(summary_data)
-            # Drop rows where R² was not calculated, meaning the model was not run
             summary_df.dropna(subset=['R²'], inplace=True)
 
             if not summary_df.empty:
@@ -644,7 +609,6 @@ def render():
                     )
             else:
                     st.info("Aucun modèle n'a été calculé pour la comparaison.")
-            # --- END OF MOVED SECTION ---
 
         elif iso_results is not None and iso_results.empty:
              st.warning(_t("isotherm_warning_ce_qe_no_results"))
