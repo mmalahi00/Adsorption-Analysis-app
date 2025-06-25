@@ -7,19 +7,15 @@
 
 A comprehensive Streamlit web application designed for chemists, environmental scientists, and researchers to analyze adsorption experiment data. This tool automates the tedious and repetitive calculations and plotting involved in adsorption studies, allowing users to quickly process their data and visualize results.
 
-The app is fully internationalized, supporting both **English** and **French**.
-
 ## 🚀 Live Demo
 
 **Experience the application live at: [https://adsorption.streamlit.app/](https://adsorption.streamlit.app/)**
-
 
 ## ✨ Features
 
 This application provides a full suite of tools for analyzing different types of adsorption studies:
 
 #### General Features
-- **🌍 Multilingual Interface:** Switch between English and French seamlessly.
 - **⬆️ Data Upload:** Upload your experimental data directly via `.csv` or `.xlsx` files.
 - **✏️ Interactive Data Editor:** Manually enter or edit data directly in the application's sidebar.
 - **📊 Interactive Plots:** All graphs are generated using Plotly for an interactive experience (zoom, pan, inspect data points).
@@ -56,12 +52,11 @@ This application provides a full suite of tools for analyzing different types of
 
 ## 📖 How to Use the App
 
-1.  **Select Language:** Choose your preferred language from the sidebar.
-2.  **Enter Calibration Data:** In the sidebar, expand the "1. Calibration" section. Upload your data or enter it manually. The calibration parameters will be calculated automatically and used for all other analyses.
-3.  **Choose a Study:** Expand the section for the study you want to analyze (e.g., "2. Isotherm Study").
-4.  **Input Data:** Enter the fixed conditions (e.g., mass, volume) and the experimental data (either by uploading a file or using the data editor).
-5.  **Explore Results:** Navigate to the corresponding tab in the main window (e.g., "Isotherms") to view the calculated data, tables, and interactive plots.
-6.  **Download:** Use the download buttons to save your results and figures.
+1.  **Enter Calibration Data:** In the sidebar, expand the "1. Calibration" section. Upload your data or enter it manually. The calibration parameters will be calculated automatically and used for all other analyses.
+2.  **Choose a Study:** Expand the section for the study you want to analyze (e.g., "2. Isotherm Study").
+3.  **Input Data:** Enter the fixed conditions (e.g., mass, volume) and the experimental data (either by uploading a file or using the data editor).
+4.  **Explore Results:** Navigate to the corresponding tab in the main window (e.g., "Isotherms") to view the calculated data, tables, and interactive plots.
+5.  **Download:** Use the download buttons to save your results and figures.
 
 ## 📄 License
 
