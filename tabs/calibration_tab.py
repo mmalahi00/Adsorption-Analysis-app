@@ -4,10 +4,9 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import io
-from translations import _t 
 
 def render():
-    st.subheader(_t("calib_tab_subheader"))
+    st.subheader("Calibration Curve")
     calib_params = st.session_state.get('calibration_params')
     calib_data = st.session_state.get('calib_df_input')
 
@@ -22,7 +21,7 @@ def render():
                     y=calib_data['Absorbance'],
                     mode='markers',
                     marker=dict(color='blue', symbol='circle', size=8),
-                    name=_t("calib_tab_legend_exp")
+                    name="Experimental points"
                 ))
 
                 try:
@@ -41,7 +40,7 @@ def render():
                     fig.add_trace(go.Scatter(
                         x=x_line, y=y_line, mode='lines',
                         line=dict(color='red', width=1.5),
-                        name=_t("calib_tab_legend_reg")
+                        name="Linear regression"
                     ))
 
                     equation_text = f"y = {slope:.4f}x {intercept:+.4f}"
@@ -55,7 +54,7 @@ def render():
                     
                     y_max_data = calib_data['Absorbance'].max()
                     fig.update_layout(
-                        title=_t("calib_tab_plot_title"), 
+                        title="Absorbance vs. Concentration", 
                         xaxis_title="Concentration (mg/L)", 
                         yaxis_title="Absorbance (A)",      
                         plot_bgcolor='white',             
@@ -72,7 +71,7 @@ def render():
                     fig_styled.add_trace(go.Scatter(
                         x=calib_data['Concentration'], y=calib_data['Absorbance'],
                         mode='markers', marker=dict(symbol='square', color='black', size=10),
-                        name=_t("calib_tab_legend_exp")
+                        name="Experimental points"
                     ))
 
                     x_vals_dl = np.array([calib_data['Concentration'].min(), calib_data['Concentration'].max()])
@@ -80,13 +79,13 @@ def render():
                     y_vals_dl = slope * x_vals_dl + intercept
                     fig_styled.add_trace(go.Scatter(
                         x=x_vals_dl, y=y_vals_dl, mode='lines',
-                        line=dict(color='red', width=3), name=_t("calib_tab_legend_reg")
+                        line=dict(color='red', width=3), name="Linear regression"
                     ))
                     fig_styled.update_layout(
                         width=1000, height=800, plot_bgcolor='white', paper_bgcolor='white',
                         font=dict(family="Times New Roman", size=22, color="black"),
                         margin=dict(l=80, r=40, t=60, b=80),
-                        xaxis=dict(title=_t("calib_tab_styled_xaxis_label"), linecolor='black', mirror=True, ticks='outside', showline=True, showgrid=False, zeroline=False),
+                        xaxis=dict(title="Concentration (mg/L)", linecolor='black', mirror=True, ticks='outside', showline=True, showgrid=False, zeroline=False),
                         yaxis=dict(title="Absorbance (A)", linecolor='black', mirror=True, ticks='outside', showline=True, showgrid=False, zeroline=False),
                         showlegend=False
                     )
@@ -99,26 +98,26 @@ def render():
                     fig_styled.write_image(img_buffer, format="png", width=1000, height=800, scale=2)
                     img_buffer.seek(0)
                     st.download_button(
-                        label=_t("download_png_button"), data=img_buffer,
-                        file_name=_t("calib_tab_download_styled_png_filename"), mime="image/png"
+                        label="📥 Download Figure (PNG)", data=img_buffer,
+                        file_name="calibration_styled.png", mime="image/png"
                     )
                 except Exception as e_plot:
-                    st.warning(_t("calib_plot_error_warning", e_plot=e_plot))
+                    st.warning(f"Error creating calibration plot: {e_plot}")
 
             with col_param:
-                st.markdown(f"##### {_t('calib_tab_params_header')}")
-                st.metric(_t("calib_tab_slope_metric"), f"{calib_params['slope']:.4f}")
+                st.markdown("##### Calibration Parameters")
+                st.metric("Slope (A / (mg/L))", f"{calib_params['slope']:.4f}")
                 st.metric("Intercept (A)", f"{calib_params['intercept']:.4f}")
-                st.metric(_t("calib_tab_r2_metric"), f"{calib_params['r_squared']:.4f}")
+                st.metric("Coefficient of Determination (R²)", f"{calib_params['r_squared']:.4f}")
         
         elif len(calib_data) < 2:
-             st.warning(_t("calib_tab_min_2_points_warning"))
+             st.warning("At least 2 valid data points are required for calibration.")
         else: 
-             st.warning(_t("calib_tab_params_not_calc_warning"), icon="⚠️")
+             st.warning("Calibration parameters could not be calculated. Check data.", icon="⚠️")
              fig_raw = px.scatter(calib_data, x='Concentration', y='Absorbance',
-                                 title=_t("calib_tab_raw_data_plot_title"), 
+                                 title="Raw Calibration Data", 
                                  labels={'Concentration': 'Concentration', 'Absorbance': 'Absorbance'})
              fig_raw.update_layout(template="simple_white")
              st.plotly_chart(fig_raw, use_container_width=True)
     else:
-        st.info(_t("calib_tab_enter_data_info"))
+        st.info("Enter valid calibration data in the sidebar.")
