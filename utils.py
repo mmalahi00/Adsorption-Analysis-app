@@ -1,14 +1,13 @@
 # utils.py
 import streamlit as st
 import pandas as pd
-from translations import _t 
 
 @st.cache_data
 def convert_df_to_csv(df):
     return df.to_csv(index=False, sep=';').encode('utf-8')
 
-# --- Fonction de Validation Générique pour Data Editor ---
-def validate_data_editor(edited_df, required_cols, success_message_key="validate_n_valid_points_success", error_message_key="validate_error_message"):
+# --- Generic Validation Function for Data Editor ---
+def validate_data_editor(edited_df, required_cols):
     """
     Validates data from Streamlit's data_editor.
     Converts required columns to numeric, handles NaNs, and checks for positive mass/volume if present.
@@ -22,36 +21,36 @@ def validate_data_editor(edited_df, required_cols, success_message_key="validate
             all_cols_present = all(col in temp_df.columns for col in required_cols)
             if not all_cols_present:
                  missing_cols = [col for col in required_cols if col not in temp_df.columns]
-                 st.sidebar.warning(_t("validate_missing_cols_warning", missing_cols=', '.join(missing_cols)), icon="⚠️")
+                 st.sidebar.warning(f"Missing required columns: {', '.join(missing_cols)}. Please add them.", icon="⚠️")
                  return None
 
             for col in required_cols:
                  if col in temp_df.columns: 
                     temp_df[col] = pd.to_numeric(temp_df[col], errors='coerce')
                  else: 
-                     st.sidebar.error(_t("validate_col_not_found_error", col=col))
+                     st.sidebar.error(f"Required column '{col}' not found during validation.")
                      return None
             
             temp_df.dropna(subset=required_cols, inplace=True)
 
             if 'Masse_Adsorbant_g' in temp_df.columns:
                  if (temp_df['Masse_Adsorbant_g'] <= 0).any():
-                     st.sidebar.warning(_t("validate_mass_non_positive_warning"), icon="⚠️")
+                     st.sidebar.warning("Column 'Masse_Adsorbant_g' contains non-positive values. These rows will be ignored.", icon="⚠️")
                      temp_df = temp_df[temp_df['Masse_Adsorbant_g'] > 0]
             if 'Volume_L' in temp_df.columns:
                 if (temp_df['Volume_L'] <= 0).any():
-                    st.sidebar.warning(_t("validate_volume_non_positive_warning"), icon="⚠️")
+                    st.sidebar.warning("Column 'Volume_L' contains non-positive values. These rows will be ignored.", icon="⚠️")
                     temp_df = temp_df[temp_df['Volume_L'] > 0]
             
             if not temp_df.empty:
                 validated_df = temp_df
-                st.sidebar.success(_t(success_message_key, count=len(validated_df)))
+                st.sidebar.success(f"{len(validated_df)} valid points.")
             else:
-                st.sidebar.warning(_t("validate_no_valid_points_warning"))
+                st.sidebar.warning("No valid points after numerical conversion and filtering. Check your inputs.")
         
         except Exception as e:
-            st.sidebar.error(_t(error_message_key, error=e))
+            st.sidebar.error(f"Validation error: {e}")
     else:
-        st.sidebar.info(_t("validate_enter_data_info"))
+        st.sidebar.info("Enter at least one data point.")
         
     return validated_df
