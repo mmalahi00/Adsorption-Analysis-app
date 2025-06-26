@@ -7,7 +7,7 @@ from tabs import calibration_tab, isotherm_tab, kinetic_tab, ph_effect_tab, dosa
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="Detailed Adsorption Analysis",
+    page_title="AdsorbLab",
     page_icon="🔬",
     layout="wide")
 
