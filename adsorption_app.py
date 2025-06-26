@@ -12,7 +12,7 @@ st.set_page_config(
     layout="wide")
 
 # --- Main Title and Subtitle ---
-st.title("🔬 Detailed Adsorption Analysis")
+st.title("🔬 AdsorbLab")
 st.markdown("Enter your data by study type in the sidebar and explore the results in the tabs.")
 st.markdown("---")
 
