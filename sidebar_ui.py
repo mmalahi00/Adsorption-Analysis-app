@@ -2,14 +2,11 @@
 import streamlit as st
 import pandas as pd
 from utils import validate_data_editor
+from utils import standardize_column_name
 
 # --- Helper Functions for UI Rendering ---
 
 def _read_uploaded_file(uploaded_file, required_cols):
-    """
-    Reads a CSV or XLSX file, checks for required columns, and returns a DataFrame.
-    Displays errors/warnings in the sidebar.
-    """
     if uploaded_file is None:
         return None
     try:
@@ -17,14 +14,20 @@ def _read_uploaded_file(uploaded_file, required_cols):
             df = pd.read_csv(uploaded_file, sep=';')
         else:
             df = pd.read_excel(uploaded_file)
-        
-        # Check for required columns
+
+        col_map = {col: standardize_column_name(col) for col in df.columns}
+        df.rename(columns=col_map, inplace=True)
+
         if all(col in df.columns for col in required_cols):
             return df[required_cols]
         else:
             missing = [col for col in required_cols if col not in df.columns]
             st.sidebar.warning(f"Uploaded file is missing columns: {', '.join(missing)}")
             return None
+
+    except Exception as e:
+        st.sidebar.error(f"Error reading file: {e}")
+        return None
             
     except Exception as e:
         st.sidebar.error(f"Error reading file: {e}")
@@ -157,98 +160,98 @@ def render_sidebar_content():
         'study_name': "Isotherm",
         'expander_title': "2. Isotherm Study",
         'intro_text': "Fixed conditions for this isotherm:",
-        'editor_intro': "Enter C0 (variable) vs. Absorbance Eq.:",
+        'editor_intro': "Enter C0 vs. Absorbance Eq.:",
         'key_prefix': "iso_",
         'state_key': 'isotherm_input',
-        'required_cols': ['Concentration_Initiale_C0', 'Absorbance_Equilibre'],
+        'required_cols': ['Concentration', 'Absorbance'],
         'fixed_params': {
             'm': {'label': 'Ads. Mass (g)', 'value': 0.02, 'help': 'Mass of adsorbent used', 'min_value': 1e-9},
             'V': {'label': 'Sol. Volume (L)', 'value': 0.05, 'help': 'Volume of adsorbate solution', 'min_value': 1e-6}
         },
         'column_config': {
-            "Concentration_Initiale_C0": st.column_config.NumberColumn("C0 (mg/L)", format="%.4f", required=True, help="Initial adsorbate concentration"),
-            "Absorbance_Equilibre": st.column_config.NumberColumn("Abs Eq.", format="%.4f", required=True, help="Measured absorbance at equilibrium")
-        },
+                            "Concentration": st.column_config.NumberColumn("C₀ (mg/L)", format="%.4f", required=True, help="Initial adsorbate concentration"),
+                            "Absorbance": st.column_config.NumberColumn("Abs Eq.", format="%.4f", required=True, help="Measured absorbance at equilibrium")
+                         },
         'dependent_keys': ['isotherm_results', 'langmuir_params_lin', 'freundlich_params_lin', 'temkin_params_lin', 'langmuir_params_nl', 'freundlich_params_nl', 'temkin_params_nl']
     }
     
     kinetic_config = {
         'study_name': "Kinetic",
-        'expander_title': "5. Kinetic Study",
+        'expander_title': "3. Kinetic Study",
         'intro_text': "Fixed conditions for ONE kinetic experiment:",
-        'editor_intro': "Enter Time (variable) vs. Absorbance(t):",
+        'editor_intro': "Enter Time vs. Absorbance(t):",
         'key_prefix': "kin_",
         'state_key': 'kinetic_input',
-        'required_cols': ['Temps_min', 'Absorbance_t'],
-        'sort_by': 'Temps_min', 
+        'required_cols': ['Time', 'Absorbance'],
+        'sort_by': 'Time', 
         'fixed_params': {
             'C0': {'label': 'C0 (mg/L)', 'value': 10.0, 'help': 'Constant initial concentration', 'min_value': 0.0},
             'm': {'label': 'Ads. Mass (g)', 'value': 0.02, 'help': 'Constant adsorbent mass', 'min_value': 1e-9},
             'V': {'label': 'Sol. Volume (L)', 'value': 0.05, 'help': 'Constant solution volume', 'min_value': 1e-6}
         },
         'column_config': {
-            "Temps_min": st.column_config.NumberColumn("Time (min)", format="%.2f", required=True, min_value=0, help="Time elapsed since start"),
-            "Absorbance_t": st.column_config.NumberColumn("Abs(t)", format="%.4f", required=True, help="Measured absorbance at time t")
-        },
+                    "Time": st.column_config.NumberColumn("Time (min)", format="%.2f", required=True, min_value=0, help="Time elapsed since start"),
+                    "Absorbance": st.column_config.NumberColumn("Abs(t)", format="%.4f", required=True, help="Measured absorbance at time t")
+                         },
         'dependent_keys': ['kinetic_results_df', 'pfo_params_nonlinear', 'pso_params_nonlinear', 'ipd_params_list']
     }
 
     dosage_config = {
         'study_name': "Dosage Effect",
-        'expander_title': "6. Dosage Study",
+        'expander_title': "4. Dosage Study",
         'intro_text': "Fixed conditions for mass study:",
         'editor_intro': "Enter Ads. Mass vs. Absorbance Eq.:",
         'key_prefix': "dos_",
         'state_key': 'dosage_input',
-        'required_cols': ['Masse_Adsorbant_g', 'Absorbance_Equilibre'],
+        'required_cols': ['Mass', 'Absorbance'],
         'fixed_params': {
             'C0': {'label': 'C0 (mg/L)', 'value': 20.0, 'help': 'Constant initial concentration', 'min_value': 0.0},
             'V': {'label': 'Sol. Volume (L)', 'value': 0.05, 'help': 'Constant solution volume', 'min_value': 1e-6}
         },
         'column_config': {
-            "Masse_Adsorbant_g": st.column_config.NumberColumn("m (g)", format="%.4f", required=True, min_value=1e-9, help="Variable mass of adsorbent used"),
-            "Absorbance_Equilibre": st.column_config.NumberColumn("Abs Eq.", format="%.4f", required=True, help="Measured absorbance at equilibrium")
-        },
+            "Mass": st.column_config.NumberColumn("Mass (g)", format="%.4f", required=True, help="Mass of adsorbent used"),
+            "Absorbance": st.column_config.NumberColumn("Absorbance", format="%.4f", required=True, help="Measured absorbance"),
+                        },
         'dependent_keys': ['dosage_results']
     }
 
     ph_config = {
         'study_name': "pH Effect",
-        'expander_title': "3. pH Effect Study",
+        'expander_title': "5. pH Effect Study",
         'intro_text': "Fixed conditions for pH study:",
-        'editor_intro': "Enter pH (variable) vs. Absorbance Eq.:",
+        'editor_intro': "Enter pH vs. Absorbance Eq.:",
         'key_prefix': "ph_",
         'state_key': 'ph_effect_input',
-        'required_cols': ['pH', 'Absorbance_Equilibre'],
+        'required_cols': ['pH', 'Absorbance'],
         'fixed_params': {
             'C0': {'label': 'C0 (mg/L)', 'value': 20.0, 'help': 'Constant initial concentration', 'min_value': 0.0},
             'm': {'label': 'Ads. Mass (g)', 'value': 0.02, 'help': 'Constant adsorbent mass', 'min_value': 1e-9},
             'V': {'label': 'Sol. Volume (L)', 'value': 0.05, 'help': 'Constant solution volume', 'min_value': 1e-6}
         },
         'column_config': {
-            "pH": st.column_config.NumberColumn("pH", format="%.2f", required=True, help="Variable pH of the experiment"),
-            "Absorbance_Equilibre": st.column_config.NumberColumn("Abs Eq.", format="%.4f", required=True, help="Measured absorbance at equilibrium")
-        },
+            "pH": st.column_config.NumberColumn("pH", format="%.2f", required=True, help="pH of solution"),
+            "Absorbance": st.column_config.NumberColumn("Absorbance", format="%.4f", required=True, help="Measured absorbance"),
+                    },
         'dependent_keys': ['ph_effect_results']
     }
 
     temp_config = {
         'study_name': "Temperature Effect",
-        'expander_title': "4. Temperature Effect Study",
+        'expander_title': "6. Temperature Effect Study",
         'intro_text': "Fixed conditions for T° study:",
-        'editor_intro': "Enter T° (variable) vs. Absorbance Eq.:",
+        'editor_intro': "Enter T° vs. Absorbance Eq.:",
         'key_prefix': "temp_",
         'state_key': 'temp_effect_input',
-        'required_cols': ['Temperature_C', 'Absorbance_Equilibre'],
+        'required_cols': ['Temperature', 'Absorbance'],
         'fixed_params': {
             'C0': {'label': 'C0 (mg/L)', 'value': 50.0, 'help': 'Constant initial concentration', 'min_value': 0.0},
             'm': {'label': 'Ads. Mass (g)', 'value': 0.02, 'help': 'Constant adsorbent mass', 'min_value': 1e-9},
             'V': {'label': 'Sol. Volume (L)', 'value': 0.05, 'help': 'Constant solution volume', 'min_value': 1e-6}
         },
         'column_config': {
-            "Temperature_C": st.column_config.NumberColumn("T (°C)", format="%.1f", required=True, help="Variable temperature of the experiment"),
-            "Absorbance_Equilibre": st.column_config.NumberColumn("Abs Eq.", format="%.4f", required=True, help="Measured absorbance at equilibrium")
-        },
+            "Temperature": st.column_config.NumberColumn("T (°C)", format="%.1f", required=True, help="Temperature of experiment"),
+            "Absorbance": st.column_config.NumberColumn("Absorbance", format="%.4f", required=True, help="Measured absorbance"),
+                        },
         'dependent_keys': ['temp_effect_results', 'thermo_params']
     }
 

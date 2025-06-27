@@ -19,15 +19,19 @@ st.markdown("---")
 # --- Session State Initialization for Data and Parameters ---
 default_keys = {
     'calib_df_input': None, 'calibration_params': None, 'previous_calib_df': None,
+
     'isotherm_input': None, 'isotherm_results': None,
-    'langmuir_params_lin': None, 'freundlich_params_lin': None,
-    'ph_effect_input': None, 'ph_effect_results': None,
-    'temp_effect_input': None, 'temp_effect_results': None, 'thermo_params': None,
+    'langmuir_params_lin': None, 'freundlich_params_lin': None, 'temkin_params_lin': None,
+    'langmuir_params_nl': None, 'freundlich_params_nl': None, 'temkin_params_nl': None,
+
     'kinetic_input': None, 'kinetic_results_df': None,
     'pfo_params_nonlinear': None, 
     'pso_params_nonlinear': None, 
     'ipd_params_list': [],
+
     'dosage_input': None, 'dosage_results': None,
+    'ph_effect_input': None, 'ph_effect_results': None,
+    'temp_effect_input': None, 'temp_effect_results': None, 'thermo_params': None,
 }
 for key, default_value in default_keys.items():
     if key not in st.session_state:
@@ -44,6 +48,17 @@ old_calib_df = st.session_state.get('previous_calib_df')
 
 if new_calib_df is not None and len(new_calib_df) >= 2:
     if old_calib_df is None or not new_calib_df.equals(old_calib_df):
+        keys_to_reset_on_calib_change = [
+            'isotherm_results', 'langmuir_params_lin', 'freundlich_params_lin', 'temkin_params_lin', 
+            'langmuir_params_nl', 'freundlich_params_nl', 'temkin_params_nl',
+            'kinetic_results_df', 'pfo_params_nonlinear', 'pso_params_nonlinear', 'ipd_params_list',
+            'dosage_results',
+            'ph_effect_results',
+            'temp_effect_results', 'thermo_params'
+        ]
+        for key in keys_to_reset_on_calib_change:
+            if key in st.session_state:
+                st.session_state[key] = [] if isinstance(default_keys[key], list) else None
         try:
             slope, intercept, r_value, _, _ = linregress(new_calib_df['Concentration'], new_calib_df['Absorbance'])
             if abs(slope) > 1e-9: # Avoid near-zero slope issues

@@ -42,4 +42,5 @@ def temkin_model_nonlinear(Ce, B1, K_T):
     """
     Ce_safe = np.maximum(Ce, 1e-9) 
     K_T = max(K_T, 1e-9) 
-    return B1 * np.log(K_T * Ce_safe)
+    value = B1 * np.log(K_T * Ce_safe)
+    return np.maximum(0, value)

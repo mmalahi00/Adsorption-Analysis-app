@@ -1,10 +1,42 @@
 # utils.py
 import streamlit as st
 import pandas as pd
+from difflib import get_close_matches
+
 
 @st.cache_data
 def convert_df_to_csv(df):
     return df.to_csv(index=False, sep=';').encode('utf-8')
+
+COLUMN_SYNONYMS = {
+    "Concentration": ["conc", "c", "c0", "concentrationinitiale", "concentrationinitialec0", "concentration_initiale_c0", "concentration_initiale"],
+    "Absorbance": ["abs", "absorb", "absorbance", "a", "abseq", "absorbt", "absorbancet", "absorbanceequilibre", "absorbance_equilibre", "abs_eq", "abst", "abs_t"],
+    "Time": ["time", "t", "temps", "tempsmin"],
+    "Mass": ["m", "mass", "masse", "masseadsorbant", "masseadsorbantg", "masse_adsorbant_g", "m_g"],
+    "Volume": ["v", "volume", "vol", "solvolume", "solvolumel"],
+    "pH": ["ph", "Ph", "PH"],
+    "Temperature": ["temp", "temperature", "temperaturec", "temperature_c", "t°", "T", "t", "Temp"]
+}
+
+def standardize_column_name(col_name):
+    """
+    Try to standardize a column name by matching it to known synonyms using direct and fuzzy matching.
+    """
+    col_name_clean = col_name.strip().lower().replace(" ", "").replace("_", "")
+    
+    for standard, variants in COLUMN_SYNONYMS.items():
+        if col_name_clean in [v.lower().replace(" ", "") for v in variants]:
+            return standard
+
+    # Fuzzy fallback
+    all_variants = sum(COLUMN_SYNONYMS.values(), [])
+    match = get_close_matches(col_name_clean, [v.lower().replace(" ", "") for v in all_variants], n=1, cutoff=0.8)
+    if match:
+        for std, variants in COLUMN_SYNONYMS.items():
+            if match[0] in [v.lower().replace(" ", "") for v in variants]:
+                return std
+
+    return col_name
 
 # --- Generic Validation Function for Data Editor ---
 def validate_data_editor(edited_df, required_cols):
