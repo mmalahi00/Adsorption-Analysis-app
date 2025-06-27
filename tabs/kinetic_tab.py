@@ -27,20 +27,20 @@ def render():
                 params_kin = kinetic_input['params']
                 C0_k, V_k, m_k = params_kin['C0'], params_kin['V'], params_kin['m']
 
-                if 'Absorbance_t' in df_kin.columns and m_k > 0 and V_k > 0:
+                if 'Absorbance' in df_kin.columns and m_k > 0 and V_k > 0:
                     try:
                         if abs(calib_params['slope']) < 1e-9:
                             st.error("Error calculating Ct/qt: Calibration slope is zero or near zero.")
                             st.session_state['kinetic_results_df'] = None
                             return 
                         
-                        df_kin['Ct'] = (df_kin['Absorbance_t'] - calib_params['intercept']) / calib_params['slope']
+                        df_kin['Ct'] = (df_kin['Absorbance'] - calib_params['intercept']) / calib_params['slope']
                         df_kin['Ct'] = df_kin['Ct'].clip(lower=0)
                         df_kin['qt'] = (C0_k - df_kin['Ct']) * V_k / m_k
                         df_kin['qt'] = df_kin['qt'].clip(lower=0)
-                        df_kin['sqrt_t'] = np.sqrt(df_kin['Temps_min'])
+                        df_kin['sqrt_t'] = np.sqrt(df_kin['Time'])
 
-                        st.session_state['kinetic_results_df'] = df_kin[['Temps_min', 'Absorbance_t', 'Ct', 'qt', 'sqrt_t']].copy() 
+                        st.session_state['kinetic_results_df'] = df_kin[['Time', 'Absorbance', 'Ct', 'qt', 'sqrt_t']].copy() 
                         st.success("qt calculation for kinetics complete.")
                     except ZeroDivisionError:
                         if 'kinetic_results_df' not in st.session_state or st.session_state.get('kinetic_results_df') is not None:
@@ -49,8 +49,8 @@ def render():
                     except Exception as e_qt:
                         st.error(f"Error calculating qt for kinetics: {e_qt}")
                         st.session_state['kinetic_results_df'] = None
-                elif not ('Absorbance_t' in df_kin.columns):
-                     st.error("'Absorbance_t' column missing in kinetic data.")
+                elif not ('Absorbance' in df_kin.columns):
+                     st.error("'Absorbance' column missing in kinetic data.")
                      st.session_state['kinetic_results_df'] = None
                 else:
                      st.error("Adsorbent mass and volume must be positive for qt calculation.")
@@ -70,7 +70,7 @@ def render():
 
             fig_qt_vs_t_combined = go.Figure()
             fig_qt_vs_t_combined.add_trace(go.Scatter(
-                x=kinetic_results['Temps_min'], 
+                x=kinetic_results['Time'], 
                 y=kinetic_results['qt'], 
                 mode='markers', 
                 name="Exp. Data",
@@ -78,7 +78,7 @@ def render():
             ))
             
             if len(kinetic_results) >= 3:
-                t_data_kin = kinetic_results['Temps_min'].values
+                t_data_kin = kinetic_results['Time'].values
                 qt_data_kin = kinetic_results['qt'].values
                 qe_exp_kin = qt_data_kin[-1] if len(qt_data_kin) > 0 else np.nan
 
@@ -97,6 +97,7 @@ def render():
                          except Exception as e_pfo_nl_fit:
                              st.warning(f"PFO parameter calculation (non-linear) failed: {e_pfo_nl_fit}")
                              st.session_state['pfo_params_nonlinear'] = {'qe_PFO_nl': np.nan, 'k1_nl': np.nan, 'R2_PFO_nl': np.nan}
+                             pfo_params_nl = st.session_state.get('pfo_params_nonlinear')
                              pfo_params_nl = st.session_state['pfo_params_nonlinear']
                 
                 if pfo_params_nl and not np.isnan(pfo_params_nl.get('qe_PFO_nl', np.nan)):
@@ -183,11 +184,11 @@ def render():
                 st.markdown("###### Linearized PFO: ln(qe-qt) vs t")
                 if pfo_params_nl and not np.isnan(pfo_params_nl.get('qe_PFO_nl', np.nan)):
                     qe_calc_pfo_for_lin = pfo_params_nl['qe_PFO_nl']
-                    df_pfo_lin = kinetic_results[(kinetic_results['qt'] < qe_calc_pfo_for_lin - 1e-9) & (kinetic_results['qt'] >= 0) & (kinetic_results['Temps_min'] > 1e-9)].copy()
+                    df_pfo_lin = kinetic_results[(kinetic_results['qt'] < qe_calc_pfo_for_lin - 1e-9) & (kinetic_results['qt'] >= 0) & (kinetic_results['Time'] > 1e-9)].copy()
                     if len(df_pfo_lin) >= 2:
                         try:
                             df_pfo_lin['ln_qe_qt'] = np.log(qe_calc_pfo_for_lin - df_pfo_lin['qt'])
-                            t_pfo_lin, y_pfo_lin = df_pfo_lin['Temps_min'], df_pfo_lin['ln_qe_qt']
+                            t_pfo_lin, y_pfo_lin = df_pfo_lin['Time'], df_pfo_lin['ln_qe_qt']
                             if t_pfo_lin.nunique() < 2 or y_pfo_lin.nunique() < 2 :
                                  st.warning("Insufficient variation for linearized PFO regression.")
                                  raise ValueError("Insufficient variation for PFO linregress")
@@ -195,7 +196,7 @@ def render():
                             r2_pfo_lin = r_val_pfo**2
                             k1_lin_val = -slope_pfo_lin
 
-                            fig_pfo_lin_plot = px.scatter(df_pfo_lin, x='Temps_min', y='ln_qe_qt', title=f"Linearized PFO (R²={r2_pfo_lin:.4f})", labels={'Temps_min': "Time (min)", 'ln_qe_qt': 'ln(qe - qt)'})
+                            fig_pfo_lin_plot = px.scatter(df_pfo_lin, x='Time', y='ln_qe_qt', title=f"Linearized PFO (R²={r2_pfo_lin:.4f})", labels={'Time': "Time (min)", 'ln_qe_qt': 'ln(qe - qt)'})
                             t_min_plot_pfo_lin, t_max_plot_pfo_lin = t_pfo_lin.min(), t_pfo_lin.max(); t_range_plot_pfo_lin = max(1.0, t_max_plot_pfo_lin - t_min_plot_pfo_lin)
                             t_line_for_pfo_lin = np.linspace(t_min_plot_pfo_lin - 0.05 * t_range_plot_pfo_lin, t_max_plot_pfo_lin + 0.05 * t_range_plot_pfo_lin, 50)
                             t_line_for_pfo_lin = np.maximum(0, t_line_for_pfo_lin) 
@@ -211,7 +212,9 @@ def render():
                                 fig_pfo_styled_lin.add_trace(go.Scatter(x=t_pfo_lin, y=y_pfo_lin, mode='markers', marker=dict(symbol='square', color='black', size=10), name="Experimental data"))
                                 fig_pfo_styled_lin.add_trace(go.Scatter(x=x_vals_pfo_dl_lin, y=y_vals_pfo_dl_lin, mode='lines', line=dict(color='red', width=3), name="Linear regression"))
                                 fig_pfo_styled_lin.update_layout(width=1000,height=800,plot_bgcolor='white',paper_bgcolor='white',font=dict(family="Times New Roman", size=22, color="black"),margin=dict(l=80, r=40, t=60, b=80),xaxis=dict(title="Time (min)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),yaxis=dict(title="ln(qe - qt)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),showlegend=False)
-                                fig_pfo_styled_lin.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"y = {slope_pfo_lin:.4f}x + {intercept_pfo_lin:.4f}<br>R² = {r2_pfo_lin:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
+                                operator_pfo = "-" if intercept_pfo_lin < 0 else "+"
+                                equation_text_pfo = f"y = {slope_pfo_lin:.4f}x {operator_pfo} {abs(intercept_pfo_lin):.4f}"
+                                fig_pfo_styled_lin.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"{equation_text_pfo}<br>R² = {r2_pfo_lin:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
                                 pfo_img_buffer_lin = io.BytesIO(); fig_pfo_styled_lin.write_image(pfo_img_buffer_lin, format="png", width=1000, height=800, scale=2); pfo_img_buffer_lin.seek(0)
                                 st.download_button(label="📥 Download Figure (PNG)", data=pfo_img_buffer_lin, file_name="pfo_linear.png", mime="image/png", key="dl_pfo_lin_fig_kin_tab_lin")
                             except Exception as e: st.warning(f"Error exporting linearized PFO: {e}")
@@ -226,11 +229,11 @@ def render():
 
                 # PSO Linearized
                 st.markdown("###### Linearized PSO: t/qt vs t")
-                df_pso_lin_sec = kinetic_results[(kinetic_results['Temps_min'] > 1e-9) & (kinetic_results['qt'] > 1e-9)].copy()
+                df_pso_lin_sec = kinetic_results[(kinetic_results['Time'] > 1e-9) & (kinetic_results['qt'] > 1e-9)].copy()
                 if len(df_pso_lin_sec) >= 2:
                     try:
-                        df_pso_lin_sec['t_div_qt'] = df_pso_lin_sec['Temps_min'] / df_pso_lin_sec['qt']
-                        t_pso_lin_sec, y_pso_lin_sec = df_pso_lin_sec['Temps_min'], df_pso_lin_sec['t_div_qt']
+                        df_pso_lin_sec['t_div_qt'] = df_pso_lin_sec['Time'] / df_pso_lin_sec['qt']
+                        t_pso_lin_sec, y_pso_lin_sec = df_pso_lin_sec['Time'], df_pso_lin_sec['t_div_qt']
                         if t_pso_lin_sec.nunique() < 2 or y_pso_lin_sec.nunique() < 2 :
                             st.warning("Insufficient variation for linearized PSO regression.")
                             raise ValueError("Insufficient variation for PSO linregress")
@@ -239,7 +242,7 @@ def render():
                         qe_lin_val_sec = 1 / slope_pso_lin_sec if abs(slope_pso_lin_sec) > 1e-12 else np.nan
                         k2_lin_val_sec = slope_pso_lin_sec**2 / intercept_pso_lin_sec if abs(intercept_pso_lin_sec) > 1e-12 and not np.isnan(qe_lin_val_sec) else np.nan
                         
-                        fig_pso_lin_plot_sec = px.scatter(df_pso_lin_sec, x='Temps_min', y='t_div_qt', title=f"Linearized PSO (R²={r2_pso_lin_val_sec:.4f})", labels={'Temps_min': "Time (min)", 't_div_qt': 't / qt (min·g/mg)'})
+                        fig_pso_lin_plot_sec = px.scatter(df_pso_lin_sec, x='Time', y='t_div_qt', title=f"Linearized PSO (R²={r2_pso_lin_val_sec:.4f})", labels={'Time': "Time (min)", 't_div_qt': 't / qt (min·g/mg)'})
                         t_min_plot_pso_lin_sec, t_max_plot_pso_lin_sec = t_pso_lin_sec.min(), t_pso_lin_sec.max(); t_range_plot_pso_lin_sec = max(1.0, t_max_plot_pso_lin_sec - t_min_plot_pso_lin_sec)
                         t_line_for_pso_lin_sec = np.linspace(t_min_plot_pso_lin_sec - 0.05 * t_range_plot_pso_lin_sec, t_max_plot_pso_lin_sec + 0.05 * t_range_plot_pso_lin_sec, 50)
                         t_line_for_pso_lin_sec = np.maximum(0, t_line_for_pso_lin_sec)
@@ -255,7 +258,9 @@ def render():
                             fig_pso_styled_lin_sec.add_trace(go.Scatter(x=t_pso_lin_sec, y=y_pso_lin_sec, mode='markers', marker=dict(symbol='square', color='black', size=10), name="Experimental data"))
                             fig_pso_styled_lin_sec.add_trace(go.Scatter(x=x_vals_pso_dl_lin_sec, y=y_vals_pso_dl_lin_sec, mode='lines', line=dict(color='red', width=3), name="Linear regression"))
                             fig_pso_styled_lin_sec.update_layout(width=1000,height=800,plot_bgcolor='white',paper_bgcolor='white',font=dict(family="Times New Roman", size=22, color="black"),margin=dict(l=80, r=40, t=60, b=80),xaxis=dict(title="Time (min)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),yaxis=dict(title="t / qt (min·g/mg)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),showlegend=False)
-                            fig_pso_styled_lin_sec.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"y = {slope_pso_lin_sec:.4f}x + {intercept_pso_lin_sec:.4f}<br>R² = {r2_pso_lin_val_sec:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
+                            operator_pso = "-" if intercept_pso_lin_sec < 0 else "+"
+                            equation_text_pso = f"y = {slope_pso_lin_sec:.4f}x {operator_pso} {abs(intercept_pso_lin_sec):.4f}"
+                            fig_pso_styled_lin_sec.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"{equation_text_pso}<br>R² = {r2_pso_lin_val_sec:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
                             pso_img_buffer_lin_sec = io.BytesIO(); fig_pso_styled_lin_sec.write_image(pso_img_buffer_lin_sec, format="png", width=1000, height=800, scale=2); pso_img_buffer_lin_sec.seek(0)
                             st.download_button(label="📥 Download Figure (PNG)", data=pso_img_buffer_lin_sec, file_name="pso_linear.png", mime="image/png", key="dl_pso_lin_fig_kin_tab_lin")
                         except Exception as e_pso_export: st.warning(f"Error exporting linearized PSO: {e_pso_export}")
@@ -269,7 +274,7 @@ def render():
                 st.subheader("Intraparticle Diffusion (IPD)")
                 if not ipd_params_list and not kinetic_results.empty:
                      with st.spinner("Intraparticle Diffusion (IPD) Analysis..."):
-                         ipd_df_calc_sec = kinetic_results[kinetic_results['Temps_min'] > 1e-9].copy()
+                         ipd_df_calc_sec = kinetic_results[kinetic_results['Time'] > 1e-9].copy()
                          if len(ipd_df_calc_sec) >= 2:
                              try:
                                  if ipd_df_calc_sec['sqrt_t'].nunique() < 2 or ipd_df_calc_sec['qt'].nunique() < 2:
@@ -301,7 +306,7 @@ def render():
                             st.caption(f"IPD Parameters (global): k_id = {ipd_param_disp_sec.get('k_id', np.nan):.4f} mg·g⁻¹·min⁻⁰⁵, C = {ipd_param_disp_sec.get('C_ipd', np.nan):.3f} mg·g⁻¹, R² = {ipd_param_disp_sec.get('R2_IPD', np.nan):.4f}")
                             st.caption("If the line does not pass through the origin (C ≠ 0), intraparticle diffusion is not the sole rate-limiting step.")
                             try:
-                                ipd_df_dl_lin_sec = kinetic_results[(kinetic_results['Temps_min'] > 0)].copy()
+                                ipd_df_dl_lin_sec = kinetic_results[(kinetic_results['Time'] > 0)].copy()
                                 fig_ipd_styled_lin_sec = go.Figure() 
                                 fig_ipd_styled_lin_sec.add_trace(go.Scatter(x=ipd_df_dl_lin_sec['sqrt_t'], y=ipd_df_dl_lin_sec['qt'], mode='markers', marker=dict(symbol='square', color='black', size=10), name="Experimental data"))
                                 if ipd_params_list and not np.isnan(ipd_params_list[0]['k_id']): 
@@ -309,7 +314,9 @@ def render():
                                     x_line_ipd_dl_lin_sec = np.linspace(ipd_df_dl_lin_sec['sqrt_t'].min(), ipd_df_dl_lin_sec['sqrt_t'].max(), 100)
                                     y_line_ipd_dl_lin_sec = slope_ipd_dl_lin_sec * x_line_ipd_dl_lin_sec + intercept_ipd_dl_lin_sec
                                     fig_ipd_styled_lin_sec.add_trace(go.Scatter(x=x_line_ipd_dl_lin_sec, y=y_line_ipd_dl_lin_sec, mode='lines', line=dict(color='red', width=3), name="Linear regression"))
-                                    fig_ipd_styled_lin_sec.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"y = {slope_ipd_dl_lin_sec:.4f}x + {intercept_ipd_dl_lin_sec:.4f}<br>R² = {r2_ipd_dl_lin_sec:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
+                                    operator_ipd = "-" if intercept_ipd_dl_lin_sec < 0 else "+"
+                                    equation_text_ipd = f"y = {slope_ipd_dl_lin_sec:.4f}x {operator_ipd} {abs(intercept_ipd_dl_lin_sec):.4f}"
+                                    fig_ipd_styled_lin_sec.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"{equation_text_ipd}<br>R² = {r2_ipd_dl_lin_sec:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
                                 fig_ipd_styled_lin_sec.update_layout(width=1000,height=800,plot_bgcolor='white',paper_bgcolor='white',font=dict(family="Times New Roman", size=22, color="black"),margin=dict(l=80, r=40, t=60, b=80),xaxis=dict(title="√t (min¹ᐟ²)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),yaxis=dict(title="qt (mg/g)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),showlegend=False)
                                 ipd_img_buffer_lin_sec = io.BytesIO(); fig_ipd_styled_lin_sec.write_image(ipd_img_buffer_lin_sec, format="png", width=1000, height=800, scale=2); ipd_img_buffer_lin_sec.seek(0)
                                 st.download_button(label="📥 Download Figure (PNG)", data=ipd_img_buffer_lin_sec, file_name="ipd_linear.png", mime="image/png", key="dl_ipd_lin_fig_kin_tab_lin")

@@ -23,9 +23,9 @@ def render():
         with st.spinner("Thermodynamic analysis based on Kd..."):
             df_thermo = temp_results_for_thermo.copy()
             df_thermo = df_thermo[(df_thermo['Ce'] > 1e-9) & (df_thermo['qe'] >= 0)].copy()
-            if len(df_thermo['Temperature_C'].unique()) >= 2:
+            if len(df_thermo['Temperature'].unique()) >= 2:
                 try:
-                    df_thermo['T_K'] = df_thermo['Temperature_C'] + 273.15
+                    df_thermo['T_K'] = df_thermo['Temperature'] + 273.15
                     df_thermo['inv_T_K'] = 1 / df_thermo['T_K']
                     df_thermo['Kd'] = df_thermo['qe'] / df_thermo['Ce'] # L/g
                     df_thermo_valid_kd = df_thermo[df_thermo['Kd'] > 1e-9].copy()
@@ -35,7 +35,7 @@ def render():
                         inv_T_valid = df_thermo_valid_kd['inv_T_K'].values
                         ln_Kd_valid = df_thermo_valid_kd['ln_Kd'].values
                         temps_K_valid = df_thermo_valid_kd['T_K'].values
-                        temps_C_valid = df_thermo_valid_kd['Temperature_C'].values
+                        temps_C_valid = df_thermo_valid_kd['Temperature'].values
                         kd_values_valid = df_thermo_valid_kd['Kd'].values
                         
                         if df_thermo_valid_kd['inv_T_K'].nunique() < 2 or df_thermo_valid_kd['ln_Kd'].nunique() < 2:
@@ -107,7 +107,9 @@ def render():
                     fig_vt_styled.add_trace(go.Scatter(x=thermo_params['inv_T'],y=thermo_params['ln_K'],mode='markers',marker=dict(symbol='square', color='black', size=10),name="Experimental data"))
                     fig_vt_styled.add_trace(go.Scatter(x=inv_T_line,y=ln_K_line,mode='lines',line=dict(color='red', width=3),name="Linear regression"))
                     fig_vt_styled.update_layout(width=1000,height=800,plot_bgcolor='white',paper_bgcolor='white',font=dict(family="Times New Roman", size=22, color="black"),margin=dict(l=80, r=40, t=60, b=80),xaxis=dict(title="1 / T (1/K)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),yaxis=dict(title="ln(Kd)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),showlegend=False)
-                    fig_vt_styled.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"y = {slope_vt_plot:.4f}x + {intercept_vt_plot:.4f}<br>R² = {thermo_params['R2_Van_t_Hoff']:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
+                    operator_vt = "-" if intercept_vt_plot < 0 else "+"
+                    equation_text_vt = f"y = {slope_vt_plot:.4f}x {operator_vt} {abs(intercept_vt_plot):.4f}"
+                    fig_vt_styled.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"{equation_text_vt}<br>R² = {thermo_params['R2_Van_t_Hoff']:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
                     vt_img_buffer = io.BytesIO(); fig_vt_styled.write_image(vt_img_buffer, format="png", width=1000, height=800, scale=2); vt_img_buffer.seek(0)
                     st.download_button(label="📥 Download Figure (PNG)",data=vt_img_buffer,file_name="vant_hoff_styled.png",mime="image/png",key="dl_vt_stylise_tab_thermo") 
                 except Exception as e: st.warning(f"Error exporting styled Van’t Hoff: {e}")
@@ -135,7 +137,7 @@ def render():
 
     elif temp_results_for_thermo is None or temp_results_for_thermo.empty:
          st.info("Please provide valid data for the T° Effect study.")
-    elif temp_results_for_thermo is not None and len(temp_results_for_thermo['Temperature_C'].unique()) < 2:
+    elif temp_results_for_thermo is not None and len(temp_results_for_thermo['Temperature'].unique()) < 2:
          st.warning("Fewer than 2 distinct T° for thermo analysis.")
     elif thermo_params is None and st.session_state.get('temp_effect_results') is not None: 
          st.warning("Thermo analysis based on Kd not performed (check messages/data).")

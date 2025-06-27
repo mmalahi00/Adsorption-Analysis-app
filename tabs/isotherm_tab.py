@@ -30,18 +30,19 @@ def render():
                          st.error("Error calculating Ce/qe: Calibration slope is zero or near zero.")
                          st.session_state['isotherm_results'] = None
                          return
+                    m_adsorbant = params_iso['m']
+                    volume = params_iso['V']
+                    if m_adsorbant <= 0:
+                        st.error(f"Invalid fixed adsorbent mass ({m_adsorbant}g). Mass must be positive.")
+                        st.session_state['isotherm_results'] = None
+                        return
 
                     for _, row in df_iso.iterrows():
-                        c0 = row['Concentration_Initiale_C0']
-                        abs_eq = row['Absorbance_Equilibre']
+                        c0 = row['Concentration']
+                        abs_eq = row['Absorbance']
                         ce = (abs_eq - calib_params['intercept']) / calib_params['slope']
                         ce = max(0.0, ce) 
 
-                        m_adsorbant = params_iso['m']
-                        volume = params_iso['V']
-                        if m_adsorbant <= 0:
-                            st.warning(f"Non-positive adsorbent mass ({m_adsorbant}g) for C0={c0}. This point will be ignored.", icon="⚠️")
-                            continue
                         qe = (c0 - ce) * volume / m_adsorbant
                         qe = max(0.0, qe) 
 
@@ -58,8 +59,7 @@ def render():
                         st.success("Ce/qe calculation for isotherms complete.")
 
                 except ZeroDivisionError:
-                     if 'isotherm_results' not in st.session_state or st.session_state.get('isotherm_results') is not None:
-                         st.error("Error calculating Ce/qe: Division by zero detected (calibration slope zero?).")
+                     st.error("Error calculating Ce/qe: Division by zero detected (check calibration slope).")
                      st.session_state['isotherm_results'] = None
                 except Exception as e:
                     st.error(f"Error calculating Ce/qe for isotherm: {e}")
@@ -69,7 +69,11 @@ def render():
 
         if iso_results is not None and not iso_results.empty:
             st.markdown("##### Calculated Data (Ce vs qe)")
-            st.dataframe(iso_results[['C0', 'Abs_Eq', 'Ce', 'qe']].style.format("{:.4f}"))
+            st.dataframe(
+                iso_results[['C0', 'Abs_Eq', 'Ce', 'qe']]
+                .rename(columns={"C0": "C₀ (mg/L)", "Abs_Eq": "Absorbance", "Ce": "Ce (mg/L)", "qe": "qe (mg/g)"})
+                .style.format("{:.4f}")
+                         )
             csv_iso_res = convert_df_to_csv(iso_results)
             st.download_button("📥 DL Isotherm Data (Ce/qe)", csv_iso_res, "isotherm_results.csv", "text/csv", key="dl_iso_res_iso_tab")
             st.caption(f"Conditions: m={iso_input['params']['m']}g, V={iso_input['params']['V']}L")
@@ -153,7 +157,9 @@ def render():
                             fig_lang_Ce_div_qe.add_trace(go.Scatter(x=iso_filtered_lang_lin['Ce'],y=iso_filtered_lang_lin['Ce_div_qe'],mode='markers',marker=dict(symbol='square', color='black', size=10),name="Experimental data"))
                             fig_lang_Ce_div_qe.add_trace(go.Scatter(x=x_vals_lang_dl,y=y_vals_lang_dl,mode='lines',line=dict(color='red', width=3),name="Linear regression"))
                             fig_lang_Ce_div_qe.update_layout(width=1000,height=800,plot_bgcolor='white',paper_bgcolor='white',font=dict(family="Times New Roman", size=22, color="black"),margin=dict(l=80, r=40, t=60, b=80),xaxis=dict(title="Ce (mg/L)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),yaxis=dict(title="Ce / qe (g/mg)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),showlegend=False)
-                            fig_lang_Ce_div_qe.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"y = {slope_L_lin:.4f}x + {intercept_L_lin:.4f}<br>R² = {r2_L_lin:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
+                            operator_L = "-" if intercept_L_lin < 0 else "+"
+                            equation_text_L = f"y = {slope_L_lin:.4f}x {operator_L} {abs(intercept_L_lin):.4f}"
+                            fig_lang_Ce_div_qe.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"{equation_text_L}<br>R² = {r2_L_lin:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
                             img_buffer_lang_Ce_div_qe = io.BytesIO()
                             fig_lang_Ce_div_qe.write_image(img_buffer_lang_Ce_div_qe, format="png", width=1000, height=800, scale=2)
                             img_buffer_lang_Ce_div_qe.seek(0)
@@ -209,7 +215,9 @@ def render():
                             fig_freund_lin.add_trace(go.Scatter(x=iso_filtered_freund_lin['ln_Ce'],y=iso_filtered_freund_lin['ln_qe'],mode='markers',marker=dict(symbol='square', color='black', size=10),name="Experimental data"))
                             fig_freund_lin.add_trace(go.Scatter(x=x_vals_freund_dl,y=y_vals_freund_dl,mode='lines',line=dict(color='red', width=3),name="Linear regression"))
                             fig_freund_lin.update_layout(width=1000,height=800,plot_bgcolor='white',paper_bgcolor='white',font=dict(family="Times New Roman", size=22, color="black"),margin=dict(l=80, r=40, t=60, b=80),xaxis=dict(title="ln(Ce)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),yaxis=dict(title="ln(qe)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),showlegend=False)
-                            fig_freund_lin.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"y = {slope_F_lin:.4f}x + {intercept_F_lin:.4f}<br>R² = {r2_F_lin:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
+                            operator_F = "-" if intercept_F_lin < 0 else "+"
+                            equation_text_F = f"y = {slope_F_lin:.4f}x {operator_F} {abs(intercept_F_lin):.4f}"
+                            fig_freund_lin.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"{equation_text_F}<br>R² = {r2_F_lin:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
                             freund_img_buffer = io.BytesIO()
                             fig_freund_lin.write_image(freund_img_buffer, format="png", width=1000, height=800, scale=2)
                             freund_img_buffer.seek(0)
@@ -266,7 +274,9 @@ def render():
                             fig_temkin_lin_styled.add_trace(go.Scatter(x=iso_filtered_temkin_lin_plot_df['ln_Ce'],y=iso_filtered_temkin_lin_plot_df['qe'],mode='markers',marker=dict(symbol='square', color='black', size=10),name="Experimental data"))
                             fig_temkin_lin_styled.add_trace(go.Scatter(x=x_vals_temkin_dl_lin,y=y_vals_temkin_dl_lin,mode='lines',line=dict(color='red', width=3),name="Linear regression"))
                             fig_temkin_lin_styled.update_layout(width=1000,height=800,plot_bgcolor='white',paper_bgcolor='white',font=dict(family="Times New Roman", size=22, color="black"),margin=dict(l=80, r=40, t=60, b=80),xaxis=dict(title="ln(Ce)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),yaxis=dict(title="qe (mg/g)",linecolor='black',mirror=True,ticks='outside',showline=True,showgrid=False,zeroline=False),showlegend=False)
-                            fig_temkin_lin_styled.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"y = {slope_T_lin:.4f}x + {intercept_T_lin:.4f}<br>R² = {r2_T_lin:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
+                            operator_T = "-" if intercept_T_lin < 0 else "+"
+                            equation_text_T = f"y = {slope_T_lin:.4f}x {operator_T} {abs(intercept_T_lin):.4f}"
+                            fig_temkin_lin_styled.add_annotation(xref="paper", yref="paper",x=0.05, y=0.95,text=f"{equation_text_T}<br>R² = {r2_T_lin:.4f}",showarrow=False,font=dict(size=20, color="black"),align="left")
                             temkin_lin_img_buffer = io.BytesIO()
                             fig_temkin_lin_styled.write_image(temkin_lin_img_buffer, format="png", width=1000, height=800, scale=2)
                             temkin_lin_img_buffer.seek(0)
@@ -314,7 +324,7 @@ def render():
                     st.dataframe(params_lin_df_display.set_index('Model'), use_container_width=True)
                     csv_lin_params = convert_df_to_csv(params_lin_df_display)
                     st.download_button(
-                        label="📥 DL Isotherm Data (Ce/qe)", 
+                        label="📥 DL Linearized Model Parameters", 
                         data=csv_lin_params,
                         file_name="isotherm_params_linearized.csv",
                         mime="text/csv",
@@ -444,8 +454,10 @@ def render():
                         try:
                             B1_guess_nl_temkin = st.session_state.get('temkin_params_lin', {}).get('B1', 10.0)
                             KT_guess_nl_temkin = st.session_state.get('temkin_params_lin', {}).get('KT', 0.1)
-                            if abs(B1_guess_nl_temkin) < 1e-6: B1_guess_nl_temkin = 1.0
-                            if KT_guess_nl_temkin <= 1e-6: KT_guess_nl_temkin = 0.1
+                            if not np.isfinite(B1_guess_nl_temkin) or abs(B1_guess_nl_temkin) < 1e-6:
+                                 B1_guess_nl_temkin = 1.0
+                            if not np.isfinite(KT_guess_nl_temkin) or KT_guess_nl_temkin <= 1e-9:
+                                 KT_guess_nl_temkin = 0.1
 
 
                             popt_T_nl, _ = curve_fit(temkin_model_nonlinear, Ce_data_nl, qe_data_nl,
@@ -492,7 +504,7 @@ def render():
                         fig_nl_fits.write_image(nl_fits_img_buffer_all, format="png", width=1000, height=800, scale=2)
                         nl_fits_img_buffer_all.seek(0)
                         st.download_button(
-                            label="📥 Download Figure (PNG) (All NL Fits Plot)",
+                            label="📥 Download Figure (PNG)",
                             data=nl_fits_img_buffer_all,
                             file_name="isotherm_all_nl_fits_plot.png",
                             mime="image/png",

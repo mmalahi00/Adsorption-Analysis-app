@@ -29,7 +29,7 @@ def render():
 
                     for _, row in df_ph_data.iterrows():
                         ph_val = row['pH']
-                        abs_eq = row['Absorbance_Equilibre']
+                        abs_eq = row['Absorbance']
                         ce = max(0, (abs_eq - calib_params['intercept']) / calib_params['slope'])
                         c0_fixed, v_fixed = params_ph['C0'], params_ph['V']
                         qe = max(0, (c0_fixed - ce) * v_fixed / m_fixed)
@@ -41,7 +41,8 @@ def render():
                     else:
                         st.warning("No valid pH points after Ce/qe calculation.")
                         st.session_state['ph_effect_results'] = pd.DataFrame(columns=['pH', 'Abs_Eq', 'Ce', 'qe', 'C0_fixe', 'Masse_fixe_g', 'Volume_fixe_L'])
-                except (ZeroDivisionError, ValueError): 
+                except (ZeroDivisionError, ValueError) as calc_err_ph:
+                    st.error(f"Error calculating Ce/qe for pH effect: {calc_err_ph}")
                     st.session_state['ph_effect_results'] = None 
                 except Exception as e:
                     st.error(f"Error calculating Ce/qe for pH effect: {e}")

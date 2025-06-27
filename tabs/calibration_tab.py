@@ -43,11 +43,13 @@ def render():
                         name="Linear regression"
                     ))
 
-                    equation_text = f"y = {slope:.4f}x {intercept:+.4f}"
+                    operator = "-" if intercept < 0 else "+"
+                    equation_text = f"y = {slope:.4f}x {operator} {abs(intercept):.4f}"
+
                     fig.add_annotation(
                         x=x_max_data * 0.95, 
                         y=y_line[-1] * 0.1 + intercept * 0.9, 
-                        text=equation_text, showarrow=False,
+                        text=f"{equation_text}", showarrow=False,
                         font=dict(family="Times New Roman, serif", size=12, color="red"),
                         align='right'
                     )
@@ -74,11 +76,8 @@ def render():
                         name="Experimental points"
                     ))
 
-                    x_vals_dl = np.array([calib_data['Concentration'].min(), calib_data['Concentration'].max()])
-
-                    y_vals_dl = slope * x_vals_dl + intercept
                     fig_styled.add_trace(go.Scatter(
-                        x=x_vals_dl, y=y_vals_dl, mode='lines',
+                        x=x_line, y=y_line, mode='lines',
                         line=dict(color='red', width=3), name="Linear regression"
                     ))
                     fig_styled.update_layout(
@@ -91,7 +90,7 @@ def render():
                     )
                     fig_styled.add_annotation(
                         xref="paper", yref="paper", x=0.05, y=0.95,
-                        text=f"y = {slope:.4f}x + {intercept:.4f}<br>R² = {r_squared:.4f}",
+                        text=f"{equation_text}<br>R² = {r_squared:.4f}",
                         showarrow=False, font=dict(size=20, color="black"), align="left"
                     )
                     img_buffer = io.BytesIO()
