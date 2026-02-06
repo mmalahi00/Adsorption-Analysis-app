@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it."
+title: "Adsorption Analysis App"
+type: software
+authors:
+  - family-names: "EL Mallahi"
+    given-names: "Mohamed"
+repository-code: "https://github.com/mmalahi00/Adsorption-Analysis-app"
+url: "https://adsorption.streamlit.app"
+license: "MIT"
+
