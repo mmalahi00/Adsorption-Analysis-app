@@ -15,11 +15,9 @@ Features:
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 
 from adsorblab_pro.streamlit_compat import st
 
-from ..config import FONT_FAMILY
 from ..plot_style import create_vant_hoff_plot
 from ..utils import (
     EPSILON_DIV,

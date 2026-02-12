@@ -26,7 +26,6 @@ from ..plot_style import (
     MARKERS,
     apply_professional_style,
     create_residual_plot,
-    get_axis_style,
 )
 from ..utils import assess_data_quality, display_results_table, get_current_study_state
 from ..validation import format_validation_errors, validate_calibration_data

@@ -24,7 +24,7 @@ import plotly.graph_objects as go
 
 from adsorblab_pro.streamlit_compat import st
 
-from ..config import BOOTSTRAP_DEFAULT_ITERATIONS, FONT_FAMILY, MECHANISM_CRITERIA
+from ..config import BOOTSTRAP_DEFAULT_ITERATIONS
 from ..models import (
     fit_model_with_ci,
     freundlich_model,
@@ -39,7 +39,6 @@ from ..plot_style import (
     create_isotherm_plot,
     create_model_comparison_plot,
     create_parity_plot,
-    get_axis_style,
     style_experimental_trace,
 )
 from ..utils import (
@@ -457,7 +456,6 @@ def _get_temperature_k(params: dict) -> float:
     if params.get("T_C") is not None:
         return float(params["T_C"]) + 273.15
     return 298.15
-
 
 
 # =============================================================================

@@ -20,7 +20,7 @@ import plotly.graph_objects as go
 
 from adsorblab_pro.streamlit_compat import st
 
-from ..config import BOOTSTRAP_DEFAULT_ITERATIONS, FONT_FAMILY
+from ..config import BOOTSTRAP_DEFAULT_ITERATIONS
 from ..models import (
     calculate_biot_number,
     calculate_initial_rate,
@@ -40,7 +40,6 @@ from ..plot_style import (
     create_kinetic_plot,
     create_model_comparison_plot,
     create_parity_plot,
-    get_axis_style,
     style_experimental_trace,
     style_fit_trace,
 )

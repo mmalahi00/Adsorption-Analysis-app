@@ -20,7 +20,6 @@ import plotly.graph_objects as go
 
 from adsorblab_pro.streamlit_compat import st
 
-from ..config import MECHANISM_CRITERIA
 from ..plot_style import (
     apply_professional_style,
     apply_professional_polar_style,
