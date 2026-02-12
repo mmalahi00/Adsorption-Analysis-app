@@ -26,7 +26,6 @@ from ..models import (
     langmuir_3d_surface,
     langmuir_model,
     parameter_space_visualization,
-    
     pso_model,
     temkin_model,
 )
@@ -67,7 +66,9 @@ def _save_figure(fig_id: str, fig: go.Figure, title: str, params: dict):
 
     # Save figure data
     st.session_state.studies[study_name]["saved_3d_figures"][unique_id] = {
-        "figure": apply_professional_3d_style(go.Figure(fig), title=title, height=700).to_dict(),  # Store styled dict
+        "figure": apply_professional_3d_style(
+            go.Figure(fig), title=title, height=700
+        ).to_dict(),  # Store styled dict
         "title": title,
         "params": params,
         "created_at": datetime.now().isoformat(),
@@ -538,20 +539,29 @@ def _render_isotherm_surface(fitted_params, exp_data):
                         y=temp_data["T_C"],
                         z=temp_data["qe"],
                         mode="markers",
-                        marker={"size": 6, "color": COLORS["experimental"], "symbol": "diamond", "line": {"width": 1.0, "color": "#000000"}},
+                        marker={
+                            "size": 6,
+                            "color": COLORS["experimental"],
+                            "symbol": "diamond",
+                            "line": {"width": 1.0, "color": "#000000"},
+                        },
                         name="Experimental Data",
                         showlegend=True,
                     )
                 )
 
             title = f"Langmuir Surface: qm={qm:.1f} mg/g, KL={KL:.3f} L/mg"
-            fig.update_layout(scene={
-                "xaxis_title": "Ce (mg/L)",
-                "yaxis_title": "Temperature (°C)",
-                "zaxis_title": "qe (mg/g)",
-            })
+            fig.update_layout(
+                scene={
+                    "xaxis_title": "Ce (mg/L)",
+                    "yaxis_title": "Temperature (°C)",
+                    "zaxis_title": "qe (mg/g)",
+                }
+            )
             fig = apply_professional_3d_style(
-                fig, title=title, height=700,
+                fig,
+                title=title,
+                height=700,
                 camera_eye={"x": 1.8, "y": 1.8, "z": 1.2},
             )
 
@@ -700,8 +710,6 @@ def _render_parameter_space(fitted_params, exp_data):
             p1_name, p2_name = "KF", "1/n"
             model_func = freundlich_model
 
-
-
         else:  # Temkin
             if "temkin" in fitted_params:
                 B1_default = fitted_params["temkin"].get("B1", 15.0)
@@ -778,7 +786,12 @@ def _render_parameter_space(fitted_params, exp_data):
                                 y=[p2_fit],
                                 z=[qe_fit],
                                 mode="markers",
-                                marker={"size": 10, "color": COLORS["fit_secondary"], "symbol": "diamond", "line": {"width": 1.0, "color": "#000000"}},
+                                marker={
+                                    "size": 10,
+                                    "color": COLORS["fit_secondary"],
+                                    "symbol": "diamond",
+                                    "line": {"width": 1.0, "color": "#000000"},
+                                },
                                 name="Fitted Parameters",
                             )
                         )
@@ -798,19 +811,28 @@ def _render_parameter_space(fitted_params, exp_data):
                                 y=[p2_fit],
                                 z=[qe_fit],
                                 mode="markers",
-                                marker={"size": 10, "color": COLORS["fit_secondary"], "symbol": "diamond", "line": {"width": 1.0, "color": "#000000"}},
+                                marker={
+                                    "size": 10,
+                                    "color": COLORS["fit_secondary"],
+                                    "symbol": "diamond",
+                                    "line": {"width": 1.0, "color": "#000000"},
+                                },
                                 name="Fitted Parameters",
                             )
                         )
 
             title = f"{model} Parameter Space (Ce = {Ce_fixed:.1f} mg/L)"
-            fig.update_layout(scene={
-                "xaxis_title": p1_name,
-                "yaxis_title": p2_name,
-                "zaxis_title": "qe (mg/g)",
-            })
+            fig.update_layout(
+                scene={
+                    "xaxis_title": p1_name,
+                    "yaxis_title": p2_name,
+                    "zaxis_title": "qe (mg/g)",
+                }
+            )
             fig = apply_professional_3d_style(
-                fig, title=title, height=700,
+                fig,
+                title=title,
+                height=700,
                 camera_eye={"x": 1.8, "y": 1.8, "z": 1.2},
             )
 
@@ -937,17 +959,21 @@ def _render_model_comparison(fitted_params, exp_data):
                 )
 
             title = f"Model Comparison: {', '.join([m.title() for m in available_models])}"
-            fig.update_layout(scene={
-                "xaxis_title": "Ce (mg/L)",
-                "yaxis_title": "Model",
-                "zaxis_title": "qe (mg/g)",
-                "yaxis": {
-                    "ticktext": [m.title() for m in available_models],
-                    "tickvals": [i * 0.5 for i in range(len(available_models))],
-                },
-            })
+            fig.update_layout(
+                scene={
+                    "xaxis_title": "Ce (mg/L)",
+                    "yaxis_title": "Model",
+                    "zaxis_title": "qe (mg/g)",
+                    "yaxis": {
+                        "ticktext": [m.title() for m in available_models],
+                        "tickvals": [i * 0.5 for i in range(len(available_models))],
+                    },
+                }
+            )
             fig = apply_professional_3d_style(
-                fig, title=title, height=700,
+                fig,
+                title=title,
+                height=700,
                 camera_eye={"x": 1.5, "y": 1.5, "z": 1.2},
             )
 
@@ -1090,13 +1116,17 @@ def _render_experimental_3d(exp_data):
                 y_title = "Ce (mg/L)" if temp.get("Ce") is not None else "Index"
                 z_title = "qe (mg/g)"
 
-            fig.update_layout(scene={
-                "xaxis_title": x_title,
-                "yaxis_title": y_title,
-                "zaxis_title": z_title,
-            })
+            fig.update_layout(
+                scene={
+                    "xaxis_title": x_title,
+                    "yaxis_title": y_title,
+                    "zaxis_title": z_title,
+                }
+            )
             fig = apply_professional_3d_style(
-                fig, title=title, height=700,
+                fig,
+                title=title,
+                height=700,
                 camera_eye={"x": 1.8, "y": 1.8, "z": 1.2},
             )
 
@@ -1135,7 +1165,6 @@ def _render_ph_temp_response(fitted_params, exp_data):
         "This surface is an **empirical visualization** built from your 1D pH and/or temperature-effect datasets (separable approximation). "
         "It is not a mechanistic prediction model and should be reported as exploratory visualization in a manuscript."
     )
-
 
     has_temp = "temperature" in exp_data
     has_ph = "ph_effect" in exp_data
@@ -1246,7 +1275,9 @@ def _render_ph_temp_response(fitted_params, exp_data):
             )
 
             # Add experimental points if available
-            st.caption("To help interpretation, 1D points are shown as projections (pH points at mean temperature; temperature points at mean pH).")
+            st.caption(
+                "To help interpretation, 1D points are shown as projections (pH points at mean temperature; temperature points at mean pH)."
+            )
             if has_ph and has_temp:
                 # Show both datasets as projections on the surface:
                 # - pH-effect data is plotted at the mean temperature
@@ -1299,13 +1330,17 @@ def _render_ph_temp_response(fitted_params, exp_data):
                 )
 
             title = f"pH-Temperature Response (pH {pH_min}-{pH_max}, T {T_min}-{T_max}°C)"
-            fig.update_layout(scene={
-                "xaxis_title": "pH",
-                "yaxis_title": "Temperature (°C)",
-                "zaxis_title": "qe (mg/g)",
-            })
+            fig.update_layout(
+                scene={
+                    "xaxis_title": "pH",
+                    "yaxis_title": "Temperature (°C)",
+                    "zaxis_title": "qe (mg/g)",
+                }
+            )
             fig = apply_professional_3d_style(
-                fig, title=title, height=700,
+                fig,
+                title=title,
+                height=700,
                 camera_eye={"x": 1.8, "y": 1.8, "z": 1.2},
             )
 
@@ -1425,19 +1460,28 @@ def _render_kinetic_3d(fitted_params, exp_data):
                     y=[100] * len(kin_data["t"]),  # Assume C0=100 for exp data
                     z=kin_data["qt"],
                     mode="markers",
-                    marker={"size": 6, "color": COLORS["experimental"], "symbol": "diamond", "line": {"width": 1.0, "color": "#000000"}},
+                    marker={
+                        "size": 6,
+                        "color": COLORS["experimental"],
+                        "symbol": "diamond",
+                        "line": {"width": 1.0, "color": "#000000"},
+                    },
                     name="Experimental Data",
                 )
             )
 
             title = f"PSO Kinetics: qe={qe_fit:.1f}, k2={k2_fit:.4f}"
-            fig.update_layout(scene={
-                "xaxis_title": "Time (min)",
-                "yaxis_title": "C₀ (mg/L)",
-                "zaxis_title": "qt (mg/g)",
-            })
+            fig.update_layout(
+                scene={
+                    "xaxis_title": "Time (min)",
+                    "yaxis_title": "C₀ (mg/L)",
+                    "zaxis_title": "qt (mg/g)",
+                }
+            )
             fig = apply_professional_3d_style(
-                fig, title=title, height=700,
+                fig,
+                title=title,
+                height=700,
                 camera_eye={"x": 1.8, "y": 1.8, "z": 1.2},
             )
 
@@ -1583,13 +1627,17 @@ def _render_residuals_surface(fitted_params, exp_data):
             )
 
             title = "Temperature-Dependent Langmuir Residuals"
-            fig.update_layout(scene={
-                "xaxis_title": "Ce (mg/L)",
-                "yaxis_title": "Temperature (°C)",
-                "zaxis_title": "Residual (mg/g)",
-            })
+            fig.update_layout(
+                scene={
+                    "xaxis_title": "Ce (mg/L)",
+                    "yaxis_title": "Temperature (°C)",
+                    "zaxis_title": "Residual (mg/g)",
+                }
+            )
             fig = apply_professional_3d_style(
-                fig, title=title, height=700,
+                fig,
+                title=title,
+                height=700,
                 camera_eye={"x": 1.8, "y": -1.8, "z": 1.2},
             )
 

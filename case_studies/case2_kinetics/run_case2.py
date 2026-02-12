@@ -35,9 +35,9 @@ OUT_DIR = HERE / "outputs"
 OUT_DIR.mkdir(exist_ok=True)
 
 # ── Experimental conditions (Hasani et al. 2022) ────────────────────────
-C0 = 50.0    # mg/L  (also studied at 10, 30 mg/L)
-V  = 0.025   # L     (25 mL)
-M  = 0.100   # g     (100 mg)
+C0 = 50.0  # mg/L  (also studied at 10, 30 mg/L)
+V = 0.025  # L     (25 mL)
+M = 0.100  # g     (100 mg)
 EPS = 1e-12
 
 # ── Load and derive ──────────────────────────────────────────────────────
@@ -45,30 +45,35 @@ df = pd.read_csv(DATA_FILE)
 df["qt_mg_g"] = (C0 - df["Ct_mg_L"]) * V / M
 df["Removal_%"] = (C0 - df["Ct_mg_L"]) / C0 * 100
 
-t  = df["time_min"].values.astype(float)
+t = df["time_min"].values.astype(float)
 qt = df["qt_mg_g"].values
 
 # Exclude t=0 for fitting (qt=0 causes issues with some models)
 mask = t > 0
-t_fit  = t[mask]
+t_fit = t[mask]
 qt_fit = qt[mask]
 
 # ── Model definitions ────────────────────────────────────────────────────
 
+
 def pfo(t, qe, k1):
     return qe * (1.0 - np.exp(-k1 * t))
+
 
 def pso(t, qe, k2):
     return k2 * qe**2 * t / (1.0 + k2 * qe * t)
 
+
 def elovich(t, alpha, beta):
     return (1.0 / beta) * np.log(1.0 + alpha * beta * t)
+
 
 def ipd(t, kid, C):
     return kid * np.sqrt(t) + C
 
 
 # ── Fitting helper ───────────────────────────────────────────────────────
+
 
 def fit_model(func, t, qt, p0, bounds, names):
     popt, pcov = curve_fit(func, t, qt, p0=p0, bounds=bounds, maxfev=20_000)
@@ -83,8 +88,11 @@ def fit_model(func, t, qt, p0, bounds, names):
     return {
         "params": dict(zip(names, popt)),
         "std_err": dict(zip(names, perr)),
-        "R2": r2, "AIC": aic, "SS_res": ss_res,
-        "n_params": k, "y_pred_full": func(t, *popt),
+        "R2": r2,
+        "AIC": aic,
+        "SS_res": ss_res,
+        "n_params": k,
+        "y_pred_full": func(t, *popt),
     }
 
 
@@ -92,26 +100,38 @@ def fit_model(func, t, qt, p0, bounds, names):
 results = {}
 
 results["PFO"] = fit_model(
-    pfo, t_fit, qt_fit,
-    p0=[45, 0.03], bounds=([0, 0], [200, 5]),
+    pfo,
+    t_fit,
+    qt_fit,
+    p0=[45, 0.03],
+    bounds=([0, 0], [200, 5]),
     names=["qe (mg/g)", "k1 (1/min)"],
 )
 
 results["PSO"] = fit_model(
-    pso, t_fit, qt_fit,
-    p0=[47, 0.001], bounds=([0, 0], [200, 1]),
+    pso,
+    t_fit,
+    qt_fit,
+    p0=[47, 0.001],
+    bounds=([0, 0], [200, 1]),
     names=["qe (mg/g)", "k2 (g/(mg·min))"],
 )
 
 results["Elovich"] = fit_model(
-    elovich, t_fit, qt_fit,
-    p0=[12, 0.1], bounds=([0.01, 0.001], [1000, 10]),
+    elovich,
+    t_fit,
+    qt_fit,
+    p0=[12, 0.1],
+    bounds=([0.01, 0.001], [1000, 10]),
     names=["α (mg/(g·min))", "β (g/mg)"],
 )
 
 results["IPD"] = fit_model(
-    ipd, t_fit, qt_fit,
-    p0=[3.5, 8], bounds=([0, 0], [50, 100]),
+    ipd,
+    t_fit,
+    qt_fit,
+    p0=[3.5, 8],
+    bounds=([0, 0], [50, 100]),
     names=["kid (mg/(g·min^0.5))", "C (mg/g)"],
 )
 
@@ -128,7 +148,7 @@ t_eq = t[idx_eq[0]] if len(idx_eq) > 0 else t[-1]
 # ── Initial adsorption rate (PSO) ───────────────────────────────────────
 qe_pso = results["PSO"]["params"]["qe (mg/g)"]
 k2_pso = results["PSO"]["params"]["k2 (g/(mg·min))"]
-h_init = k2_pso * qe_pso ** 2  # mg/(g·min)
+h_init = k2_pso * qe_pso**2  # mg/(g·min)
 
 # ── Console summary ──────────────────────────────────────────────────────
 print("=" * 65)
@@ -149,8 +169,7 @@ print()
 
 # ── Figure 1: qt vs time with fitted curves ──────────────────────────────
 t_fine = np.linspace(0.1, t.max() * 1.05, 400)
-colours = {"PFO": "#1f77b4", "PSO": "#d62728",
-           "Elovich": "#2ca02c", "IPD": "#ff7f0e"}
+colours = {"PFO": "#1f77b4", "PSO": "#d62728", "Elovich": "#2ca02c", "IPD": "#ff7f0e"}
 funcs = {"PFO": pfo, "PSO": pso, "Elovich": elovich, "IPD": ipd}
 
 fig1, ax1 = plt.subplots(figsize=(7, 5))
@@ -159,8 +178,7 @@ ax1.scatter(t, qt, s=60, zorder=5, color="black", label="Experimental")
 for name, r in results.items():
     y = funcs[name](t_fine, *r["params"].values())
     ls = "-" if name == best_name else "--"
-    ax1.plot(t_fine, y, ls, color=colours[name], lw=2,
-             label=f"{name}  (R²={r['R2']:.4f})")
+    ax1.plot(t_fine, y, ls, color=colours[name], lw=2, label=f"{name}  (R²={r['R2']:.4f})")
 
 ax1.axhline(qe_exp, ls=":", color="grey", lw=0.8, label=f"qe,exp = {qe_exp:.1f} mg/g")
 ax1.axvline(t_eq, ls=":", color="grey", lw=0.8, alpha=0.5)
@@ -181,8 +199,14 @@ ax2.scatter(t_sqrt, qt_fit, s=60, color="black", zorder=5, label="Experimental")
 t05_fine = np.linspace(0, t_sqrt.max() * 1.1, 200)
 kid = results["IPD"]["params"]["kid (mg/(g·min^0.5))"]
 C_ipd = results["IPD"]["params"]["C (mg/g)"]
-ax2.plot(t05_fine, kid * t05_fine + C_ipd, "--", color="#ff7f0e", lw=2,
-         label=f"IPD fit (kid={kid:.2f}, C={C_ipd:.1f})")
+ax2.plot(
+    t05_fine,
+    kid * t05_fine + C_ipd,
+    "--",
+    color="#ff7f0e",
+    lw=2,
+    label=f"IPD fit (kid={kid:.2f}, C={C_ipd:.1f})",
+)
 ax2.set_xlabel("t^0.5  (min^0.5)", fontsize=12)
 ax2.set_ylabel("qt  (mg / g)", fontsize=12)
 ax2.set_title("Weber-Morris Intraparticle Diffusion Plot", fontsize=13)
@@ -211,8 +235,13 @@ print(f"  ✓ Saved {OUT_DIR / 'kinetic_residuals.png'}")
 # ── Summary table CSV ───────────────────────────────────────────────────
 rows = []
 for name, r in ranking:
-    row = {"Model": name, "R²": r["R2"], "AIC": r["AIC"],
-           "SS_res": r["SS_res"], "n_params": r["n_params"]}
+    row = {
+        "Model": name,
+        "R²": r["R2"],
+        "AIC": r["AIC"],
+        "SS_res": r["SS_res"],
+        "n_params": r["n_params"],
+    }
     for pn, pv in r["params"].items():
         row[pn] = pv
     rows.append(row)
@@ -229,7 +258,8 @@ for name, r in results.items():
     json_out[name] = {
         "params": {k: float(v) for k, v in r["params"].items()},
         "std_err": {k: float(v) for k, v in r["std_err"].items()},
-        "R2": float(r["R2"]), "AIC": float(r["AIC"]),
+        "R2": float(r["R2"]),
+        "AIC": float(r["AIC"]),
     }
 json_out["best_model"] = best_name
 json_out["equilibrium_time_min"] = float(t_eq)

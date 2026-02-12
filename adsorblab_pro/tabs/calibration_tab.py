@@ -389,13 +389,13 @@ def render():
                         )
                     )
                     fig_qq = apply_professional_style(
-    fig_qq,
-    title="Normal Q-Q Plot",
-    x_title="Theoretical Quantiles",
-    y_title="Standardized Residuals",
-    height=350,
-    show_legend=False,
-)
+                        fig_qq,
+                        title="Normal Q-Q Plot",
+                        x_title="Theoretical Quantiles",
+                        y_title="Standardized Residuals",
+                        height=350,
+                        show_legend=False,
+                    )
                     st.plotly_chart(fig_qq, use_container_width=True, key="calib_qq_chart")
 
                 # Residual statistics

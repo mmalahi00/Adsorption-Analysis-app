@@ -316,7 +316,6 @@ DEFAULT_SESSION_STATE: dict[str, Any] = {
     # NEW: Competitive adsorption
     "competitive_input": None,
     "competitive_results": None,
-
     # Data quality
     "data_quality_reports": {},
     # Validation
@@ -372,29 +371,24 @@ SESSION_WIDGET_PREFIXES_TO_CLEAR: tuple[str, ...] = (
     "comp_",
     "thermo_",
     "3d_",
-
     # Tab widgets / legacy prefixes (safe to clear on study switch)
     "isotherm_",
     "kinetic_",
     "dosage_",
     "temperature_",
-
     "param_",
     "gen_",
     "save_",
     "calc_",
     "model_",
-
     "diffusion_",
     "weber_",
     "boyd_",
     "biot_",
-
     "langmuir_",
     "freundlich_",
     "temkin_",
     "sips_",
-
     "pfo_",
     "pso_",
     "elovich_",
@@ -402,7 +396,6 @@ SESSION_WIDGET_PREFIXES_TO_CLEAR: tuple[str, ...] = (
     "rpso_",
     "rPSO_",
     "rPSO_C0=",
-
     # UI helpers / dynamic selectors
     "display_input_mode_",
     "manual_",

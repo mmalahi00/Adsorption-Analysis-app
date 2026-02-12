@@ -134,16 +134,15 @@ def _render_study_linked_mode(studies_with_isotherms: dict):
         "This module estimates qeᵢ at the specified mixture Ceᵢ using extended Langmuir / extended Freundlich."
     )
 
-
-
-
     # ---- Number of competing adsorbates (guard against invalid slider ranges) ----
     total_adsorbates = len(studies_with_isotherms)
 
     if total_adsorbates < 2:
-        st.warning("You need at least 2 adsorbates (with isotherm data) to run competitive analysis.")
+        st.warning(
+            "You need at least 2 adsorbates (with isotherm data) to run competitive analysis."
+        )
         return
-    
+
     # Number of components
     max_components = min(5, len(studies_with_isotherms))
 
@@ -158,8 +157,6 @@ def _render_study_linked_mode(studies_with_isotherms: dict):
             value=2,
             help="Select how many adsorbates compete for surface sites",
         )
-
-
 
     study_names = list(studies_with_isotherms.keys())
     components = []
@@ -266,13 +263,11 @@ def _render_study_linked_mode(studies_with_isotherms: dict):
             )
             return
 
-
         if any(c["Ce"] <= 0 for c in components):
-            st.error("❌ Please enter Ce values > 0 for all components (mixture equilibrium concentrations).")
+            st.error(
+                "❌ Please enter Ce values > 0 for all components (mixture equilibrium concentrations)."
+            )
             return
-        
-        
-
 
         _calculate_and_display(components, can_calculate_langmuir, can_calculate_freundlich)
 
@@ -487,7 +482,9 @@ def _calculate_and_display(components, has_langmuir, has_freundlich):
             for i in range(n):
                 for j in range(n):
                     if i != j:
-                        alpha = calculate_selectivity_coefficient(qe_lang[i], Ce_all[i], qe_lang[j], Ce_all[j])
+                        alpha = calculate_selectivity_coefficient(
+                            qe_lang[i], Ce_all[i], qe_lang[j], Ce_all[j]
+                        )
 
                         if np.isnan(alpha):
                             interp = "N/A (Ce=0 or qe≤0)"
@@ -503,9 +500,12 @@ def _calculate_and_display(components, has_langmuir, has_freundlich):
                             alpha_out = float(alpha)
 
                         selectivity_data.append(
-                            {"Pair": f"{names[i]} / {names[j]}", "α": alpha_out, "Interpretation": interp}
+                            {
+                                "Pair": f"{names[i]} / {names[j]}",
+                                "α": alpha_out,
+                                "Interpretation": interp,
+                            }
                         )
-
 
             sel_df = pd.DataFrame(selectivity_data)
             st.dataframe(

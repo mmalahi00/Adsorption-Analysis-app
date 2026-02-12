@@ -886,8 +886,8 @@ def _render_thermodynamic_comparison(studies_data: dict, study_names: list):
         process_label = html.escape(str(row["Process"]))
         spont_label = html.escape(str(row["Spontaneity"]))
         st.markdown(
-             f"**{study_label}:** <span style='color:{color}'>{mechanism}</span> (|ΔH°| = {abs_H:.2f} kJ/mol) - {process_label}, {spont_label}",
-             unsafe_allow_html=True,
+            f"**{study_label}:** <span style='color:{color}'>{mechanism}</span> (|ΔH°| = {abs_H:.2f} kJ/mol) - {process_label}, {spont_label}",
+            unsafe_allow_html=True,
         )
 
 
@@ -968,7 +968,11 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
             if temp_results is None or getattr(temp_results, "empty", True):
                 continue
 
-            x_col = "Temperature_C" if "Temperature_C" in temp_results.columns else ("Temperature" if "Temperature" in temp_results.columns else None)
+            x_col = (
+                "Temperature_C"
+                if "Temperature_C" in temp_results.columns
+                else ("Temperature" if "Temperature" in temp_results.columns else None)
+            )
             if x_col is None or "qe_mg_g" not in temp_results.columns:
                 continue
 
@@ -1043,6 +1047,7 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
             st.plotly_chart(fig_dos, use_container_width=True)
         else:
             st.info("No dosage effect data available.")
+
 
 def _render_overall_ranking(studies_data: dict, study_names: list):
     """Render overall study ranking with radar chart."""

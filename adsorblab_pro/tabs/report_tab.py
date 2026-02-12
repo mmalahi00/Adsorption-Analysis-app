@@ -81,6 +81,7 @@ except ImportError:
 # EXPORT RENDERING HELPERS
 # =============================================================================
 
+
 def style_figure_for_export(
     fig: go.Figure,
     *,
@@ -165,7 +166,10 @@ def style_figure_for_export(
     # If an equation-like trace name (e.g., "y = ax + b") is shown in the legend, move it to an annotation (export-only).
     try:
         import re as _re
-        eq_re = _re.compile(r"^\s*y\s*=\s*[-+0-9.eE]+\s*x\s*[-+ ]\s*[-+0-9.eE]+\s*$", _re.IGNORECASE)
+
+        eq_re = _re.compile(
+            r"^\s*y\s*=\s*[-+0-9.eE]+\s*x\s*[-+ ]\s*[-+0-9.eE]+\s*$", _re.IGNORECASE
+        )
         existing_texts = set()
         try:
             if getattr(fig.layout, "annotations", None):
@@ -232,7 +236,14 @@ def style_figure_for_export(
         pass
 
     # Prevent axis-title vs gradient/colorbar overlaps
-    _fix_axis_gradient_overlaps_plotly(fig, width_px=width_px, height_px=height_px, tick_px=tick_px, axis_title_px=axis_title_px, font_family=FONT_FAMILY)
+    _fix_axis_gradient_overlaps_plotly(
+        fig,
+        width_px=width_px,
+        height_px=height_px,
+        tick_px=tick_px,
+        axis_title_px=axis_title_px,
+        font_family=FONT_FAMILY,
+    )
 
     return fig
 
@@ -254,6 +265,7 @@ def _with_dpi_metadata(img_bytes: bytes, *, fmt: str, dpi: int) -> bytes:
         return bio_out.getvalue()
     except Exception:
         return img_bytes
+
 
 # =============================================================================
 # EXPORTABLE ITEM DEFINITIONS
@@ -433,7 +445,9 @@ def generate_figure(fig_id: str, study_state: dict) -> go.Figure | None:
             fig_dict = saved_3d[fig_id].get("figure")
             if fig_dict:
                 fig = go.Figure(fig_dict)
-                fig = apply_professional_3d_style(fig, title=saved_3d[fig_id].get("title", "3D Figure"), height=700)
+                fig = apply_professional_3d_style(
+                    fig, title=saved_3d[fig_id].get("title", "3D Figure"), height=700
+                )
                 return fig
 
     # Standard figure generators
@@ -732,6 +746,7 @@ def _gen_kinetic_overview(study_state: dict) -> go.Figure | None:
     fig.update_yaxes(rangemode="tozero")
     return fig
 
+
 def _gen_kinetic_model(study_state: dict, model_name: str) -> go.Figure | None:
     """Generate individual kinetic model figure (house style)."""
     kin_results = study_state.get("kinetic_models_fitted", {})
@@ -781,6 +796,7 @@ def _gen_kinetic_model(study_state: dict, model_name: str) -> go.Figure | None:
     fig.update_yaxes(rangemode="tozero")
     return fig
 
+
 def _gen_kinetic_comparison(study_state: dict) -> go.Figure | None:
     """Generate kinetic model comparison figure (house style)."""
     kin_results = study_state.get("kinetic_models_fitted", {})
@@ -821,6 +837,7 @@ def _gen_kinetic_comparison(study_state: dict) -> go.Figure | None:
     fig.update_xaxes(rangemode="tozero")
     fig.update_yaxes(rangemode="tozero")
     return fig
+
 
 def _gen_vanthoff_plot(study_state: dict) -> go.Figure | None:
     """Generate Van't Hoff plot."""
@@ -881,7 +898,7 @@ def _gen_vanthoff_plot(study_state: dict) -> go.Figure | None:
     )
 
     fig = apply_professional_style(fig, "Van't Hoff Plot", "1000/T (1/K)", "ln(Kd)")
-    
+
     # Reposition legend to upper left to avoid overlap with data points
     fig.update_layout(
         legend=dict(
@@ -958,6 +975,7 @@ def _gen_ph_effect(study_state: dict) -> go.Figure | None:
         y2_tozero=True,
     )
 
+
 def _gen_temperature_effect(study_state: dict) -> go.Figure | None:
     """Generate temperature effect figure (house style)."""
     temp_results = study_state.get("temp_effect_results")
@@ -982,13 +1000,18 @@ def _gen_temperature_effect(study_state: dict) -> go.Figure | None:
         hovertemplate="T: %{x:.1f}°C<br>qe: %{y:.2f}<extra></extra>",
     )
 
+
 def _gen_dosage_effect(study_state: dict) -> go.Figure | None:
     """Generate dosage effect figure (dual-axis export, house style)."""
     dos_results = study_state.get("dosage_effect_results")
     if dos_results is None or getattr(dos_results, "empty", False):
         return None
 
-    x_col = "Dosage_gL" if "Dosage_gL" in dos_results.columns else ("Mass_g" if "Mass_g" in dos_results.columns else None)
+    x_col = (
+        "Dosage_gL"
+        if "Dosage_gL" in dos_results.columns
+        else ("Mass_g" if "Mass_g" in dos_results.columns else None)
+    )
     if x_col is None or "qe_mg_g" not in dos_results.columns:
         return None
 
@@ -1009,6 +1032,7 @@ def _gen_dosage_effect(study_state: dict) -> go.Figure | None:
         y1_tozero=True,
         y2_tozero=True,
     )
+
 
 def _get_all_studies() -> tuple[dict, list[str]]:
     """Get all studies from session state."""
@@ -1900,7 +1924,6 @@ def create_export_zip(
                         tiff_buffer.seek(0)
                         img_bytes = tiff_buffer.getvalue()
 
-
                     zf.writestr(f"figures/{fig_id}.{config['format']}", img_bytes)
                 except Exception as e:
                     error_msg = f"Figure '{fig_id}': {str(e)}"
@@ -2069,7 +2092,11 @@ def render():
         default_index = 1  # High quality as default
 
         quality_preset = st.selectbox("Quality Preset", options=dpi_options, index=default_index)
-        scale_map = {dpi_options[0]: 150/96, dpi_options[1]: EXPORT_DPI/96, dpi_options[2]: 600/96}
+        scale_map = {
+            dpi_options[0]: 150 / 96,
+            dpi_options[1]: EXPORT_DPI / 96,
+            dpi_options[2]: 600 / 96,
+        }
 
     with col2:
         st.markdown("**Figure Dimensions:**")
@@ -2090,7 +2117,6 @@ def render():
             step=0.25,
             help="Used to scale text so it looks correct when inserted in Word/LaTeX at this width.",
         )
-
 
     st.markdown("---")
     st.markdown("---")
@@ -2227,7 +2253,6 @@ def render():
                             fig_id=str(fid),
                             study_state=st_state,
                         )
-
 
                     with st.spinner(
                         f"Generating Word report with {len(selected_figs)} figures and {len(selected_tbls)} tables..."

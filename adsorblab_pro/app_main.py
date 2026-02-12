@@ -40,8 +40,14 @@ from scipy.stats import linregress
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
-from adsorblab_pro.config import DEFAULT_SESSION_STATE, DEFAULT_GLOBAL_SESSION_STATE, VERSION, get_grade_from_r_squared
+from adsorblab_pro.config import (
+    DEFAULT_SESSION_STATE,
+    DEFAULT_GLOBAL_SESSION_STATE,
+    VERSION,
+    get_grade_from_r_squared,
+)
 from datetime import datetime
+
 current_year = datetime.now().year
 
 # =============================================================================
@@ -121,6 +127,7 @@ if "current_study" not in st.session_state:
 for _k, _v in DEFAULT_GLOBAL_SESSION_STATE.items():
     if _k not in st.session_state:
         st.session_state[_k] = copy.deepcopy(_v)
+
 
 # =============================================================================
 # CALIBRATION UPDATE FUNCTION
@@ -292,6 +299,7 @@ st.sidebar.markdown("### 🔬 Study Management")
 if "new_study_input" not in st.session_state:
     st.session_state["new_study_input"] = ""
 
+
 def _add_new_study() -> None:
     """Callback for Add New Study button.
 
@@ -300,7 +308,7 @@ def _add_new_study() -> None:
     """
     name = (st.session_state.get("new_study_input") or "").strip()
     is_valid, error_msg = utils.validate_study_name(name, st.session_state.get("studies", {}))
-    
+
     if not is_valid:
         st.session_state["_add_study_msg"] = ("warning", error_msg)
         if name:  # Only clear if user tried to submit something
@@ -319,6 +327,7 @@ def _add_new_study() -> None:
     st.session_state["new_study_input"] = ""
 
     st.session_state["_add_study_msg"] = ("success", f"Added and selected study: {name}")
+
 
 # Widgets (define after callback)
 st.sidebar.text_input(
@@ -521,7 +530,6 @@ with main_tab4:
         _lazy_render("report_tab")
 
 
-
 # =============================================================================
 # SIDEBAR - QUICK ACTIONS
 # =============================================================================
@@ -535,7 +543,9 @@ col1, col2, col3 = st.sidebar.columns(3)
 with col1:
     st.metric("Studies", f"{_metrics['study_count']}")
 with col2:
-    st.metric("Data Entered", f"{_metrics['active_data_count']}/{_metrics.get('active_data_total', 6)}")
+    st.metric(
+        "Data Entered", f"{_metrics['active_data_count']}/{_metrics.get('active_data_total', 6)}"
+    )
 with col3:
     st.metric("Calib. Quality", f"{_metrics['calib_quality']}/100")
 
@@ -562,4 +572,7 @@ st.markdown(
 # =============================================================================
 if st.session_state.get("first_time", True):
     st.session_state["first_time"] = False
-    st.toast(f"Welcome to AdsorbLab Pro v{APP_VERSION}! Start by adding a study in the sidebar.", icon="👋")
+    st.toast(
+        f"Welcome to AdsorbLab Pro v{APP_VERSION}! Start by adding a study in the sidebar.",
+        icon="👋",
+    )

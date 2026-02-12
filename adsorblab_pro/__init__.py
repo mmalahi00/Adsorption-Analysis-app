@@ -26,6 +26,7 @@ Example:
 
 try:
     from importlib.metadata import version
+
     __version__ = version("adsorblab-pro")
 except Exception:
     __version__ = "dev"

@@ -1540,9 +1540,7 @@ class TestValidateDataEditor:
 
     def test_missing_columns(self, valid_isotherm_df):
         """Test with missing required columns."""
-        result = validate_data_editor(
-            valid_isotherm_df, required_cols=["Ce", "qe", "missing_col"]
-        )
+        result = validate_data_editor(valid_isotherm_df, required_cols=["Ce", "qe", "missing_col"])
         assert result is None
 
     def test_comma_decimal_handling(self, comma_decimal_df):

@@ -115,7 +115,9 @@ def _arrays_to_tuples(Ce: np.ndarray, qe: np.ndarray, C0: np.ndarray):
     )
 
 
-def _run_isotherm_bootstrap(Ce, qe, fitted_models, n_bootstrap, confidence_level, T_K: float = 298.15):
+def _run_isotherm_bootstrap(
+    Ce, qe, fitted_models, n_bootstrap, confidence_level, T_K: float = 298.15
+):
     """
     Run bootstrap CI on already fitted isotherm models with visual progress.
 
@@ -358,7 +360,9 @@ def _fit_all_isotherm_models_cached(
 # =============================================================================
 
 
-def fit_isotherm_models_with_cache(Ce, qe, C0, confidence_level, current_study_state, T_K: float = 298.15):
+def fit_isotherm_models_with_cache(
+    Ce, qe, C0, confidence_level, current_study_state, T_K: float = 298.15
+):
     """
     Wrapper that manages caching and session state updates.
 
@@ -399,13 +403,14 @@ def fit_isotherm_models_with_cache(Ce, qe, C0, confidence_level, current_study_s
     ):
         return cached_models
 
-
     # Cache miss - need to fit models
     # Convert arrays to tuples for the cached function
     Ce_tuple, qe_tuple, C0_tuple = _arrays_to_tuples(Ce, qe, C0)
 
     # Call the cached fitting function
-    fitted_models = _fit_all_isotherm_models_cached(Ce_tuple, qe_tuple, C0_tuple, confidence_level, T_K)
+    fitted_models = _fit_all_isotherm_models_cached(
+        Ce_tuple, qe_tuple, C0_tuple, confidence_level, T_K
+    )
 
     # Update session state with results (OUTSIDE cached function)
     current_study_state["_isotherm_T_K"] = T_K
@@ -446,6 +451,7 @@ def _check_linear_nonlinear_warning(Ce, qe, fitted_models, current_study_state):
                     f"⚠️ **{model_name}:** Non-linear R² ({nl_r2:.4f}) is {diff:.1f}% better than "
                     f"linear R² ({l_r2:.4f}). **Non-linear parameters are more accurate.**"
                 )
+
 
 def _get_temperature_k(params: dict) -> float:
     """Return temperature in Kelvin from params (prefers T_K, falls back to T_C, else 298.15)."""
@@ -547,13 +553,14 @@ def render():
                 f"T = {T_K - 273.15:.1f} °C ({T_K:.2f} K)"
             )
 
-
             # Visualization
             st.markdown("---")
             st.markdown("### 📈 Isotherm Curve")
 
             # Always remind: model fitting uses qe (mg/g)
-            st.caption("Note: model fitting below always uses qₑ (mg/g). Unit selection affects only the overview plots/tables.")
+            st.caption(
+                "Note: model fitting below always uses qₑ (mg/g). Unit selection affects only the overview plots/tables."
+            )
 
             # --- Plot selection ---
             if unit_system == "mg/g":
@@ -724,7 +731,6 @@ def render():
                 and current_study_state.get("isotherm_models_fitted")
             )
 
-
             # Show results if cached OR if calculate button pressed
             if has_cached_results and not calculate_btn:
                 st.success("✅ Using cached model results (click 'Fit Models' to recalculate)")
@@ -736,7 +742,6 @@ def render():
                     fitted_models = fit_isotherm_models_with_cache(
                         Ce, qe, C0, confidence_level, current_study_state, T_K=T_K
                     )
-
 
                 # Count converged models
                 converged_count = sum(

@@ -114,7 +114,6 @@ def render():
                     y2_tozero=True,
                 )
             else:
-
                 y_col = "qe_mg_g" if unit_system == "mg/g" else "removal_%"
                 y_label = "qe (mg/g)" if unit_system == "mg/g" else "Removal (%)"
 

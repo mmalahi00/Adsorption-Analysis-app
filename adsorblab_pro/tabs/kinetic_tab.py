@@ -596,7 +596,6 @@ def render():
                     y2_tozero=True,
                 )
             else:
-
                 fig_kin = go.Figure()
 
                 tr = style_experimental_trace(name="Experimental")
