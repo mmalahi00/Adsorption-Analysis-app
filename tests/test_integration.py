@@ -804,8 +804,7 @@ class TestKnownValues:
         delta_H = -30  # kJ/mol
         delta_S = 0.05  # kJ/(mol·K)
 
-        # ΔG should approximately equal ΔH - TΔS
-        # (delta_G_expected = delta_H - T * delta_S)
+        # ΔG = ΔH - TΔS
 
         # Create synthetic Kd data following Van't Hoff equation
         T_array = np.array([298, 308, 318])

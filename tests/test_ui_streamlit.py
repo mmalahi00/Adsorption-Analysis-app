@@ -73,14 +73,12 @@ class TestTabImports:
         assert hasattr(home_tab, "render")
         assert callable(home_tab.render)
 
-
     def test_import_calibration_tab(self):
         """Test calibration tab import."""
         from adsorblab_pro.tabs import calibration_tab
 
         assert hasattr(calibration_tab, "render")
         assert callable(calibration_tab.render)
-
 
     def test_import_isotherm_tab(self):
         """Test isotherm tab import."""
@@ -96,14 +94,12 @@ class TestTabImports:
         assert hasattr(kinetic_tab, "render")
         assert callable(kinetic_tab.render)
 
-
     def test_import_thermodynamics_tab(self):
         """Test thermodynamics tab import."""
         from adsorblab_pro.tabs import thermodynamics_tab
 
         assert hasattr(thermodynamics_tab, "render")
         assert callable(thermodynamics_tab.render)
-
 
     def test_import_comparison_tab(self):
         """Test comparison tab import."""
@@ -112,14 +108,12 @@ class TestTabImports:
         assert hasattr(comparison_tab, "render")
         assert callable(comparison_tab.render)
 
-
     def test_import_report_tab(self):
         """Test report tab import."""
         from adsorblab_pro.tabs import report_tab
 
         assert hasattr(report_tab, "render")
         assert callable(report_tab.render)
-
 
     def test_import_competitive_tab(self):
         """Test competitive tab import."""
@@ -128,27 +122,31 @@ class TestTabImports:
         assert hasattr(competitive_tab, "render")
         assert callable(competitive_tab.render)
 
-
     def test_import_threed_explorer_tab(self):
         """Test 3D explorer tab import."""
         from adsorblab_pro.tabs import threed_explorer_tab
 
         assert hasattr(threed_explorer_tab, "render")
         assert callable(threed_explorer_tab.render)
+
     def test_import_dosage_tab(self):
         from adsorblab_pro.tabs import dosage_tab
+
         assert callable(dosage_tab.render)
 
     def test_import_ph_effect_tab(self):
         from adsorblab_pro.tabs import ph_effect_tab
+
         assert callable(ph_effect_tab.render)
 
     def test_import_temperature_tab(self):
         from adsorblab_pro.tabs import temperature_tab
+
         assert callable(temperature_tab.render)
 
     def test_import_statistical_summary_tab(self):
         from adsorblab_pro.tabs import statistical_summary_tab
+
         assert callable(statistical_summary_tab.render)
 
 
@@ -369,7 +367,6 @@ class TestSidebarUI:
         assert hasattr(sidebar_ui, "render_sidebar_content")
         assert callable(sidebar_ui.render_sidebar_content)
 
-
     def test_sidebar_has_expected_functions(self):
         """Test sidebar has expected functions."""
         import adsorblab_pro.sidebar_ui as sidebar_ui
@@ -530,9 +527,9 @@ class TestReportGeneration:
     def test_report_tab_imports(self):
         """Test report tab can be imported and exposes a render() entrypoint."""
         from adsorblab_pro.tabs import report_tab
+
         assert hasattr(report_tab, "render")
         assert callable(report_tab.render)
-
 
     def test_calculation_result_structure(self):
         """Test CalculationResult structure used in reports."""
@@ -557,6 +554,7 @@ class TestThreeDExplorerTab:
     def test_threed_tab_imports(self):
         """Test 3D tab can be imported and exposes a render() entrypoint."""
         from adsorblab_pro.tabs import threed_explorer_tab
+
         assert hasattr(threed_explorer_tab, "render")
         assert callable(threed_explorer_tab.render)
 
