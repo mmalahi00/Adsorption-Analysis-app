@@ -110,7 +110,7 @@ delta_H = -slope * R / 1000.0           # kJ/mol
 delta_S = intercept * R                   # J/(mol·K)
 delta_G = [delta_H - T * delta_S / 1000.0 for T in T_K_list]  # kJ/mol
 
-print(f"\n  ── Van't Hoff Results ──")
+print("\n  ── Van't Hoff Results ──")
 print(f"    Slope     = {slope:.2f} K")
 print(f"    Intercept = {intercept:.4f}")
 print(f"    R²        = {r2_vh:.5f}")
@@ -148,7 +148,8 @@ ax1.set_xlabel("Ce  (mg / L)", fontsize=12)
 ax1.set_ylabel("qe  (mg / g)", fontsize=12)
 ax1.set_title("Langmuir Isotherms at Multiple Temperatures", fontsize=13)
 ax1.legend(fontsize=9, frameon=True)
-ax1.set_xlim(left=0); ax1.set_ylim(bottom=0)
+ax1.set_xlim(left=0)
+ax1.set_ylim(bottom=0)
 fig1.tight_layout()
 fig1.savefig(OUT_DIR / "multi_temp_isotherms.png", dpi=300)
 print(f"  ✓ Saved {OUT_DIR / 'multi_temp_isotherms.png'}")
