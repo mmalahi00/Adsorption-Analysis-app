@@ -38,7 +38,7 @@ OUT_DIR.mkdir(exist_ok=True)
 # Note: V, m, T, pH are defined in the original batch study
 # (Wongcharee et al. 2017, Int. Biodeterioration Biodegradation, 124, 276-287).
 # The Suwannahong paper provides Ce/qe data directly.
-EPS = 1e-12      # numerical guard
+EPS = 1e-12  # numerical guard
 
 # ── Load and derive ──────────────────────────────────────────────────────
 df = pd.read_csv(DATA_FILE)
@@ -49,14 +49,18 @@ qe = df["qe_exp_mg_g"].values
 
 # ── Model definitions ────────────────────────────────────────────────────
 
+
 def langmuir(Ce, qm, KL):
     return qm * KL * Ce / (1.0 + KL * Ce)
+
 
 def freundlich(Ce, KF, n_inv):
     return KF * np.power(np.maximum(Ce, EPS), n_inv)
 
+
 def temkin(Ce, B1, KT):
     return B1 * np.log(np.maximum(KT * Ce, EPS))
+
 
 def sips(Ce, qm, Ks, ns):
     Ks_Ce_ns = np.power(np.maximum(Ks * Ce, EPS), ns)
@@ -64,6 +68,7 @@ def sips(Ce, qm, Ks, ns):
 
 
 # ── Fitting helper ───────────────────────────────────────────────────────
+
 
 def fit_model(func, Ce, qe, p0, bounds, names):
     """Fit *func* and return a results dict with AIC."""
@@ -91,28 +96,36 @@ def fit_model(func, Ce, qe, p0, bounds, names):
 results = {}
 
 results["Langmuir"] = fit_model(
-    langmuir, Ce, qe,
+    langmuir,
+    Ce,
+    qe,
     p0=[80, 0.02],
     bounds=([0, 0], [500, 10]),
     names=["qm (mg/g)", "KL (L/mg)"],
 )
 
 results["Freundlich"] = fit_model(
-    freundlich, Ce, qe,
+    freundlich,
+    Ce,
+    qe,
     p0=[5.0, 0.5],
     bounds=([0, 0.01], [200, 5]),
     names=["KF ((mg/g)(L/mg)^1/n)", "1/n"],
 )
 
 results["Temkin"] = fit_model(
-    temkin, Ce, qe,
+    temkin,
+    Ce,
+    qe,
     p0=[15, 0.25],
     bounds=([0.01, 1e-6], [200, 100]),
     names=["B1 (J/mol)", "KT (L/mg)"],
 )
 
 results["Sips"] = fit_model(
-    sips, Ce, qe,
+    sips,
+    Ce,
+    qe,
     p0=[80, 0.02, 0.9],
     bounds=([0, 0, 0.1], [500, 10, 5]),
     names=["qm (mg/g)", "Ks (L/mg)", "ns"],
@@ -141,7 +154,7 @@ KL = results["Langmuir"]["params"]["KL (L/mg)"]
 Ce_vals = df["Ce_mg_L"].values
 RL = 1.0 / (1.0 + KL * Ce_vals)
 print(f"  Langmuir separation factor RL range: {RL.min():.3f} – {RL.max():.3f}")
-print(f"  (Computed using Ce as proxy for C0; actual RL slightly lower)")
+print("  (Computed using Ce as proxy for C0; actual RL slightly lower)")
 print(f"  Interpretation: {'Favourable' if np.all((RL > 0) & (RL < 1)) else 'Check range'}\n")
 
 # ── Figure 1: Experimental + fitted curves ───────────────────────────────
@@ -149,10 +162,8 @@ Ce_fine = np.linspace(0, Ce.max() * 1.05, 300)
 fig1, ax1 = plt.subplots(figsize=(7, 5))
 ax1.scatter(Ce, qe, s=60, zorder=5, color="black", label="Experimental")
 
-colours = {"Langmuir": "#1f77b4", "Freundlich": "#ff7f0e",
-           "Temkin": "#2ca02c", "Sips": "#d62728"}
-funcs = {"Langmuir": langmuir, "Freundlich": freundlich,
-         "Temkin": temkin, "Sips": sips}
+colours = {"Langmuir": "#1f77b4", "Freundlich": "#ff7f0e", "Temkin": "#2ca02c", "Sips": "#d62728"}
+funcs = {"Langmuir": langmuir, "Freundlich": freundlich, "Temkin": temkin, "Sips": sips}
 
 for name, r in results.items():
     y_fine = funcs[name](Ce_fine, *r["params"].values())
@@ -202,8 +213,13 @@ print(f"  ✓ Saved {OUT_DIR / 'langmuir_RL.png'}")
 # ── Summary table CSV ───────────────────────────────────────────────────
 rows = []
 for name, r in ranking:
-    row = {"Model": name, "R²": r["R2"], "AIC": r["AIC"],
-           "SS_res": r["SS_res"], "n_params": r["n_params"]}
+    row = {
+        "Model": name,
+        "R²": r["R2"],
+        "AIC": r["AIC"],
+        "SS_res": r["SS_res"],
+        "n_params": r["n_params"],
+    }
     for pn, pv in r["params"].items():
         row[pn] = pv
     rows.append(row)
