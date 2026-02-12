@@ -139,6 +139,8 @@ omit = [
     "*/__pycache__/*",
     "*.pyc",
     "adsorblab_pro/tabs/*",
+    "adsorblab_pro/app_main.py",
+    "adsorblab_pro/docx_report.py",
     "adsorblab_pro/app.py",
     "adsorblab_pro/sidebar_ui.py",
 ]
