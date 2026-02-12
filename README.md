@@ -94,7 +94,7 @@ Visualise how adsorption responds to **two variables at once** — no scripting 
 In the **Export** tab you can generate:
 
 - **ZIP package**: selected figures + tables as files (PNG/SVG/PDF + CSV/XLSX depending on selections)
-- **Word report (.docx)**: a manuscript-ready report with embedded figures, tables, captions, and notes
+- **Word report (.docx)**: a report with embedded figures, tables, and notes
 
 ### Word report settings
 
