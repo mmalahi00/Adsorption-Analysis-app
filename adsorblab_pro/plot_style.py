@@ -776,7 +776,6 @@ def create_model_comparison_plot(
     return fig
 
 
-
 def create_residual_plot(
     y_pred: np.ndarray, residuals: np.ndarray, model_name: str = "Model", height: int = 350
 ) -> go.Figure:
@@ -949,8 +948,8 @@ def style_study_trace(
 
 
 def create_effect_plot(
-    x,
-    y,
+    x: Any,
+    y: Any,
     title: str,
     x_title: str,
     y_title: str,
@@ -1060,9 +1059,9 @@ def create_vant_hoff_plot(
 
 
 def create_dual_axis_effect_plot(
-    x,
-    y1,
-    y2,
+    x: Any,
+    y1: Any,
+    y2: Any,
     title: str,
     x_title: str,
     y1_title: str,
@@ -1660,7 +1659,6 @@ MATPLOTLIB_STYLE = {
     "font.serif": ["Times New Roman", "DejaVu Serif", "Georgia"],
     "font.size": 12,
 }
-
 
 
 def apply_professional_3d_style(
