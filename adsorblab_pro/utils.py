@@ -72,7 +72,6 @@ from .config import (
     EPSILON_ZERO,
     FONT_FAMILY,
     FUZZY_MATCH_CUTOFF,
-    MECHANISM_CRITERIA,
     MIN_DATA_POINTS,
     PLOT_TEMPLATE,
     R_GAS_CONSTANT,
@@ -608,7 +607,6 @@ def calculate_q2(press: float, y_data: np.ndarray) -> float:
     return 1 - press / ss_tot
 
 
-
 # =============================================================================
 # MECHANISM CONSISTENCY CHECKER
 # =============================================================================
@@ -868,7 +866,6 @@ def display_results_table(
         kwargs["height"] = height
 
     st.dataframe(df, **kwargs)
-
 
 
 # =============================================================================
@@ -2716,11 +2713,10 @@ def detect_replicates(data: pd.DataFrame, x_col: str, tolerance: float = 0.01) -
 # - STUDY_METRIC_DATA_KEYS
 
 
-
 def get_study_metrics() -> dict:
     """
     Compute metrics for the current active study.
-    
+
     Returns
     -------
     dict
@@ -2764,10 +2760,10 @@ def cleanup_session_state_keys(
     """Clean up session state keys when switching or adding studies."""
     if not _STREAMLIT_AVAILABLE:
         return
-    
+
     if "session_state" not in dir(st):
         return
-    
+
     for key in input_keys:
         st.session_state.pop(key, None)
 
@@ -2783,19 +2779,19 @@ def cleanup_session_state_keys(
 def validate_study_name(name: str, existing_studies: dict | None = None) -> tuple[bool, str]:
     """Validate a study name for creation."""
     name = (name or "").strip()
-    
+
     if not name:
         return False, "Please enter a study name."
-    
+
     if existing_studies is None:
         if _STREAMLIT_AVAILABLE:
             existing_studies = st.session_state.get("studies", {})
         else:
             existing_studies = {}
-    
+
     if name in existing_studies:
         return False, "A study with this name already exists."
-    
+
     return True, ""
 
 
@@ -2806,30 +2802,30 @@ def calculate_calibration_stats(
 ) -> dict[str, Any]:
     """Calculate linear regression statistics for calibration curves."""
     from scipy.stats import linregress, t as t_dist
-    
+
     n = len(concentration)
     if n < 2:
         raise ValueError("Need at least 2 points for linear regression")
-    
+
     slope, intercept, r_value, p_value, std_err = linregress(concentration, absorbance)
     r_squared = r_value ** 2
-    
+
     y_pred = slope * concentration + intercept
     residuals = absorbance - y_pred
     ss_res = np.sum(residuals ** 2)
     se_estimate = np.sqrt(ss_res / (n - 2)) if n > 2 else 0
-    
+
     se_slope = se_estimate / np.sqrt(np.sum((concentration - np.mean(concentration)) ** 2))
     se_intercept = se_estimate * np.sqrt(
         1 / n + np.mean(concentration) ** 2 / np.sum((concentration - np.mean(concentration)) ** 2)
     )
-    
+
     alpha = 1 - confidence_level
     t_val = t_dist.ppf(1 - alpha / 2, n - 2) if n > 2 else 2.0
-    
+
     ci_slope = (slope - t_val * se_slope, slope + t_val * se_slope)
     ci_intercept = (intercept - t_val * se_intercept, intercept + t_val * se_intercept)
-    
+
     return {
         "slope": slope,
         "intercept": intercept,
