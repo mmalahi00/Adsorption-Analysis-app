@@ -331,9 +331,6 @@ def render():
                 slope = thermo_params["slope"]
                 intercept = thermo_params["intercept"]
 
-                x_line = np.linspace(x.min() * 0.98, x.max() * 1.02, 100)
-                y_line = slope * x_line + intercept
-
                 fig = create_vant_hoff_plot(
                         invT=x,
                         lnKd=y,
