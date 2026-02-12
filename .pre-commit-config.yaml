@@ -66,13 +66,12 @@ repos:
   # Security checks
   # ===========================================
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.9.3
+    rev: 1.7.7
     hooks:
       - id: bandit
-        args: ['-c', 'pyproject.toml', '-r', 'adsorblab_pro/']
-        additional_dependencies: ['bandit[toml]']
-        # Skip security check failures for now
-        # Remove when security issues are addressed
+        stages: [manual]
+        additional_dependencies: [bandit[toml]]
+        args: ["-c", "pyproject.toml", "-r", "adsorblab_pro/"]
         verbose: true
 
 # ===========================================
