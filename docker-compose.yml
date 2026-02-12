@@ -1,0 +1,64 @@
+# ===========================================
+# AdsorbLab Pro - Docker Compose Configuration
+# ===========================================
+# Usage:
+#   docker-compose up -d        # Start in background
+#   docker-compose down         # Stop and remove
+#   docker-compose logs -f      # View logs
+#   docker-compose build        # Rebuild image
+
+
+services:
+  adsorblab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: adsorblab-pro:2.0.0
+    container_name: adsorblab-pro
+    ports:
+      - "8501:8501"
+    environment:
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    volumes:
+      # Mount examples for easy access (read-only)
+      - ./examples:/app/examples:ro
+      # Optional: Mount a data directory for persistent storage
+      # - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Resource limits (adjust based on your server)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Optional: Development service with hot reload
+  adsorblab-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: adsorblab-pro:dev
+    container_name: adsorblab-pro-dev
+    ports:
+      - "8502:8501"
+    environment:
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_RUN_ON_SAVE=true
+    volumes:
+      # Mount source code for hot reload during development
+      - ./adsorblab_pro:/app/adsorblab_pro:ro
+      - ./examples:/app/examples:ro
+    profiles:
+      - dev  # Only starts with: docker-compose --profile dev up

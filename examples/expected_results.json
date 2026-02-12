@@ -1,0 +1,213 @@
+{
+  "metadata": {
+    "version": "2.0.0",
+    "description": "Expected results for validation of AdsorbLab Pro calculations (supported features only)",
+    "created": "2026-01-17",
+    "last_updated": "2026-02-12",
+    "tolerance": {
+      "parameter_relative": 0.05,
+      "r_squared_absolute": 0.01
+    }
+  },
+
+  "calibration_data": {
+    "file": "calibration_data.csv",
+    "expected_results": {
+      "slope": {
+        "value": 0.01666,
+        "unit": "L/mg",
+        "tolerance": 0.001
+      },
+      "intercept": {
+        "value": 0.002,
+        "unit": "AU",
+        "tolerance": 0.005
+      },
+      "r_squared": {
+        "value": 0.9999,
+        "min_acceptable": 0.995
+      },
+      "concentration_range": {
+        "min": 0,
+        "max": 100,
+        "unit": "mg/L"
+      }
+    }
+  },
+
+  "isotherm_data": {
+    "file": "isotherm_data.csv",
+    "direct_file": "isotherm_direct.csv",
+    "experimental_conditions": {
+      "V_L": 0.05,
+      "m_g": 0.1,
+      "T_K": 298.15,
+      "pH": 7.0
+    },
+    "expected_results": {
+      "langmuir": {
+        "qm_mg_g": { "value": 78.5, "unit": "mg/g", "tolerance": 5.0 },
+        "KL_L_mg": { "value": 0.018, "unit": "L/mg", "tolerance": 0.005 },
+        "r_squared": { "value": 0.995, "min_acceptable": 0.98 },
+        "RL_range": { "min": 0.1, "max": 0.85, "interpretation": "favorable" }
+      },
+      "freundlich": {
+        "KF_mg_g": { "value": 5.2, "unit": "(mg/g)(L/mg)^(1/n)", "tolerance": 1.0 },
+        "n": { "value": 2.1, "unit": "dimensionless", "tolerance": 0.3 },
+        "r_squared": { "value": 0.985, "min_acceptable": 0.95 },
+        "interpretation": "favorable (n > 1)"
+      },
+      "temkin": {
+        "B1_J_mol": { "value": 15.5, "unit": "J/mol", "tolerance": 2.0 },
+        "KT_L_mg": { "value": 0.25, "unit": "L/mg", "tolerance": 0.05 },
+        "r_squared": { "value": 0.975, "min_acceptable": 0.94 }
+      },
+      "sips": {
+        "qm_mg_g": { "value": 80.0, "unit": "mg/g", "tolerance": 6.0 },
+        "Ks": { "value": 0.02, "unit": "L/mg", "tolerance": 0.01 },
+        "n": { "value": 0.9, "unit": "dimensionless", "tolerance": 0.2 },
+        "r_squared": { "value": 0.996, "min_acceptable": 0.98 }
+      },
+      "redlich_peterson": {
+        "KRP": { "value": 1.5, "unit": "L/g", "tolerance": 0.5 },
+        "aRP": { "value": 0.02, "unit": "(L/mg)^g", "tolerance": 0.01 },
+        "g": { "value": 0.95, "unit": "dimensionless", "tolerance": 0.1 },
+        "r_squared": { "value": 0.997, "min_acceptable": 0.98 }
+      },
+      "best_model": "langmuir",
+      "selection_criterion": "AIC"
+    }
+  },
+
+  "kinetic_data": {
+    "file": "kinetic_data.csv",
+    "direct_file": "kinetic_direct.csv",
+    "experimental_conditions": {
+      "C0_mg_L": 100.0,
+      "V_L": 0.05,
+      "m_g": 0.1,
+      "T_K": 298.15
+    },
+    "expected_results": {
+      "pfo": {
+        "qe_mg_g": { "value": 44.5, "unit": "mg/g", "tolerance": 3.0 },
+        "k1_min": { "value": 0.035, "unit": "1/min", "tolerance": 0.01 },
+        "r_squared": { "value": 0.985, "min_acceptable": 0.95 }
+      },
+      "pso": {
+        "qe_mg_g": { "value": 47.2, "unit": "mg/g", "tolerance": 2.0 },
+        "k2_g_mg_min": { "value": 0.0012, "unit": "g/(mg·min)", "tolerance": 0.0005 },
+        "h_mg_g_min": { "value": 2.67, "unit": "mg/(g·min)", "description": "Initial adsorption rate h = k2 * qe^2" },
+        "r_squared": { "value": 0.998, "min_acceptable": 0.98 }
+      },
+      "elovich": {
+        "alpha_mg_g_min": { "value": 12.5, "unit": "mg/(g·min)", "tolerance": 3.0 },
+        "beta_g_mg": { "value": 0.095, "unit": "g/mg", "tolerance": 0.02 },
+        "r_squared": { "value": 0.975, "min_acceptable": 0.94 }
+      },
+      "ipd": {
+        "kid_mg_g_min05": { "value": 3.8, "unit": "mg/(g·min^0.5)", "tolerance": 0.5 },
+        "C_mg_g": { "value": 8.5, "unit": "mg/g", "tolerance": 2.0, "interpretation": "C > 0 indicates boundary layer effect" },
+        "r_squared": { "value": 0.92, "min_acceptable": 0.85 }
+      },
+      "avrami": {
+        "qe_mg_g": { "value": 45.8, "unit": "mg/g", "tolerance": 3.0 },
+        "kav": { "value": 0.025, "unit": "1/min", "tolerance": 0.01 },
+        "n": { "value": 1.2, "unit": "dimensionless", "tolerance": 0.3 },
+        "r_squared": { "value": 0.992, "min_acceptable": 0.97 }
+      },
+      "best_model": "pso",
+      "selection_criterion": "AIC",
+      "equilibrium_time_min": 240,
+      "rate_limiting_step": "chemisorption"
+    }
+  },
+
+  "ph_effect_data": {
+    "file": "ph_effect_data.csv",
+    "direct_file": "ph_effect_direct.csv",
+    "experimental_conditions": {
+      "C0_mg_L": 100.0,
+      "V_L": 0.05,
+      "m_g": 0.1
+    },
+    "expected_results": {
+      "optimal_pH": { "value": 7.0, "tolerance": 0.5 },
+      "max_qe_mg_g": { "value": 40.0, "unit": "mg/g", "tolerance": 5.0 },
+      "max_removal_percent": { "value": 80.0, "tolerance": 5.0 },
+      "pH_range_tested": { "min": 2.0, "max": 12.0 },
+      "interpretation": "Maximum adsorption at neutral pH suggests electrostatic interactions"
+    }
+  },
+
+  "dosage_data": {
+    "file": "dosage_data.csv",
+    "direct_file": "dosage_direct.csv",
+    "experimental_conditions": {
+      "C0_mg_L": 100.0,
+      "V_L": 0.05
+    },
+    "expected_results": {
+      "optimal_mass_g": { "value": 0.2, "tolerance": 0.05, "criterion": "90% removal" },
+      "removal_at_optimal": { "value": 75.0, "unit": "%", "tolerance": 5.0 },
+      "qe_trend": "decreasing with increasing mass",
+      "removal_trend": "increasing then plateau",
+      "interpretation": "Optimal dosage balances cost-efficiency with removal performance"
+    }
+  },
+
+  "temperature_data": {
+    "file": "temperature_data.csv",
+    "direct_file": "temperature_direct.csv",
+    "experimental_conditions": {
+      "C0_mg_L": 100.0,
+      "V_L": 0.05,
+      "m_g": 0.1
+    },
+    "expected_results": {
+      "temperature_range_C": { "min": 25, "max": 65 },
+      "qe_trend": "increasing with temperature",
+      "process_type": "endothermic",
+      "interpretation": "Increasing qe with temperature indicates endothermic adsorption"
+    }
+  },
+
+  "statistical_validation": {
+    "bootstrap_ci": {
+      "n_iterations": 1000,
+      "confidence_level": 0.95,
+      "expected_behavior": "CI should bracket fitted parameter in 95% of cases"
+    },
+    "press_q2": {
+      "expected_behavior": "Q² ≤ R² for all models",
+      "good_predictive_ability": "Q² > 0.5"
+    },
+    "residual_diagnostics": {
+      "shapiro_wilk": {
+        "null_hypothesis": "Residuals are normally distributed",
+        "p_threshold": 0.05
+      },
+      "durbin_watson": {
+        "expected_range": [1.5, 2.5],
+        "interpretation": "Values outside range suggest autocorrelation"
+      }
+    },
+    "model_comparison": {
+      "aic": "Lower is better; penalizes complexity",
+      "bic": "Lower is better; stronger penalty for complexity",
+      "adjusted_r2": "Higher is better; accounts for parameters"
+    }
+  },
+
+  "notes": [
+    "All expected values are approximate and subject to fitting algorithm variations",
+    "R² values assume non-linear fitting (not linearized transforms)",
+    "Bootstrap CI may vary slightly between runs due to random sampling",
+    "Use tolerance values to determine acceptable deviation from expected results",
+    "Calibration data follows Beer-Lambert law: A = εbc",
+    "pH effect shows typical amphoteric behavior with optimal near neutral",
+    "Dosage effect demonstrates diminishing returns at higher masses",
+    "Temperature data designed to show clear endothermic/exothermic trends",
+    "Direct input files bypass calibration for literature data validation"
+  ]
+}

@@ -1,0 +1,221 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+env:
+  # Minimum coverage percentage to pass
+  MIN_COVERAGE: 70
+
+jobs:
+  # ==========================================================================
+  # Linting - Fast feedback, runs first
+  # ==========================================================================
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install linting tools
+        run: pip install -r requirements-dev.txt
+
+      # ENFORCED: Critical errors that indicate bugs or broken code
+      - name: Ruff - Critical (enforced)
+        run: |
+          ruff check . --select=F821,F822,F823,F811 \
+            --exclude=".git,__pycache__,build,dist,*.egg-info"
+
+      # ENFORCED: Standard Python errors and warnings
+      - name: Ruff - Standard (enforced)
+        run: |
+          ruff check . --select=E,W --ignore=E501,E402,E731,E741 \
+            --exclude=".git,__pycache__,build,dist,*.egg-info"
+
+      # ENFORCED: Full ruff check (all configured rules)
+      - name: Ruff - Full check
+        run: ruff check .
+
+      # ENFORCED: Format check
+      - name: Ruff - Format check
+        run: ruff format --check .
+
+  # ==========================================================================
+  # Type Checking - Static type analysis
+  # ==========================================================================
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install mypy types-requests pandas-stubs
+          pip install -r requirements.txt
+
+      - name: Run mypy
+        run: mypy adsorblab_pro/ --ignore-missing-imports
+        # Type checking is enforced - must have < 50 errors
+        # The pyproject.toml configuration controls which errors are checked
+
+  # ==========================================================================
+  # Tests - Core test suite across Python versions
+  # ==========================================================================
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements-lock.txt ]; then
+            pip install -r requirements-lock.txt
+          else
+            pip install -r requirements.txt
+          fi
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short --timeout=300
+
+  # ==========================================================================
+  # Coverage - Runs on primary Python version only
+  # ==========================================================================
+  coverage:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements-lock.txt ]; then
+            pip install -r requirements-lock.txt
+          else
+            pip install -r requirements.txt
+          fi
+          pip install -r requirements-dev.txt
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ \
+            --cov=adsorblab_pro \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=${{ env.MIN_COVERAGE }} \
+            --timeout=300
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+          verbose: true
+        continue-on-error: true
+
+  # ==========================================================================
+  # Security - Basic security checks
+  # ==========================================================================
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Check for known vulnerabilities
+        run: |
+          if [ -f requirements-lock.txt ]; then
+            pip install -r requirements-lock.txt
+          else
+            pip install -r requirements.txt
+          fi
+          pip-audit --strict --progress-spinner=off
+        continue-on-error: true  # Advisory for now
+
+  # ==========================================================================
+  # Docker - Verify Docker build works
+  # ==========================================================================
+  docker:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: adsorblab-pro:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ==========================================================================
+  # Summary - Final status check for branch protection
+  # ==========================================================================
+  ci-success:
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test, coverage]
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" ]]; then
+            echo "❌ Linting failed"
+            exit 1
+          fi
+          if [[ "${{ needs.typecheck.result }}" != "success" ]]; then
+            echo "❌ Type checking failed"
+            exit 1
+          fi
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "❌ Tests failed"
+            exit 1
+          fi
+          if [[ "${{ needs.coverage.result }}" != "success" ]]; then
+            echo "❌ Coverage check failed"
+            exit 1
+          fi
+          echo "✅ All CI checks passed!"

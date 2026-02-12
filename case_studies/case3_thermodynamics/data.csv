@@ -1,0 +1,17 @@
+Temperature_C,C0_mg_L,Ce_mg_L,Adsorbate,Adsorbent,pH,V_mL,m_g,DOI,Source
+25,100,12.33,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+25,200,31.65,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+25,300,67.31,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+25,400,119.17,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+35,100,7.13,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+35,200,18.88,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+35,300,38.4,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+35,400,72.85,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+45,100,4.69,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+45,200,12.13,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+45,300,24.08,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+45,400,45.6,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+55,100,3.1,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+55,200,7.74,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+55,300,15.3,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper
+55,400,28.22,Methylene Blue,"Activated cassava stem (ACS, 787°C)",natural,50.0,0.075,10.3390/w13202936,Reconstructed from Langmuir params (Tables 2-3); verify against paper

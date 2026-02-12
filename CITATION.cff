@@ -1,28 +1,12 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it."
-title: "Detailed Adsorption Analysis App"
+title: "AdsorbLab Pro"
 type: software
-version: 1.0.0
-doi: 10.5281/zenodo.18501673
-url: "https://adsorption.streamlit.app"
-repository-code: "https://github.com/mmalahi00/Adsorption-Analysis-app"
-license: MIT
+version: "2.0.0"
 authors:
-  - family-names: "EL MALLAHI"
+  - family-names: "EL Mallahi"
     given-names: "Mohamed"
-keywords:
-  - adsorption
-  - isotherms
-  - kinetics
-  - thermodynamics
-  - streamlit
-  - plotly
-  - environmental chemistry
-preferred-citation:
-  type: software
-  title: "Detailed Adsorption Analysis App"
-  authors:
-    - family-names: "EL MALLAHI"
-      given-names: "Mohamed"
-  version: 1.0.0
-  doi: 10.5281/zenodo.18501673
+repository-code: "https://github.com/mmalahi00/Adsorption-Analysis-app"
+url: "https://adsorption.streamlit.app"
+license: "MIT"
+

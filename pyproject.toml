@@ -1,0 +1,159 @@
+# AdsorbLab Pro - Project Configuration
+# ======================================
+# Modern Python packaging with pyproject.toml (PEP 517/518/621)
+
+[project]
+name = "adsorblab-pro"
+version = "2.0.0"
+description = "Professional adsorption isotherm and kinetic analysis application"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10,<3.13"
+authors = [
+    {name = "Mohamed EL MALLAHI"}
+]
+keywords = [
+    "adsorption",
+    "isotherm",
+    "kinetics",
+    "langmuir",
+    "freundlich",
+    "scientific",
+    "chemistry",
+    "environmental"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+# Minimum version constraints (same as requirements.txt)
+dependencies = [
+    # Core Framework
+    "streamlit>=1.28.0",
+    
+    # Data Processing
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    
+    # Scientific Computing
+    "scipy>=1.10.0",
+    
+    # Visualization
+    "plotly>=5.15.0",
+    "matplotlib>=3.7.0",
+    "kaleido>=0.2.1",
+    
+    # Document Generation
+    "openpyxl>=3.1.0",
+    "python-docx>=1.1.0",
+    
+    # Utilities
+    "pillow>=9.5.0",
+]
+
+[project.optional-dependencies]
+# Development and testing dependencies
+dev = [
+    "pytest>=7.3.0",
+    "pytest-cov>=4.1.0",
+    "pytest-timeout>=2.2.0",
+    "coverage>=7.6.1",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+]
+
+# Full installation (all optional dependencies)
+full = [
+    "adsorblab-pro[dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/mmalahi00/Adsorption-Analysis-app"
+Documentation = "https://github.com/mmalahi00/Adsorption-Analysis-app#readme"
+Repository = "https://github.com/mmalahi00/Adsorption-Analysis-app.git"
+Issues = "https://github.com/mmalahi00/Adsorption-Analysis-app/issues"
+
+[project.scripts]
+adsorblab = "adsorblab_pro:main"
+
+# ==============================================================================
+# Build System
+# ==============================================================================
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["adsorblab_pro"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "adsorblab_pro/**/*.py",
+    "examples/**/*",
+    "docs/**/*",
+    "scripts/**/*",
+    "tests/**/*",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+# ==============================================================================
+# Tool Configurations
+# ==============================================================================
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::UserWarning:plotly.*",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.coverage.run]
+source = ["adsorblab_pro"]
+omit = [
+    "tests/*",
+    "*/__pycache__/*",
+    "*.pyc",
+    "adsorblab_pro/tabs/*",
+    "adsorblab_pro/app.py",
+    "adsorblab_pro/sidebar_ui.py",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100

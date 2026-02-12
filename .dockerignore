@@ -1,0 +1,70 @@
+# ===========================================
+# AdsorbLab Pro - Docker Ignore File
+# ===========================================
+# Excludes files from Docker build context for faster builds
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.eggs
+dist
+build
+*.egg
+
+# Virtual environments
+venv
+.venv
+env
+.env
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+coverage.xml
+*.cover
+tests/
+
+# IDE and editors
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings
+
+# Documentation (keep README)
+docs/
+*.md
+!README.md
+
+# Development files
+*.log
+*.tmp
+.pre-commit-config.yaml
+pytest.ini
+.mypy_cache
+.ruff_cache
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Other
+*.zip
+*.tar.gz
+*.rar
+Thumbs.db
+.DS_Store

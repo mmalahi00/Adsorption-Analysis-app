@@ -1,0 +1,12 @@
+Ce_mg_L,qe_exp_mg_g,Adsorbate,Adsorbent,pH,T_C,V_mL,m_g,DOI,Source
+0.5,3.64,Methylene Blue,Magnetic nanosorbent (macadamia shell AC + Fe3O4),,,,,10.3390/app11167432,Reconstructed from Langmuir params (Table 8); verify against Table 1
+1.2,7.46,Methylene Blue,Magnetic nanosorbent (macadamia shell AC + Fe3O4),,,,,10.3390/app11167432,Reconstructed from Langmuir params (Table 8); verify against Table 1
+2.5,12.89,Methylene Blue,Magnetic nanosorbent (macadamia shell AC + Fe3O4),,,,,10.3390/app11167432,Reconstructed from Langmuir params (Table 8); verify against Table 1
+5.0,18.87,Methylene Blue,Magnetic nanosorbent (macadamia shell AC + Fe3O4),,,,,10.3390/app11167432,Reconstructed from Langmuir params (Table 8); verify against Table 1
+8.5,22.29,Methylene Blue,Magnetic nanosorbent (macadamia shell AC + Fe3O4),,,,,10.3390/app11167432,Reconstructed from Langmuir params (Table 8); verify against Table 1
+12.0,24.94,Methylene Blue,Magnetic nanosorbent (macadamia shell AC + Fe3O4),,,,,10.3390/app11167432,Reconstructed from Langmuir params (Table 8); verify against Table 1
+18.0,27.93,Methylene Blue,Magnetic nanosorbent (macadamia shell AC + Fe3O4),,,,,10.3390/app11167432,Reconstructed from Langmuir params (Table 8); verify against Table 1
+28.0,29.78,Methylene Blue,Magnetic nanosorbent (macadamia shell AC + Fe3O4),,,,,10.3390/app11167432,Reconstructed from Langmuir params (Table 8); verify against Table 1
+42.0,31.29,Methylene Blue,Magnetic nanosorbent (macadamia shell AC + Fe3O4),,,,,10.3390/app11167432,Reconstructed from Langmuir params (Table 8); verify against Table 1
+60.0,31.78,Methylene Blue,Magnetic nanosorbent (macadamia shell AC + Fe3O4),,,,,10.3390/app11167432,Reconstructed from Langmuir params (Table 8); verify against Table 1
+85.0,33.26,Methylene Blue,Magnetic nanosorbent (macadamia shell AC + Fe3O4),,,,,10.3390/app11167432,Reconstructed from Langmuir params (Table 8); verify against Table 1
