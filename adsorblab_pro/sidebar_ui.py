@@ -27,6 +27,7 @@ from .validation import format_validation_errors, validate_uploaded_file
 
 logger = logging.getLogger(__name__)
 
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -83,7 +84,12 @@ def _parse_uploaded_file(file_content: bytes, file_name: str, required_cols: lis
                 df[col] = pd.to_numeric(df[col], errors="coerce")
 
         if comma_was_replaced:
-            status["messages"].append(("info", "💡 Detected European decimal format. Replaced commas (,) with periods (.) as decimal separators."))
+            status["messages"].append(
+                (
+                    "info",
+                    "💡 Detected European decimal format. Replaced commas (,) with periods (.) as decimal separators.",
+                )
+            )
 
         # Quality assessment
         quality_report = assess_data_quality(df, study_type)
@@ -185,6 +191,7 @@ def _handle_input_change(
             quality_report = assess_data_quality(new_input_dict["data"], study_type)
             current_study_state.setdefault("data_quality_reports", {})[state_key] = quality_report
 
+
 def _get_global_input_mode() -> str:
     """Read the per-study input mode selected in 📊 Display Units."""
     active_study_name = st.session_state.get("current_study")
@@ -194,6 +201,7 @@ def _get_global_input_mode() -> str:
         return studies[active_study_name].get("input_mode_global", "absorbance")
 
     return "absorbance"
+
 
 def _generate_excel_template(columns: list[str], study_type: str) -> io.BytesIO:
     """
@@ -395,7 +403,6 @@ def render_sidebar_content():
         st.sidebar.info("Select a study to enable 📥 Data Input.")
         return
 
-
     global_mode = _get_global_input_mode()
 
     # Section labels with emojis
@@ -441,10 +448,8 @@ def render_sidebar_content():
 
     st.sidebar.markdown("---")
 
-
     # 1. CALIBRATION
     if global_mode != "direct" and active_expander == "calibration":
-
         with st.sidebar.container(border=True):
             st.markdown("#### 📊 Calibration Curve")
             st.markdown("*Establish Absorbance-Concentration relationship*")
@@ -520,7 +525,6 @@ def render_sidebar_content():
                     "help": "Experimental temperature (°C).",
                 },
             },
-
             "dependent_keys": ["isotherm_results", "isotherm_models_fitted"],
         }
         _render_enhanced_study_input(isotherm_config)

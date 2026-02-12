@@ -53,6 +53,7 @@ except Exception:  # pragma: no cover
 # Configuration
 # =============================================================================
 
+
 @dataclass(frozen=True)
 class DocxReportConfig:
     """Configuration for DOCX report generation."""
@@ -243,7 +244,11 @@ def _fix_axis_gradient_overlaps_plotly(
     min_l = max(90, int(0.09 * width_px), int(2.8 * axis_title_px), int(2.4 * tick_px))
     min_b = max(90, int(0.10 * height_px), int(2.4 * axis_title_px), int(2.0 * tick_px))
     min_r = max(60, int(0.05 * width_px), int(1.8 * tick_px))
-    min_t = max(55, int(0.06 * height_px), int(1.2 * axis_title_px)) if has_title else max(25, int(0.03 * height_px))
+    min_t = (
+        max(55, int(0.06 * height_px), int(1.2 * axis_title_px))
+        if has_title
+        else max(25, int(0.03 * height_px))
+    )
 
     margin_l = max(margin_l, min_l)
     b = max(b, min_b)
@@ -293,7 +298,11 @@ def _fix_axis_gradient_overlaps_plotly(
 
         if not has_colorbar:
             for k, v in layout.items():
-                if str(k).startswith("coloraxis") and isinstance(v, dict) and isinstance(v.get("colorbar"), dict):
+                if (
+                    str(k).startswith("coloraxis")
+                    and isinstance(v, dict)
+                    and isinstance(v.get("colorbar"), dict)
+                ):
                     has_colorbar = True
                     cb4 = v.get("colorbar") or {}
                     if str(cb4.get("orientation", "")).lower().startswith("h"):
@@ -347,12 +356,21 @@ def _fix_axis_gradient_overlaps_plotly(
             for tr in fig.data:
                 if getattr(tr, "colorbar", None) is not None:
                     tr.colorbar.update(
-                        x=1.05, xanchor="left", xpad=14, ypad=10,
+                        x=1.05,
+                        xanchor="left",
+                        xpad=14,
+                        ypad=10,
                         tickfont={"size": tick_px, "family": font_family},
                     )
-                if getattr(tr, "marker", None) is not None and getattr(tr.marker, "colorbar", None) is not None:
+                if (
+                    getattr(tr, "marker", None) is not None
+                    and getattr(tr.marker, "colorbar", None) is not None
+                ):
                     tr.marker.colorbar.update(
-                        x=1.05, xanchor="left", xpad=14, ypad=10,
+                        x=1.05,
+                        xanchor="left",
+                        xpad=14,
+                        ypad=10,
                         tickfont={"size": tick_px, "family": font_family},
                     )
         except Exception:
@@ -443,7 +461,9 @@ def _style_plotly_for_docx_export(fig_obj: Any, cfg: DocxReportConfig) -> Any:
 
     base_px = _pt_to_px(base_pt, width_px=cfg.img_width_px, target_width_in=cfg.figure_width_in)
     tick_px = _pt_to_px(tick_pt, width_px=cfg.img_width_px, target_width_in=cfg.figure_width_in)
-    axis_title_px = _pt_to_px(axis_title_pt, width_px=cfg.img_width_px, target_width_in=cfg.figure_width_in)
+    axis_title_px = _pt_to_px(
+        axis_title_pt, width_px=cfg.img_width_px, target_width_in=cfg.figure_width_in
+    )
     title_px = _pt_to_px(title_pt, width_px=cfg.img_width_px, target_width_in=cfg.figure_width_in)
     legend_px = _pt_to_px(legend_pt, width_px=cfg.img_width_px, target_width_in=cfg.figure_width_in)
 
@@ -525,12 +545,14 @@ def _style_plotly_for_docx_export(fig_obj: Any, cfg: DocxReportConfig) -> Any:
 # Helpers for document construction
 # =============================================================================
 
+
 def _ensure_caption_style(doc: Any) -> str | None:
     """Ensure 'Caption' style exists in document; return its name or None."""
     try:
         return "Caption"
     except Exception:
         pass
+    return None
 
 
 def _add_dataframe_table(
@@ -608,6 +630,7 @@ def _coerce_image_bytes(fig_obj: Any, config: DocxReportConfig) -> bytes:
     # Fallback: use kaleido if available
     try:
         import kaleido  # noqa: F401
+
         return styled_fig.to_image(
             format=config.img_format,
             width=config.img_width_px,
@@ -615,9 +638,7 @@ def _coerce_image_bytes(fig_obj: Any, config: DocxReportConfig) -> bytes:
             scale=config.img_scale,
         )
     except Exception:
-        raise RuntimeError(
-            "Cannot export figure to image. Install kaleido: pip install kaleido"
-        )
+        raise RuntimeError("Cannot export figure to image. Install kaleido: pip install kaleido")
 
 
 def _add_figure(
@@ -676,6 +697,7 @@ def _best_model_line(models: Any, label: str) -> str | None:
 # =============================================================================
 # Public API
 # =============================================================================
+
 
 def create_docx_report(
     *,
