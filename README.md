@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml/badge.svg)](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml)
 
-AdsorbLab Pro is a comprehensive Streamlit-based application for analyzing adsorption equilibrium and kinetic data with publication-ready statistical rigor. Designed by researchers, for researchers.
+AdsorbLab Pro is a comprehensive Streamlit-based application for analyzing adsorption equilibrium and kinetic data with statistical rigor. Designed by researchers, for researchers.
 
 ---
 
