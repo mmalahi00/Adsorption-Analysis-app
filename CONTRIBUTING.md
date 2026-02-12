@@ -1,6 +1,6 @@
 # Contributing to AdsorbLab Pro
 
-Thank you for your interest in contributing! 
+Thank you for your interest in contributing!
 
 ## Quick Start
 

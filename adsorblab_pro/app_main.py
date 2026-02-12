@@ -419,9 +419,11 @@ if active_study_name:
             "Select data input mode:",
             input_mode_options,
             index=input_mode_options.index(saved_input_mode),
-            format_func=lambda x: "📊 Absorbance (requires calibration)"
-            if x == "absorbance"
-            else "📈 Direct Concentration (Ce/Ct values)",
+            format_func=lambda x: (
+                "📊 Absorbance (requires calibration)"
+                if x == "absorbance"
+                else "📈 Direct Concentration (Ce/Ct values)"
+            ),
             help=(
                 "Absorbance mode uses the Calibration Curve. "
                 "Direct mode lets you upload Ce/Ct values without calibration."

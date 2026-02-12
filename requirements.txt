@@ -1,7 +1,7 @@
 # AdsorbLab Pro - Runtime Dependencies
 # ====================================
 # CANONICAL SOURCE: pyproject.toml
-# 
+#
 # This file mirrors pyproject.toml [project.dependencies] for:
 #   - Streamlit Cloud deployment (requires requirements.txt)
 #   - Users who prefer pip install -r requirements.txt

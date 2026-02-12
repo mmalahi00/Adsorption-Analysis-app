@@ -116,7 +116,7 @@ or the full guide in `docs/USER_GUIDE.md`.
 | Storage | 500 MB | 1 GB |
 | OS | Windows 10, macOS 10.14, Ubuntu 20.04 | Latest |
 
-> **Supported Python: 3.10+** 
+> **Supported Python: 3.10+**
 
 ### Step-by-Step Installation
 

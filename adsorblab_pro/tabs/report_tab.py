@@ -1951,8 +1951,8 @@ Figure Settings:
 - Format: {config["format"].upper()}
 - Dimensions: {config["width"]}x{config["height"]} pixels
 - Scale: {config["scale"]}x
-- Text preset: {config.get('text_preset', 'Manuscript (journal)')}
-- Intended width: {config.get('target_width_in', 6.5)} in
+- Text preset: {config.get("text_preset", "Manuscript (journal)")}
+- Intended width: {config.get("target_width_in", 6.5)} in
 
 Selected Figures: {len(selected_figures)}
 Selected Tables: {len(selected_tables)}
