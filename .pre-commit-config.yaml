@@ -70,9 +70,13 @@ repos:
     hooks:
       - id: bandit
         stages: [manual]
-        additional_dependencies: [bandit[toml]]
-        args: ["-c", "pyproject.toml", "-r", "adsorblab_pro/"]
-        verbose: true
+        additional_dependencies:
+          - bandit[toml]
+        args:
+          - -c
+          - pyproject.toml
+          - -r
+          - adsorblab_pro/
 
 # ===========================================
 # Configuration
