@@ -152,8 +152,6 @@ class TestTabImports:
         assert callable(statistical_summary_tab.render)
 
 
-
-
 # =============================================================================
 # TAB HELPER FUNCTION TESTS
 # =============================================================================
@@ -447,7 +445,7 @@ class TestUIErrorHandling:
 
         # Should not crash
         try:
-            result = standardize_column_name(None)
+            standardize_column_name(None)
         except (TypeError, AttributeError):
             pass  # Expected behavior
 

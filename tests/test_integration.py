@@ -618,7 +618,7 @@ class TestPerformance:
         qe = complete_isotherm_dataset["qe"]
 
         start = time.time()
-        ci = bootstrap_confidence_intervals(
+        bootstrap_confidence_intervals(
             langmuir_model, Ce, qe, params=np.array([70, 0.05]), n_bootstrap=100, confidence=0.95
         )
         elapsed = time.time() - start
@@ -801,12 +801,11 @@ class TestKnownValues:
 
     def test_thermodynamic_known_relationship(self):
         """Test thermodynamic relationship: ΔG = ΔH - TΔS."""
-        T = 298.15
         delta_H = -30  # kJ/mol
         delta_S = 0.05  # kJ/(mol·K)
 
         # ΔG should approximately equal ΔH - TΔS
-        delta_G_expected = delta_H - T * delta_S
+        # (delta_G_expected = delta_H - T * delta_S)
 
         # Create synthetic Kd data following Van't Hoff equation
         T_array = np.array([298, 308, 318])

@@ -141,7 +141,7 @@ class TestModelFittingPerformance:
         # Create plot
         Ce_fit = np.linspace(Ce.min(), Ce.max(), 100)
         qe_fit = langmuir_model(Ce_fit, *results[0]["popt"])
-        fig = create_isotherm_plot(Ce, qe, Ce_fit, qe_fit, "Langmuir", 0.998)
+        create_isotherm_plot(Ce, qe, Ce_fit, qe_fit, "Langmuir", 0.998)
 
         elapsed = time.perf_counter() - start
         assert elapsed < 5.0, f"Full workflow took {elapsed:.2f}s (>5s limit)"
@@ -181,7 +181,7 @@ class TestPageLoadPerformance:
         )
         Ce_fit = np.linspace(Ce.min(), Ce.max(), 100)
         qe_fit = models.langmuir_model(Ce_fit, *result["popt"])
-        fig = plot_style.create_isotherm_plot(Ce, qe, Ce_fit, qe_fit, "Langmuir", 0.998)
+        plot_style.create_isotherm_plot(Ce, qe, Ce_fit, qe_fit, "Langmuir", 0.998)
 
         elapsed = time.perf_counter() - start
         assert elapsed < 2.0, f"Page render took {elapsed:.2f}s (>2s limit)"
