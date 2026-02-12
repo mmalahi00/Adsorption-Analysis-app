@@ -142,6 +142,7 @@ def _render_study_linked_mode(studies_with_isotherms: dict):
             "You need at least 2 adsorbates (with isotherm data) to run competitive analysis."
         )
         return
+
     # Number of components
     max_components = min(5, len(studies_with_isotherms))
 
