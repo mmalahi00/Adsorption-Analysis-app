@@ -11,6 +11,7 @@ Features:
 """
 
 import io
+import logging
 from typing import Any
 
 import pandas as pd
@@ -24,6 +25,7 @@ from .utils import (
 )
 from .validation import format_validation_errors, validate_uploaded_file
 
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -32,16 +34,16 @@ from .validation import format_validation_errors, validate_uploaded_file
 def _parse_uploaded_file(file_content: bytes, file_name: str, required_cols: list, study_type: str):
     """
     Parse uploaded file content into a DataFrame.
-    
+
     This is a pure data processing function (no Streamlit UI calls) to enable caching.
-    
+
     Returns:
         tuple: (DataFrame or None, status_dict with messages and status)
     """
     import io as io_module
-    
+
     status = {"messages": [], "status": "success", "quality_report": None}
-    
+
     try:
         # Read file based on extension
         if file_name.endswith(".csv"):
@@ -111,10 +113,10 @@ def _read_uploaded_file(uploaded_file, required_cols, study_type):
     # Read file content for caching (file objects aren't hashable)
     file_content = uploaded_file.read()
     uploaded_file.seek(0)  # Reset for potential re-reading
-    
+
     # Call cached parsing function
     df, status = _parse_uploaded_file(file_content, uploaded_file.name, required_cols, study_type)
-    
+
     # Display messages (UI calls must be outside cached function)
     for msg_type, msg in status.get("messages", []):
         if msg_type == "error":
@@ -125,7 +127,7 @@ def _read_uploaded_file(uploaded_file, required_cols, study_type):
             st.info(msg)
         elif msg_type == "success":
             st.success(msg)
-    
+
     # Display quality report
     quality_report = status.get("quality_report")
     if quality_report:
@@ -135,7 +137,7 @@ def _read_uploaded_file(uploaded_file, required_cols, study_type):
             st.warning(f"⚠️ Loaded: {quality_report['quality_score']}/100 quality")
         else:
             st.error(f"❌ Loaded: {quality_report['quality_score']}/100 quality")
-    
+
     return df
 
 
@@ -196,16 +198,16 @@ def _get_global_input_mode() -> str:
 def _generate_excel_template(columns: list[str], study_type: str) -> io.BytesIO:
     """
     Generate Excel template with example data loaded from the examples folder.
-    
+
     Args:
         columns: List of required column names for this study
         study_type: Type of study (e.g., 'calibration', 'isotherm', 'kinetic', etc.)
-    
+
     Returns:
         io.BytesIO: Excel file buffer ready for download
     """
     from pathlib import Path
-    
+
     # Mapping of study types to their corresponding CSV files in examples folder
     study_type_to_file = {
         "calibration": "calibration_data.csv",
@@ -220,15 +222,15 @@ def _generate_excel_template(columns: list[str], study_type: str) -> io.BytesIO:
         "temperature": "temperature_data.csv",
         "temperature_direct": "temperature_direct.csv",
     }
-    
+
     # Get the examples folder path (relative to this module)
     examples_folder = Path(__file__).parent.parent / "examples"
-    
+
     # Try to load from examples folder, fallback to generated data if file doesn't exist
     csv_file = study_type_to_file.get(study_type)
     df = None
     source_info = ""
-    
+
     if csv_file and examples_folder.exists():
         csv_path = examples_folder / csv_file
         if csv_path.exists():
@@ -242,20 +244,20 @@ def _generate_excel_template(columns: list[str], study_type: str) -> io.BytesIO:
             except Exception as e:
                 logger.warning(f"Could not load {csv_file}: {e}")
                 df = None
-    
+
     # Fallback: Generate minimal example data if file not found
     if df is None or df.empty:
         df = pd.DataFrame({col: [] for col in columns})
         # Add a few empty rows for user guidance
         df = pd.concat([df, pd.DataFrame([{col: None for col in columns}] * 5)], ignore_index=True)
         source_info = "Generated template (examples folder not found)"
-    
+
     # Create Excel workbook
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         # Data sheet
         df.to_excel(writer, index=False, sheet_name="Data")
-        
+
         # Instructions sheet
         instructions_df = pd.DataFrame(
             [
@@ -269,7 +271,7 @@ def _generate_excel_template(columns: list[str], study_type: str) -> io.BytesIO:
             ]
         )
         instructions_df.to_excel(writer, index=False, sheet_name="Instructions")
-    
+
     buffer.seek(0)
     return buffer
 
@@ -316,7 +318,7 @@ def _render_enhanced_study_input(config):
                     key=f"{config['key_prefix']}{param_key}",
                     format="%.3f",
                 )
-        # Convert temperature to Kelvin if provided 
+        # Convert temperature to Kelvin if provided
         if "T_C" in fixed_params and fixed_params["T_C"] is not None:
             fixed_params["T_K"] = float(fixed_params["T_C"]) + 273.15
 
@@ -348,7 +350,7 @@ def _render_enhanced_study_input(config):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key=f"{config['key_prefix']}template_{input_mode}",
         )
- 
+
         df_for_analysis = validate_data_editor(
             st.session_state.get(uploaded_data_key), config["required_cols"]
         )
@@ -358,7 +360,6 @@ def _render_enhanced_study_input(config):
             _handle_input_change(config["state_key"], new_input, config["dependent_keys"])
         else:
             _handle_input_change(config["state_key"], None, config["dependent_keys"])
-
 
 
 # =============================================================================
@@ -380,7 +381,7 @@ def _set_active_expander(section: str):
 
 def render_sidebar_content():
     """Render all sidebar input sections with accordion behavior."""
-    
+
     active_study_name = st.session_state.get("current_study")
     studies = st.session_state.get("studies", {})
 

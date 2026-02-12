@@ -103,7 +103,7 @@ class DocxReportConfig:
 
 def _pt_to_px(pt: float, *, width_px: int, target_width_in: float) -> int:
     """Convert point size to Plotly px for a given intended print width.
-    
+
     Parameters
     ----------
     pt : float
@@ -112,7 +112,7 @@ def _pt_to_px(pt: float, *, width_px: int, target_width_in: float) -> int:
         Export canvas width in pixels
     target_width_in : float
         Intended printed width in inches (default 6.5 for letter width)
-    
+
     Returns
     -------
     int
@@ -126,21 +126,21 @@ def _pt_to_px(pt: float, *, width_px: int, target_width_in: float) -> int:
 
 def _strip_user_headings_plotly(fig: Any, *, fig_id: str | None = None) -> None:
     """Remove in-figure titles/headings (export-only).
-    
+
     Removes:
     - Figure title text
     - Paper-level annotations (headings above plot area)
-    
+
     This prevents clutter when figures are exported for manuscripts where
     captions should live in the document, not inside the image.
-    
+
     Parameters
     ----------
     fig : Any
         Plotly figure object to modify in-place
     fig_id : str, optional
         Figure identifier for logging/debugging
-    
+
     Notes
     -----
     Modifies the figure object in-place. This is destructive and should
@@ -196,7 +196,7 @@ def _fix_axis_gradient_overlaps_plotly(
     font_family: str = "Arial, sans-serif",
 ) -> None:
     """Prevent overlaps between axes, ticks, and gradients (export-only).
-    
+
     Parameters
     ----------
     fig : Any
@@ -211,7 +211,7 @@ def _fix_axis_gradient_overlaps_plotly(
         Axis title font size in pixels
     font_family : str
         Font family for colorbar labels
-    
+
     Notes
     -----
     Adjusts margins and colorbar positioning to prevent overlaps when
@@ -233,25 +233,25 @@ def _fix_axis_gradient_overlaps_plotly(
 
     try:
         cur = fig.layout.margin.to_plotly_json() if getattr(fig.layout, "margin", None) else {}
-        l = int(cur.get("l", 70))
+        margin_l = int(cur.get("l", 70))
         r = int(cur.get("r", 40))
         t = int(cur.get("t", 40))
         b = int(cur.get("b", 70))
     except Exception:
-        l, r, t, b = 70, 40, 40, 70
+        margin_l, r, t, b = 70, 40, 40, 70
 
     min_l = max(90, int(0.09 * width_px), int(2.8 * axis_title_px), int(2.4 * tick_px))
     min_b = max(90, int(0.10 * height_px), int(2.4 * axis_title_px), int(2.0 * tick_px))
     min_r = max(60, int(0.05 * width_px), int(1.8 * tick_px))
     min_t = max(55, int(0.06 * height_px), int(1.2 * axis_title_px)) if has_title else max(25, int(0.03 * height_px))
 
-    l = max(l, min_l)
+    margin_l = max(margin_l, min_l)
     b = max(b, min_b)
     r = max(r, min_r)
     t = max(t, min_t)
 
     try:
-        fig.update_layout(margin={"l": l, "r": r, "t": t, "b": b, "pad": 10})
+        fig.update_layout(margin={"l": margin_l, "r": r, "t": t, "b": b, "pad": 10})
     except Exception:
         pass
 
@@ -306,7 +306,7 @@ def _fix_axis_gradient_overlaps_plotly(
         # Extra margin for colorbar
         try:
             cur = fig.layout.margin.to_plotly_json() if getattr(fig.layout, "margin", None) else {}
-            l = int(cur.get("l", l))
+            margin_l = int(cur.get("l", margin_l))
             r = int(cur.get("r", r))
             t = int(cur.get("t", t))
             b = int(cur.get("b", b))
@@ -316,7 +316,7 @@ def _fix_axis_gradient_overlaps_plotly(
             else:
                 r = max(r, int(max(180, 0.14 * width_px)))
 
-            fig.update_layout(margin={"l": l, "r": r, "t": t, "b": b, "pad": 10})
+            fig.update_layout(margin={"l": margin_l, "r": r, "t": t, "b": b, "pad": 10})
         except Exception:
             pass
 
@@ -371,15 +371,15 @@ def style_figure_for_export(
 ) -> None:
     """
     Style a Plotly figure for export in ZIP and other formats.
-    
+
     This is a convenience wrapper around export utilities that applies
     common export fixes in a single call:
     - Removes user-added headings and titles
     - Fixes axis/gradient label overlaps
     - Scales fonts appropriately
-    
+
     Modifies figure in-place.
-    
+
     Parameters
     ----------
     fig : Any
@@ -390,7 +390,7 @@ def style_figure_for_export(
         Export height in pixels (default 1000)
     tick_px : int
         Tick label size in pixels (default 12)
-    
+
     Notes
     -----
     This function is used by adsorblab_pro.tabs.report_tab for
