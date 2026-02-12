@@ -34,7 +34,7 @@ from plotly.subplots import make_subplots
 
 logger = logging.getLogger(__name__)
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from .config import FONT_FAMILY, PLOT_TEMPLATE
 
@@ -42,7 +42,7 @@ from .config import FONT_FAMILY, PLOT_TEMPLATE
 # COLOR SCHEMES
 # =============================================================================
 __all__ = [
-# Color schemes
+    # Color schemes
     "COLORS",
     "MODEL_COLORS",
     "STUDY_COLORS",
@@ -83,14 +83,12 @@ COLORS = {
     # Experimental points (case-study style)
     "experimental": "#000000",  # Black markers
     "experimental_edge": "#000000",
-
     # Core line palette (Matplotlib tab10 – publication-friendly)
-    "fit_primary": "#1f77b4",      # Blue
-    "fit_secondary": "#ff7f0e",    # Orange
-    "fit_tertiary": "#2ca02c",     # Green
-    "fit_quaternary": "#d62728",   # Red
-    "fit_quinary": "#9467bd",      # Purple (optional)
-
+    "fit_primary": "#1f77b4",  # Blue
+    "fit_secondary": "#ff7f0e",  # Orange
+    "fit_tertiary": "#2ca02c",  # Green
+    "fit_quaternary": "#d62728",  # Red
+    "fit_quinary": "#9467bd",  # Purple (optional)
     # Extended palette for multi-model comparison
     "model_colors": [
         "#1f77b4",  # Blue
@@ -100,17 +98,14 @@ COLORS = {
         "#9467bd",  # Purple
         "#8c564b",  # Brown
     ],
-
     # Background and grid
     "background": "#FFFFFF",
     "grid": "#E0E0E0",
     "grid_zero": "#BDBDBD",
     "tick_text": "#424242",
-
     # Confidence interval
     "ci_fill": "rgba(31, 119, 180, 0.15)",
     "ci_line": "rgba(31, 119, 180, 0.40)",
-
     # Residuals
     "residual_positive": "#2ca02c",
     "residual_negative": "#d62728",
@@ -124,7 +119,6 @@ MODEL_COLORS = {
     "Freundlich": "#ff7f0e",
     "Temkin": "#2ca02c",
     "Sips": "#d62728",
-
     # Kinetics (consistent palette)
     "PFO": "#1f77b4",
     "PSO": "#ff7f0e",
@@ -703,15 +697,15 @@ def create_model_comparison_plot(
     # Prefer lowest AICc/AIC if available, else highest Adj-R², else highest R²
     aic_vals = [c for c in candidates if c[1] is not None]
     if aic_vals:
-        best_model = min(aic_vals, key=lambda t: t[1])[0]
+        best_model = min(aic_vals, key=lambda t: cast(float, t[1]))[0]
     else:
         adj_vals = [c for c in candidates if c[2] is not None]
         if adj_vals:
-            best_model = max(adj_vals, key=lambda t: t[2])[0]
+            best_model = max(adj_vals, key=lambda t: cast(float, t[2]))[0]
         else:
             r2_vals = [c for c in candidates if c[3] is not None]
             if r2_vals:
-                best_model = max(r2_vals, key=lambda t: t[3])[0]
+                best_model = max(r2_vals, key=lambda t: cast(float, t[3]))[0]
 
     # Smooth x for fit curves
     x_min = max(0.0, float(np.min(x_exp)) * 0.9)
@@ -732,7 +726,9 @@ def create_model_comparison_plot(
             logger.debug(f"Could not plot {model_name} curve: {e}")
             continue
 
-        color = MODEL_COLORS.get(model_name, COLORS["model_colors"][len(fig.data) % len(COLORS["model_colors"])])
+        color = MODEL_COLORS.get(
+            model_name, COLORS["model_colors"][len(fig.data) % len(COLORS["model_colors"])]
+        )
         r2 = results.get("r_squared")
 
         legend_name = f"{model_name} (R²={r2:.4f})" if isinstance(r2, (int, float)) else model_name
@@ -1127,6 +1123,7 @@ def create_dual_axis_effect_plot(
         fig.update_yaxes(rangemode="tozero", secondary_y=True)
 
     return fig
+
 
 def apply_professional_style(
     fig: go.Figure,
@@ -1552,6 +1549,7 @@ def apply_professional_polar_style(
     fig.update_layout(**layout_update)
     return fig
 
+
 def style_experimental_trace(name: str = "Experimental", use_small: bool = False) -> dict:
     """
     Get trace styling for experimental data points.
@@ -1737,7 +1735,10 @@ def apply_professional_3d_style(
     }
 
     if title:
-        layout_update["title"] = {"text": f"<b>{title}</b>", "font": {"size": 16, "family": FONT_FAMILY}}
+        layout_update["title"] = {
+            "text": f"<b>{title}</b>",
+            "font": {"size": 16, "family": FONT_FAMILY},
+        }
 
     fig.update_layout(**layout_update)
 
@@ -1745,15 +1746,26 @@ def apply_professional_3d_style(
     for tr in fig.data:
         try:
             if getattr(tr, "type", "") == "surface":
-                tr.update(colorbar={"title": {"font": {"family": FONT_FAMILY, "size": 12}},
-                                    "tickfont": {"family": FONT_FAMILY, "size": 11}})
+                tr.update(
+                    colorbar={
+                        "title": {"font": {"family": FONT_FAMILY, "size": 12}},
+                        "tickfont": {"family": FONT_FAMILY, "size": 11},
+                    }
+                )
             elif getattr(tr, "type", "") == "scatter3d":
-                tr.update(marker={"colorbar": {"title": {"font": {"family": FONT_FAMILY, "size": 12}},
-                                               "tickfont": {"family": FONT_FAMILY, "size": 11}}})
+                tr.update(
+                    marker={
+                        "colorbar": {
+                            "title": {"font": {"family": FONT_FAMILY, "size": 12}},
+                            "tickfont": {"family": FONT_FAMILY, "size": 11},
+                        }
+                    }
+                )
         except Exception:
             pass
 
     return fig
+
 
 def infer_figure_kind(fig: go.Figure) -> str:
     """

@@ -179,14 +179,12 @@ COLUMN_SYNONYMS = {
         "ct_mg_l",
         "ct_mg_liter",
     ],
-
     # --- Absorbance-mode generic concentration column ---
     "Concentration": [
         "conc",
         "concentration",
         "c",
     ],
-
     "Absorbance": [
         "abs",
         "absorb",
@@ -1086,9 +1084,9 @@ def detect_common_errors(study_state: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 # Import model registry for cached bootstrap (avoid circular import at function level)
-def _get_model_registry() -> (
-    tuple[dict[str, Callable[..., Any]], Callable[[str], Callable[..., Any] | None]]
-):
+def _get_model_registry() -> tuple[
+    dict[str, Callable[..., Any]], Callable[[str], Callable[..., Any] | None]
+]:
     """Lazy import of model registry to avoid circular imports."""
     from .models import _MODEL_REGISTRY, get_model_by_name
 
@@ -1510,7 +1508,9 @@ def analyze_residuals(
         if ss_residuals > 0:
             dw = float(np.sum(diff_residuals**2) / ss_residuals)
             results["durbin_watson"] = dw
-            results["autocorrelation"] = "positive" if dw < 1.5 else ("negative" if dw > 2.5 else "none")
+            results["autocorrelation"] = (
+                "positive" if dw < 1.5 else ("negative" if dw > 2.5 else "none")
+            )
 
     # Heteroscedasticity check
     if y_pred is not None and len(y_pred) == n and not is_constant:
@@ -2723,7 +2723,12 @@ def get_study_metrics() -> dict:
         Dictionary with study_count, active_data_count, calib_quality, has_active_study
     """
     if not _STREAMLIT_AVAILABLE:
-        return {"study_count": 0, "active_data_count": 0, "calib_quality": 0, "has_active_study": False}
+        return {
+            "study_count": 0,
+            "active_data_count": 0,
+            "calib_quality": 0,
+            "has_active_study": False,
+        }
     data_keys = STUDY_METRIC_DATA_KEYS
     active_data_total = len(data_keys)
 
@@ -2768,7 +2773,7 @@ def cleanup_session_state_keys(
         st.session_state.pop(key, None)
 
     keys_to_remove = []
-    for key in list(st.session_state.keys()):
+    for key in [k for k in st.session_state.keys() if isinstance(k, str)]:
         if any(key.startswith(prefix) for prefix in widget_prefixes):
             keys_to_remove.append(key)
 
@@ -2808,11 +2813,11 @@ def calculate_calibration_stats(
         raise ValueError("Need at least 2 points for linear regression")
 
     slope, intercept, r_value, p_value, std_err = linregress(concentration, absorbance)
-    r_squared = r_value ** 2
+    r_squared = r_value**2
 
     y_pred = slope * concentration + intercept
     residuals = absorbance - y_pred
-    ss_res = np.sum(residuals ** 2)
+    ss_res = np.sum(residuals**2)
     se_estimate = np.sqrt(ss_res / (n - 2)) if n > 2 else 0
 
     se_slope = se_estimate / np.sqrt(np.sum((concentration - np.mean(concentration)) ** 2))

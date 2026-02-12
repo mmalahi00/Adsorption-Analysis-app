@@ -51,6 +51,7 @@ class _StreamlitStub:
         )
 
 
+st: Any
 try:
     import streamlit as _st
 
