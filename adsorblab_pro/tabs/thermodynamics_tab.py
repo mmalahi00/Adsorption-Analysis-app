@@ -332,14 +332,14 @@ def render():
                 intercept = thermo_params["intercept"]
 
                 fig = create_vant_hoff_plot(
-                        invT=x,
-                        lnKd=y,
-                        slope=slope,
-                        intercept=intercept,
-                        r_squared=float(thermo_params["r_squared"]),
-                        title=f"Van't Hoff Plot (Kd method: {method_info['units']})",
-                        height=450,
-                    )
+                    invT=x,
+                    lnKd=y,
+                    slope=slope,
+                    intercept=intercept,
+                    r_squared=float(thermo_params["r_squared"]),
+                    title=f"Van't Hoff Plot (Kd method: {method_info['units']})",
+                    height=450,
+                )
                 st.plotly_chart(fig, use_container_width=True)
 
                 # Thermodynamic Parameters
