@@ -18,6 +18,7 @@ Advanced utility module providing:
 - Advanced figure generation
 """
 
+import hashlib
 import io
 import logging
 import re
@@ -1198,7 +1199,6 @@ def _bootstrap_cached_impl(
     n_bootstrap: int,
     confidence: float,
     early_stopping: bool,
-    data_hash: int,
 ) -> tuple[tuple, tuple]:
     """
     Cached bootstrap implementation with hashable arguments.
@@ -1216,7 +1216,25 @@ def _bootstrap_cached_impl(
     y_data = np.array(y_data_tuple)
     params = np.array(params_tuple)
 
-    # Use data_hash as seed for reproducibility
+    # Derive a reproducible random seed directly from the data already in scope.
+    #
+    # Previously this was computed at the call site using Python's built-in
+    # hash() and passed in as a `data_hash` argument.  That approach had two
+    # problems:
+    #   1. hash() is session-randomised (PYTHONHASHSEED), so the seed — and
+    #      therefore the bootstrap results — silently varied between Python
+    #      processes on identical data, breaking the stated "reproducibility".
+    #   2. Passing hash(x_tuple, y_tuple, params_tuple) as an extra argument to
+    #      a st.cache_data-wrapped function is redundant: those three tuples are
+    #      already cache-key arguments, so data_hash added no discrimination.
+    #
+    # hashlib.md5 is stable across sessions, processes, and platforms.  We don't
+    # need cryptographic strength — just a well-distributed, deterministic mapping
+    # from data bytes to a 32-bit seed.  The first 4 bytes of the digest give
+    # 2^32 possible seeds, sufficient for this purpose.
+    _hash_input = str((x_data_tuple, y_data_tuple, params_tuple)).encode()
+    _seed = int.from_bytes(hashlib.md5(_hash_input).digest()[:4], "little")
+
     ci_lower, ci_upper = _bootstrap_core(
         model_func,
         x_data,
@@ -1225,7 +1243,7 @@ def _bootstrap_cached_impl(
         n_bootstrap,
         confidence,
         early_stopping,
-        random_seed=abs(data_hash) % (2**31),
+        random_seed=_seed,
     )
 
     return tuple(ci_lower.tolist()), tuple(ci_upper.tolist())
@@ -1300,9 +1318,6 @@ def bootstrap_confidence_intervals(
         y_tuple = tuple(np.asarray(y_data).round(10).tolist())
         params_tuple = tuple(np.asarray(params).round(10).tolist())
 
-        # Create a deterministic hash for reproducibility
-        data_hash = hash((x_tuple, y_tuple, params_tuple))
-
         ci_lower_tuple, ci_upper_tuple = _bootstrap_cached(
             model_name,
             x_tuple,
@@ -1311,7 +1326,6 @@ def bootstrap_confidence_intervals(
             n_bootstrap,
             confidence,
             early_stopping,
-            data_hash,
         )
 
         return np.array(ci_lower_tuple), np.array(ci_upper_tuple)

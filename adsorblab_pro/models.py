@@ -40,7 +40,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, OptimizeWarning
 from scipy.stats import linregress
 from scipy.stats import t as t_dist
 
@@ -156,9 +156,34 @@ def temkin_model(Ce: NDArray[np.floating[Any]], B1: float, KT: float) -> NDArray
     KT = max(KT, EPSILON)
 
     result = B1 * np.log(KT * Ce)
+
+    # Do NOT clamp negatives to zero here.  Clamping distorts the residual
+    # surface seen by curve_fit: the optimizer receives false feedback that a
+    # physically-invalid parameter set is acceptable, and may converge on
+    # parameters that produce qe < 0 across the data range — then report them
+    # as a successful fit with converged=True.
+    #
+    # Raising ValueError instead:
+    #   • during curve_fit: scipy propagates ValueError out of the optimizer,
+    #     which the except block in _fit_model_core catches as a fitting failure.
+    #   • post-fit (y_pred = model_func(x_data, *popt)): the same except block
+    #     catches it, so a converged popt that still produces negative qe also
+    #     surfaces as {"converged": False} rather than silently wrong output.
+    #
+    # Physical root cause: qe < 0 means KT × Ce < 1 somewhere in the data,
+    # i.e. the binding constant KT is too low for the measured Ce range.
+    # The right remedies are tighter lower bounds on KT, better p0, or a
+    # different model — not clamping.
     if np.any(result < 0):
-        warnings.warn("Temkin model produces negative qe; check KT bounds", stacklevel=2)
-    return np.maximum(0, result)
+        n_negative = int(np.sum(result < 0))
+        raise ValueError(
+            f"Temkin model produced {n_negative} negative qe value(s) "
+            f"(B1={B1:.4g}, KT={KT:.4g}). "
+            f"KT \u00d7 Ce must be > 1 across the full data range. "
+            f"Increase the lower bound on KT or adjust initial parameters."
+        )
+
+    return result
 
 
 @register_model("Sips")
@@ -183,8 +208,29 @@ def sips_model(
     Ks = max(Ks, EPSILON)
     ns = np.clip(ns, 0.1, 5)
 
-    power_term = np.power(Ks * Ce, ns)
-    return qm * power_term / (1 + power_term)
+    # Naive form:  qm * (Ks·Ce)^ns / (1 + (Ks·Ce)^ns)
+    #
+    # Failure mode: np.power(Ks*Ce, ns) overflows to inf when Ks*Ce is large
+    # and ns > 1 (e.g. Ks=10, Ce=1e70, ns=3 → power_term=inf).
+    # NumPy then evaluates inf/(1+inf) = inf/inf = nan, which silently
+    # corrupts every downstream statistic while curve_fit reports convergence.
+    #
+    # The fraction x/(1+x) is the logistic sigmoid evaluated at u = ln(x).
+    # Substituting u = ns·ln(Ks·Ce) rewrites the model as qm·eᵘ/(1+eᵘ),
+    # which has a standard stable two-branch evaluation:
+    #
+    #   u >= 0  →  qm · 1          / (1 + e^{-u})   [e^{-|u|} ∈ (0,1]]
+    #   u <  0  →  qm · e^{-|u|}   / (1 + e^{-|u|}) [e^{-|u|} ∈ (0,1))
+    #
+    # safe_exp = e^{-|u|} is always in (0, 1], so neither branch can overflow
+    # or produce nan.  The result is numerically identical to the naive form
+    # everywhere the naive form is finite (max difference ~1e-16).
+    #
+    # Physical interpretation: as Ks·Ce → ∞ the model correctly saturates at
+    # qm (all sites occupied); the stable form returns exactly qm there.
+    u = ns * np.log(Ks * Ce)          # finite: Ks >= EPSILON, Ce >= EPSILON
+    safe_exp = np.exp(-np.abs(u))     # always in (0, 1] — overflow impossible
+    return qm * np.where(u >= 0, 1.0 / (1.0 + safe_exp), safe_exp / (1.0 + safe_exp))
 
 
 # =============================================================================
@@ -261,10 +307,22 @@ def extended_langmuir_multicomponent(
     KL_i = max(KL_i, EPSILON)
 
     # Calculate competition term: 1 + Σ(KL_j × Ce_j)
+    #
+    # Both Ce_j and KL_j floor at EPSILON, not 0.  Using 0 as the floor was
+    # inconsistent with:
+    #   • Ce_i (line above): np.maximum(..., EPSILON)
+    #   • KL_i (line above): max(..., EPSILON)
+    #   • Every other Ce / KL clamp in this file
+    #
+    # Allowing KL_j = 0 silently zeroes out a competing species' contribution
+    # to the denominator, under-counting competition and over-predicting qe_i.
+    # Allowing Ce_j = 0 is safe arithmetically but breaks the invariant that
+    # all concentrations are strictly positive, making the model behave
+    # differently for component j than for component i with identical inputs.
     denominator: NDArray[np.floating[Any]] = np.ones_like(Ce_i)
     for Ce_j, KL_j in zip(Ce_all, KL_all):
-        Ce_j_arr = np.maximum(np.asarray(Ce_j), 0)
-        KL_j_val = max(KL_j, 0)
+        Ce_j_arr = np.maximum(np.asarray(Ce_j), EPSILON)
+        KL_j_val = max(KL_j, EPSILON)
         denominator = denominator + KL_j_val * Ce_j_arr
 
     numerator = qm_i * KL_i * Ce_i
@@ -329,10 +387,13 @@ def extended_freundlich_multicomponent(
 
     # Calculate weighted sum using competition coefficients
     # aij = (Kf_i / Kf_j)^(n_j/n_i) - relative affinity of component i vs j
+    #
+    # Ce_j floors at EPSILON (not 0) to match Ce_i above and every other
+    # concentration clamp in this file.
     Ce_weighted_sum = np.zeros_like(Ce_i)
 
     for j, Ce_j_raw in enumerate(Ce_all):
-        Ce_j_safe = np.maximum(np.asarray(Ce_j_raw), 0)
+        Ce_j_safe = np.maximum(np.asarray(Ce_j_raw), EPSILON)
         Kf_j = max(Kf_all[j], EPSILON)
         n_j = max(n_all[j], 0.1)
 
@@ -629,8 +690,20 @@ def ipd_model(t: NDArray[np.floating[Any]], kid: float, C: float) -> NDArray[np.
 
     Reference: Weber, W.J. & Morris, J.C. (1963). J. Sanit. Eng. Div. Am. Soc. Civ. Eng., 89, 31-60.
     """
-    t = np.maximum(np.asarray(t), 0)
-    kid = max(kid, 0)
+    t = np.maximum(np.asarray(t), 0)  # t=0 is the valid initial boundary condition
+
+    # kid=0 is physically meaningless (zero diffusion rate) and numerically
+    # degenerate: the model collapses to qt = C (a flat line), making kid
+    # completely unidentifiable.  During curve_fit, any negative trial value
+    # is silently mapped to the same 0, so the optimizer sees a zero gradient
+    # across the entire negative half of the kid axis — pcov[0,0] then diverges
+    # to inf, corrupting SEs and CIs while still reporting converged=True.
+    #
+    # Clamping to EPSILON preserves a real (infinitesimal) slope so the
+    # Jacobian remains informative.  Note: C is intentionally left unclamped —
+    # a negative intercept is physically meaningful in Weber-Morris analysis
+    # (it indicates pore diffusion, not film diffusion, is rate-limiting).
+    kid = max(kid, EPSILON)
 
     return kid * np.sqrt(t) + C
 
@@ -852,9 +925,15 @@ def _fit_model_core(
         return None
 
     try:
-        # Suppress RuntimeWarnings during curve_fit (e.g., covariance estimation issues)
+        # Suppress OptimizeWarning during curve_fit (covariance estimation issues);
+        # RuntimeWarnings from model_func (overflow, underflow) are intentionally
+        # left unfiltered so they remain visible to callers.
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            warnings.filterwarnings(
+                "ignore",
+                category=OptimizeWarning,
+                message="Covariance of the parameters could not be estimated",
+            )
             if bounds:
                 popt, pcov = curve_fit(
                     model_func, x_data, y_data, p0=p0, bounds=bounds, maxfev=MAX_ITER
@@ -864,6 +943,20 @@ def _fit_model_core(
 
         # Standard errors
         perr = np.sqrt(np.diag(pcov))
+
+        # Guard against a singular / ill-conditioned covariance matrix.
+        # scipy sets pcov entries to `inf` when the Jacobian is rank-deficient
+        # or the optimisation did not converge; np.sqrt then propagates those
+        # infinities (and any NaNs) into perr.  Letting them through means every
+        # CI, SE, and the `converged: True` flag reported to the caller would be
+        # silently wrong.  Raising here lets the existing except-block return a
+        # clean {"converged": False, "error": ...} dict instead.
+        if not np.all(np.isfinite(perr)):
+            raise RuntimeError(
+                "Covariance matrix is singular or infinite; fitting did not "
+                "converge reliably. Try different initial parameters (p0), "
+                "tighter bounds, or a simpler model."
+            )
 
         # Predictions and residuals
         y_pred = model_func(x_data, *popt)
@@ -902,6 +995,26 @@ def _fit_model_core(
 
         # Confidence intervals
         dof = n - n_params
+        # Guard before calling t_dist.ppf.  When dof <= 0, ppf returns NaN
+        # and silently corrupts every CI in the returned dict.  When dof == 1
+        # the fit is technically determined (zero residual freedom) and ppf
+        # returns a finite but Cauchy-wide value (~12.7 at 95%) that is
+        # statistically meaningless.  Both cases are symptoms of the same
+        # root problem: too few data points relative to the number of free
+        # parameters.
+        #
+        # Note: the early-return guard at the top of this function (n < n_params + 2)
+        # means dof >= 2 under normal execution.  This check is intentionally
+        # kept here as a defence-in-depth measure — matching the adj_r_squared
+        # guard above — so that any future loosening of the early guard cannot
+        # silently produce NaN CIs.  The resulting ValueError is caught by the
+        # existing except block and surfaces as {"converged": False, "error": ...}.
+        if dof <= 1:
+            raise ValueError(
+                f"Insufficient data: need at least n_params + 2 points for "
+                f"meaningful confidence intervals, but got n={n}, "
+                f"n_params={n_params}, dof={dof}."
+            )
         t_val = t_dist.ppf(1 - (1 - confidence) / 2, dof)
 
         ci_95 = {}

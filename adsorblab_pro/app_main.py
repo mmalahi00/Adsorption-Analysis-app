@@ -29,6 +29,7 @@ License: MIT
 
 import copy
 import sys
+from html import escape as html_escape
 from pathlib import Path
 
 import numpy as np
@@ -55,6 +56,12 @@ current_year = datetime.now().year
 # =============================================================================
 APP_VERSION = VERSION
 APP_TITLE = "AdsorbLab Pro"
+
+# Pre-escaped for safe injection into unsafe_allow_html contexts.
+# APP_VERSION comes from importlib.metadata (pyproject.toml / .dist-info), so
+# in a compromised package installation an attacker could craft a version string
+# containing HTML/JS.  Escaping once here ensures every raw-HTML usage is safe.
+_APP_VERSION_SAFE = html_escape(str(APP_VERSION))
 
 st.set_page_config(
     page_title=f"{APP_TITLE}", page_icon="🔬", layout="wide", initial_sidebar_state="expanded"
@@ -190,7 +197,27 @@ def update_calibration():
                 alpha = 1 - study_confidence
                 t_val = t_dist.ppf(1 - alpha / 2, n - 2) if n > 2 else 2.0
 
-                if abs(slope) > 1e-9:
+                # linregress returns NaN slope (and all other stats) when the
+                # concentration column has zero variance (all identical values).
+                # abs(NaN) > 1e-9 evaluates to False under IEEE 754, so without
+                # this explicit guard the block is silently skipped: no params
+                # are saved and no feedback is shown to the user.
+                #
+                # NaN and near-zero slope are distinct failure modes and need
+                # separate messages:
+                #   NaN   → degenerate data (constant concentrations)
+                #   ~0    → calibration curve is flat (poor experimental design)
+                if not np.isfinite(slope):
+                    st.warning(
+                        "⚠️ Calibration failed: all concentration values are identical "
+                        "(zero variance). Provide at least 3 distinct concentration points."
+                    )
+                elif abs(slope) <= 1e-9:
+                    st.warning(
+                        "⚠️ Calibration slope is effectively zero — the absorbance values "
+                        "show no response to concentration. Check your calibration data."
+                    )
+                else:
                     # Save results to the current study
                     current_study_state["calibration_params"] = {
                         "slope": slope,
@@ -234,7 +261,7 @@ with col_badge:
     <div style="background: linear-gradient(90deg, #2E86AB, #A23B72);
                 padding: 8px 16px; border-radius: 20px; text-align: center;
                 color: white; font-weight: bold; margin-top: 20px;">
-        v{APP_VERSION}
+        v{_APP_VERSION_SAFE}
     </div>
     """,
         unsafe_allow_html=True,
@@ -356,7 +383,7 @@ if study_names:
     if st.session_state.current_study not in study_names:
         st.session_state.current_study = study_names[0]
 
-    # Store previous study to detect changes
+    # Capture previous selection BEFORE updating, so the comparison below is valid.
     previous_study = st.session_state.get("_previous_study_selection")
 
     selected_study = st.sidebar.selectbox(
@@ -369,15 +396,24 @@ if study_names:
     # Update current study
     st.session_state.current_study = selected_study
 
-    # Check if study changed (only after initial load)
-    if previous_study is not None and selected_study != previous_study:
-        # Clean up session state using helper function
-        utils.cleanup_session_state_keys()
-        st.session_state._previous_study_selection = selected_study
-        st.rerun()
-
-    # Track current selection for next comparison
+    # Unconditionally record the current selection as the new "previous" BEFORE
+    # the switch-detection block.  This is the single authoritative write point and
+    # provides idempotency against rapid double-clicks:
+    #
+    #   First rerun  (A→B): previous=A, we write B, condition True  → cleanup + rerun
+    #   Second rerun (B→B): previous=B, we write B, condition False → no-op
+    #
+    # Previously this write lived both inside the if-block (before st.rerun(), which
+    # raises RerunException and makes anything after it unreachable in that branch)
+    # and after the if-block as a "fallback" for the no-switch case.  Having two
+    # write sites was fragile; a single unconditional write here covers both cases.
     st.session_state._previous_study_selection = selected_study
+
+    # Trigger cleanup + rerun only on a genuine study switch (skip on initial load
+    # when previous_study is None, and skip on no-change reruns).
+    if previous_study is not None and selected_study != previous_study:
+        utils.cleanup_session_state_keys()
+        st.rerun()
 else:
     st.sidebar.info("Add a new study to begin analysis.")
 
@@ -558,7 +594,7 @@ st.markdown("---")
 st.markdown(
     f"""
 <div style="text-align: center; color: #666; padding: 20px;">
-    <p><strong>AdsorbLab Pro v{APP_VERSION}</strong></p>
+    <p><strong>AdsorbLab Pro v{_APP_VERSION_SAFE}</strong></p>
     <p>Advanced Adsorption Data Analysis Platform</p>
     <p style="font-size: 0.8em; margin-top: 10px;">
         Features: Bootstrap CI • AIC/BIC Selection • Multi-Study Comparison • Mechanism Interpretation
