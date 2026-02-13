@@ -10,7 +10,7 @@ Features:
 - ΔH°, ΔS°, ΔG° calculation with 95% CI
 - Multiple Kd calculation methods
 - Mechanistic interpretation
-- Publication-ready outputs
+- professional outputs
 """
 
 import numpy as np
@@ -112,7 +112,7 @@ def _calculate_kd(
 
 
 def render():
-    """Render thermodynamic analysis with publication-ready statistics."""
+    """Render thermodynamic analysis with professional statistics."""
     st.subheader("🌡️ Thermodynamic Analysis")
     st.markdown("*Van't Hoff equation with confidence intervals and mechanistic interpretation*")
 
@@ -566,7 +566,7 @@ def render():
                 )
                 display_results_table(summary_df)
 
-                # Methods section text for publication
+                # Methods section text for reporting
                 with st.expander("📝 **Suggested Methods Text**"):
                     if method_id == "dimensionless":
                         methods_text = f"""

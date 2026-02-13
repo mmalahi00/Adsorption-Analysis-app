@@ -32,7 +32,7 @@ from ..validation import format_validation_errors, validate_calibration_data
 
 
 def render():
-    """Render the calibration tab with publication-ready statistics."""
+    """Render the calibration tab with professional statistics."""
     st.subheader("📊 Calibration Curve Analysis")
     st.markdown("*Linear regression with confidence intervals and residual diagnostics*")
 

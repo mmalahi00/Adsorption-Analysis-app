@@ -78,6 +78,46 @@ except ImportError:
 
 
 # =============================================================================
+# AUTO EXPORT DEFAULTS (NO USER CONTROLS)
+# =============================================================================
+AUTO_TEXT_PRESET = "Journal (default)"
+AUTO_TARGET_WIDTH_IN = 6.5
+AUTO_DOCX_MAX_WIDTH_IN = 6.5
+AUTO_DOCX_MIN_WIDTH_IN = 4.5
+AUTO_DOCX_PAD_RATIO = 0.98
+AUTO_DOCX_MAX_TABLE_ROWS = 60
+
+
+def _infer_docx_report_figure_width_in(*, default: float = AUTO_TARGET_WIDTH_IN) -> float:
+    """Infer a safe full-width figure size for DOCX reports (inches).
+
+    This inspects the default python-docx document template and returns a
+    conservative width that fits inside page margins.
+
+    The padding ratio avoids rare Word layout overflows when the figure
+    width exactly equals the usable page width.
+    """
+    if not DOCX_AVAILABLE:
+        return float(default)
+    try:
+        from docx import Document as _Document
+
+        doc = _Document()
+        sec = doc.sections[0]
+        avail = sec.page_width - sec.left_margin - sec.right_margin
+        avail_in = getattr(avail, "inches", None)
+        if avail_in is None:
+            # 914400 EMU per inch
+            avail_in = float(avail) / 914400.0
+        w = float(avail_in) * float(AUTO_DOCX_PAD_RATIO)
+        w = max(float(AUTO_DOCX_MIN_WIDTH_IN), w)
+        w = min(float(AUTO_DOCX_MAX_WIDTH_IN), w)
+        return float(w)
+    except Exception:
+        return float(default)
+
+
+# =============================================================================
 # EXPORT RENDERING HELPERS
 # =============================================================================
 
@@ -88,7 +128,7 @@ def style_figure_for_export(
     width_px: int,
     height_px: int,
     target_width_in: float = 6.5,
-    preset: str = "Manuscript (journal)",
+    preset: str = "Journal (default)",
     fig_id: str | None = None,
     study_state: dict | None = None,
     strip_user_headings: bool = True,
@@ -96,7 +136,7 @@ def style_figure_for_export(
     """Return a copy of a Plotly figure with export-friendly typography.
 
     Export goals:
-    - Publication-ready text sizing at a given intended physical width.
+    - professional text sizing at a given intended physical width.
     - Remove user-added headings that can clutter exported figures.
     - Prevent overlaps between axis titles and gradient/colorbar elements.
     """
@@ -115,7 +155,7 @@ def style_figure_for_export(
     except Exception:
         pass
 
-    preset_norm = (preset or "Manuscript (journal)").strip().lower()
+    preset_norm = (preset or "Journal (default)").strip().lower()
     if preset_norm.startswith("present"):
         base_pt, tick_pt, axis_title_pt, title_pt, legend_pt = 16.0, 15.0, 17.0, 20.0, 14.0
     elif preset_norm.startswith("poster"):
@@ -1743,7 +1783,7 @@ def _gen_tbl_multi_ranking(s: dict) -> pd.DataFrame | None:
 
 
 def _gen_tbl_multi_pub_summary(s: dict) -> pd.DataFrame | None:
-    """Generate publication-ready summary table with all key parameters."""
+    """Generate professional summary table with all key parameters."""
     studies, study_names = _get_all_studies()
 
     if len(study_names) < 2:
@@ -1882,7 +1922,7 @@ def create_export_zip(
                         width_px=int(config["width"]),
                         height_px=int(config["height"]),
                         target_width_in=float(config.get("target_width_in", 6.5)),
-                        preset=str(config.get("text_preset", "Manuscript (journal)")),
+                        preset=str(config.get("text_preset", "Journal (default)")),
                         fig_id=str(fig_id),
                         study_state=study_state,
                     )
@@ -1891,21 +1931,25 @@ def create_export_zip(
                         format="png" if config["format"] == "tiff" else config["format"],
                         width=config["width"],
                         height=config["height"],
-                        scale=config["scale"],
+                        # Scale is intentionally kept at 1.0 because we already
+                        # compute explicit pixel dimensions from (DPI × inches).
+                        # This makes typography and marker sizing deterministic
+                        # across formats and avoids Plotly/Kaleido scale quirks.
+                        scale=1.0,
                     )
 
-                    # Approximate effective DPI = (rendered pixel width) / (intended width in inches)
+                    # Effective DPI = (rendered pixel width) / (intended width in inches)
+                    # Prefer the explicit config["dpi"] (set in UI), fallback to computation.
                     try:
-                        eff_dpi = int(
-                            round(
-                                (float(config["width"]) * float(config["scale"]))
-                                / float(config.get("target_width_in", 6.5))
-                            )
-                        )
-                        if eff_dpi < 72:
-                            eff_dpi = 72
+                        eff_dpi = int(config.get("dpi", 0) or 0)
                     except Exception:
-                        eff_dpi = int(EXPORT_DPI)
+                        eff_dpi = 0
+                    if eff_dpi <= 0:
+                        try:
+                            eff_dpi = int(round(float(config["width"]) / float(config.get("target_width_in", 6.5))))
+                        except Exception:
+                            eff_dpi = int(EXPORT_DPI)
+                    eff_dpi = max(72, eff_dpi)
 
                     if config["format"] == "png":
                         img_bytes = _with_dpi_metadata(img_bytes, fmt="png", dpi=eff_dpi)
@@ -1950,8 +1994,8 @@ Contents:
 Figure Settings:
 - Format: {config["format"].upper()}
 - Dimensions: {config["width"]}x{config["height"]} pixels
-- Scale: {config["scale"]}x
-- Text preset: {config.get("text_preset", "Manuscript (journal)")}
+- DPI: {config.get("dpi", "(auto)")}
+- Text preset: {config.get("text_preset", "Journal (default)")}
 - Intended width: {config.get("target_width_in", 6.5)} in
 
 Selected Figures: {len(selected_figures)}
@@ -2092,33 +2136,48 @@ def render():
         default_index = 1  # High quality as default
 
         quality_preset = st.selectbox("Quality Preset", options=dpi_options, index=default_index)
-        scale_map = {
-            dpi_options[0]: 150 / 96,
-            dpi_options[1]: EXPORT_DPI / 96,
-            dpi_options[2]: 600 / 96,
+        # We export using explicit pixel dimensions derived from (DPI × intended inches).
+        # This avoids Plotly/Kaleido "scale" inconsistencies across formats and keeps
+        # typography physically correct when inserted in Word/LaTeX.
+        dpi_map = {
+            dpi_options[0]: 150,
+            dpi_options[1]: int(EXPORT_DPI),
+            dpi_options[2]: 600,
         }
 
     with col2:
         st.markdown("**Figure Dimensions:**")
-        width = st.slider("Width (pixels)", 800, 2400, 1200, 100)
-        height = st.slider("Height (pixels)", 600, 1800, 800, 100)
-        st.markdown("**Typography (export only):**")
-        text_preset = st.selectbox(
-            "Text sizing preset",
-            options=["Manuscript (journal)", "Presentation (slides)", "Poster"],
-            index=0,
-            help="Export figures with professional, readable typography. On-screen figures are unchanged.",
+        width = st.slider(
+            "Width (reference)",
+            800,
+            2400,
+            1200,
+            100,
+            help="Used only to set the figure aspect ratio. The final export pixel size is computed from (DPI × intended inches) shown below.",
         )
-        target_width_in = st.slider(
-            "Intended figure width (inches)",
-            min_value=3.0,
-            max_value=10.0,
-            value=6.5,
-            step=0.25,
-            help="Used to scale text so it looks correct when inserted in Word/LaTeX at this width.",
+        height = st.slider(
+            "Height (reference)",
+            600,
+            1800,
+            800,
+            100,
+            help="Used only to set the figure aspect ratio. The final export pixel size is computed from (DPI × intended inches) shown below.",
         )
+        # Typography is automatic (no user controls).
+        text_preset = AUTO_TEXT_PRESET
+        target_width_in = float(AUTO_TARGET_WIDTH_IN)
 
-    st.markdown("---")
+        # Compute final export pixel dimensions from intended physical width and DPI.
+        # Keep the user's width/height sliders only as an aspect-ratio control.
+        try:
+            export_dpi = int(dpi_map.get(quality_preset, int(EXPORT_DPI)))
+        except Exception:
+            export_dpi = int(EXPORT_DPI)
+        aspect = float(height) / float(width) if width else (2.0 / 3.0)
+        export_width_px = int(round(float(target_width_in) * float(export_dpi)))
+        export_height_px = int(round(float(export_width_px) * float(aspect)))
+        export_height_px = max(400, export_height_px)
+
     st.markdown("---")
     st.markdown("### 📥 Export")
 
@@ -2136,33 +2195,19 @@ def render():
             options=["ZIP package (figures + tables)", "Word report (.docx)"],
             index=0,
             horizontal=True,
-            help="ZIP includes selected figures + tables as files. Word report embeds figures + tables into a manuscript-ready .docx.",
+            help="ZIP includes selected figures + tables as files. Word report embeds figures + tables into a formatted .docx.",
         )
-
-        # Report-only options
-        report_fig_width_in = 6.5
-        report_max_table_rows = 60
+        # Report-only options (automatic; no user controls)
+        report_fig_width_in = float(AUTO_TARGET_WIDTH_IN)
+        report_max_table_rows = int(AUTO_DOCX_MAX_TABLE_ROWS)
         if export_type.startswith("Word"):
             if not DOCX_AVAILABLE:
                 st.error("python-docx is not installed. Install with: pip install python-docx")
-            report_fig_width_in = st.slider(
-                "Figure width in report (inches)",
-                min_value=4.5,
-                max_value=7.5,
-                value=6.5,
-                step=0.1,
-                help="Controls how wide embedded figures appear on the page.",
-            )
-            report_max_table_rows = int(
-                st.number_input(
-                    "Max rows per table in report",
-                    min_value=10,
-                    max_value=500,
-                    value=60,
-                    step=10,
-                    help="Large tables are truncated to keep the Word file responsive.",
+            else:
+                report_fig_width_in = _infer_docx_report_figure_width_in(default=report_fig_width_in)
+                st.caption(
+                    f"Report layout (automatic): figure width {report_fig_width_in:.2f} in • max rows/table {report_max_table_rows}"
                 )
-            )
 
         button_label = (
             "📦 Generate ZIP Package"
@@ -2174,9 +2219,10 @@ def render():
         if st.button(button_label, type="primary", use_container_width=True, disabled=disabled):
             export_config = {
                 "format": fig_format,
-                "width": width,
-                "height": height,
-                "scale": scale_map[quality_preset],
+                "width": int(export_width_px),
+                "height": int(export_height_px),
+                "scale": 1.0,
+                "dpi": int(export_dpi),
                 "text_preset": text_preset,
                 "target_width_in": float(target_width_in),
             }
@@ -2229,12 +2275,25 @@ def render():
                             tbl_meta[str(tid)] = (str(name), str(desc))
 
                     # DOCX always embeds raster images
+                    # Recompute DOCX export pixel size from the *actual* report
+                    # width, so typography stays physically correct in the Word
+                    # document even if the user changes the report figure width.
+                    _ratio = 2.0 / 3.0
+                    try:
+                        _ratio = float(export_config["height"]) / float(export_config["width"])
+                    except Exception:
+                        pass
+                    _doc_dpi = int(export_config.get("dpi", int(EXPORT_DPI)))
+                    _doc_w_px = int(round(float(report_fig_width_in) * float(_doc_dpi)))
+                    _doc_h_px = int(round(float(_doc_w_px) * float(_ratio)))
+
                     doc_cfg = DocxReportConfig(
-                        img_format="png",
-                        img_width_px=int(export_config["width"]),
-                        img_height_px=int(export_config["height"]),
-                        img_scale=float(export_config["scale"]),
+    img_format="png",
+                        img_width_px=int(_doc_w_px),
+                        img_height_px=int(_doc_h_px),
+                        img_scale=1.0,
                         figure_width_in=float(report_fig_width_in),
+        text_preset=str(text_preset),
                         max_table_rows=int(report_max_table_rows),
                     )
 
@@ -2243,16 +2302,10 @@ def render():
                     )
 
                     def _docx_figure_generator(fid: str, st_state: dict) -> Any:
-                        fig_obj = generate_figure(fid, st_state)
-                        return style_figure_for_export(
-                            fig_obj,
-                            width_px=int(doc_cfg.img_width_px),
-                            height_px=int(doc_cfg.img_height_px),
-                            target_width_in=float(doc_cfg.figure_width_in),
-                            preset=str(export_config.get("text_preset", "Manuscript (journal)")),
-                            fig_id=str(fid),
-                            study_state=st_state,
-                        )
+                        # Return the base figure. The DOCX exporter applies
+                        # export-only styling internally (typography, cleanup,
+                        # overlap fixes) to keep outputs consistent.
+                        return generate_figure(fid, st_state)
 
                     with st.spinner(
                         f"Generating Word report with {len(selected_figs)} figures and {len(selected_tbls)} tables..."

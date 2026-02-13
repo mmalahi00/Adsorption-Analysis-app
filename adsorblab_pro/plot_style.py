@@ -1,6 +1,6 @@
 # plot_style.py
 """
-AdsorbLab Pro - Publication-Quality Plot Styling
+AdsorbLab Pro - professional-quality Plot Styling
 =================================================
 
 This module provides consistent, professional styling for all plots in
@@ -83,7 +83,7 @@ COLORS = {
     # Experimental points (case-study style)
     "experimental": "#000000",  # Black markers
     "experimental_edge": "#000000",
-    # Core line palette (Matplotlib tab10 – publication-friendly)
+    # Core line palette (Matplotlib tab10 – report-friendly)
     "fit_primary": "#1f77b4",  # Blue
     "fit_secondary": "#ff7f0e",  # Orange
     "fit_tertiary": "#2ca02c",  # Green
@@ -455,7 +455,7 @@ def create_isotherm_plot(
     height: int = 450,
 ) -> go.Figure:
     """
-    Create a publication-quality isotherm plot with legend inside the frame.
+    Create a professional-quality isotherm plot with legend inside the frame.
 
     Parameters
     ----------
@@ -525,7 +525,7 @@ def create_isotherm_plot(
         legend_position=(legend_x, legend_y, xanchor, yanchor),
     )
 
-    # Publication-friendly axes (start at 0 where possible)
+    # report-friendly axes (start at 0 where possible)
     fig.update_xaxes(rangemode="tozero")
     fig.update_yaxes(rangemode="tozero")
 
@@ -545,7 +545,7 @@ def create_kinetic_plot(
     height: int = 450,
 ) -> go.Figure:
     """
-    Create a publication-quality kinetic plot with legend inside the frame.
+    Create a professional-quality kinetic plot with legend inside the frame.
 
     Parameters
     ----------

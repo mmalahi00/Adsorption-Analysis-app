@@ -1,6 +1,6 @@
 # AdsorbLab Pro v2.0.0
 
-## Publication-Ready Adsorption Data Analysis Platform
+## professional Adsorption Data Analysis Platform
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28%2B-red.svg)](https://streamlit.io)
@@ -89,7 +89,7 @@ Visualise how adsorption responds to **two variables at once** — no scripting 
 
 ---
 
-## 📥 Exporting for Publication
+## 📥 Exporting for reporting
 
 In the **Export** tab you can generate:
 
@@ -429,7 +429,7 @@ python -m pytest tests/test_models.py -v
 
 ```bibtex
 @software{adsorblab_pro_2026,
-  title = {{AdsorbLab Pro}: Publication-Ready Adsorption Data Analysis Platform},
+  title = {{AdsorbLab Pro}: professional Adsorption Data Analysis Platform},
   author = {{Mohamed EL MALLAHI}},
   year = {2026},
   version = {2.0.0},

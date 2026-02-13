@@ -468,7 +468,7 @@ def fit_kinetic_models_with_cache(
 
 
 def render():
-    """Render kinetic analysis with publication-ready statistics."""
+    """Render kinetic analysis with professional statistics."""
     st.subheader("⏱️ Adsorption Kinetics Analysis")
     st.markdown("*Multi-model fitting with confidence intervals and mechanism identification*")
 
@@ -1581,7 +1581,7 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
 
 
 def _display_model_comparison(fitted_models, t, qt):
-    """Display kinetic model comparison with publication-standard error functions."""
+    """Display kinetic model comparison with standard error functions."""
     st.markdown("**📊 Model Comparison**")
 
     comparison_data = []
@@ -1697,7 +1697,7 @@ def _display_guidelines():
     """Display kinetic guidelines."""
     with st.expander("📖 Kinetic Analysis Guidelines", expanded=True):
         st.markdown("""
-        **Publication Standards:**
+        **standards:**
 
         1. **Time Points:** Include early points (0, 5, 10, 15, 20, 30 min)
         2. **Equilibrium:** Continue until plateau (60-240 min typical)

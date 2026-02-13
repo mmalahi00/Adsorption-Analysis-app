@@ -1163,7 +1163,7 @@ def _render_ph_temp_response(fitted_params, exp_data):
 
     st.info(
         "This surface is an **empirical visualization** built from your 1D pH and/or temperature-effect datasets (separable approximation). "
-        "It is not a mechanistic prediction model and should be reported as exploratory visualization in a manuscript."
+        "It is not a mechanistic prediction model and should be reported as exploratory visualization in a paper."
     )
 
     has_temp = "temperature" in exp_data

@@ -3,7 +3,7 @@
 AdsorbLab Pro v2.0.0 - Tab Modules (Production Edition)
 =======================================================
 
-Publication-ready analysis modules with:
+professional analysis modules with:
 - Confidence intervals and bootstrap resampling
 - Residual diagnostics
 - Model comparison statistics

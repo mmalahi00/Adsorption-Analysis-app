@@ -6,7 +6,7 @@ This module powers the "Word report" export in the Report tab. It is designed to
 - Robust to missing optional dependencies (python-docx)
 - Flexible: callers provide figure/table generators, so this can be tested without Kaleido.
 
-The report is intended for scientific publication workflows: it embeds selected figures,
+The report is intended for scientific reporting workflows: it embeds selected figures,
 key tables, and a reproducibility-oriented summary of model fits.
 
 Export quality notes
@@ -22,7 +22,7 @@ an export-only styling pass to Plotly figures (without mutating UI figures) to:
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from io import BytesIO
 from typing import Any
@@ -68,8 +68,8 @@ class DocxReportConfig:
     figure_width_in: float = 6.5
 
     # Typography preset for export-only Plotly styling
-    # Options: "Manuscript (journal)", "Presentation (slides)", "Poster"
-    text_preset: str = "Manuscript (journal)"
+    # Options: "Journal (default)", "Presentation (slides)", "Poster"
+    text_preset: str = "Journal (default)"
 
     # Export-only cleanups
     strip_user_headings: bool = True
@@ -132,7 +132,7 @@ def _strip_user_headings_plotly(fig: Any, *, fig_id: str | None = None) -> None:
     - Figure title text
     - Paper-level annotations (headings above plot area)
 
-    This prevents clutter when figures are exported for manuscripts where
+    This prevents clutter when figures are exported for papers where
     captions should live in the document, not inside the image.
 
     Parameters
@@ -451,12 +451,12 @@ def _style_plotly_for_docx_export(fig_obj: Any, cfg: DocxReportConfig) -> Any:
         pass
 
     # STEP 3: Typography presets
-    preset_norm = (cfg.text_preset or "Manuscript (journal)").strip().lower()
+    preset_norm = (cfg.text_preset or "Journal (default)").strip().lower()
     if preset_norm.startswith("present"):
         base_pt, tick_pt, axis_title_pt, title_pt, legend_pt = 16.0, 15.0, 17.0, 20.0, 14.0
     elif preset_norm.startswith("poster"):
         base_pt, tick_pt, axis_title_pt, title_pt, legend_pt = 18.0, 18.0, 20.0, 24.0, 16.0
-    else:  # Manuscript (default)
+    else:  # paper (default)
         base_pt, tick_pt, axis_title_pt, title_pt, legend_pt = 11.0, 10.5, 12.0, 14.0, 10.0
 
     base_px = _pt_to_px(base_pt, width_px=cfg.img_width_px, target_width_in=cfg.figure_width_in)
@@ -694,6 +694,36 @@ def _best_model_line(models: Any, label: str) -> str | None:
     return f"{label}: {best_name} (R²={best_r2:.4f})"
 
 
+
+
+def _recommended_docx_figure_width_in(
+    doc: Any,
+    *,
+    max_width_in: float = 6.5,
+    min_width_in: float = 4.5,
+    pad_ratio: float = 0.98,
+) -> float:
+    """Return a safe figure width (inches) that fits inside the document margins.
+
+    This is used to make report exports fully automatic (no user-controlled width slider)
+    while ensuring the embedded figures never overflow the page.
+
+    The returned width is clamped to [min_width_in, max_width_in].
+    """
+    try:
+        sec = doc.sections[0]
+        avail = sec.page_width - sec.left_margin - sec.right_margin
+        avail_in = getattr(avail, 'inches', None)
+        if avail_in is None:
+            # 914400 EMU per inch
+            avail_in = float(avail) / 914400.0
+        w = float(avail_in) * float(pad_ratio)
+        w = max(float(min_width_in), w)
+        w = min(float(max_width_in), w)
+        return float(w)
+    except Exception:
+        return float(max_width_in)
+
 # =============================================================================
 # Public API
 # =============================================================================
@@ -711,7 +741,7 @@ def create_docx_report(
     table_meta: Mapping[str, tuple[str, str]] | None = None,
     config: DocxReportConfig | None = None,
 ) -> tuple[bytes, list[str]]:
-    """Create a publication-oriented Word report and return it as bytes.
+    """Create a report-oriented Word report and return it as bytes.
 
     Returns:
         (docx_bytes, warnings)
@@ -723,6 +753,16 @@ def create_docx_report(
     warnings: list[str] = []
 
     doc = Document()
+
+    # Auto-clamp figure width to the usable page width (automatic export).
+    try:
+        auto_w = _recommended_docx_figure_width_in(doc)
+        if float(getattr(cfg, 'figure_width_in', 0.0) or 0.0) <= 0.0:
+            cfg = replace(cfg, figure_width_in=float(auto_w))
+        else:
+            cfg = replace(cfg, figure_width_in=min(float(cfg.figure_width_in), float(auto_w)))
+    except Exception:
+        pass
 
     # Title
     doc.add_heading(study_title, level=0)
@@ -783,13 +823,13 @@ def create_docx_report(
 
     doc.add_paragraph(" ")
 
-    # Methods (brief, publication-friendly)
+    # Methods (brief, report-friendly)
     doc.add_heading("Methods summary", level=1)
     methods = [
         "Nonlinear regression is used to fit adsorption models when possible.",
         "Model quality may include metrics such as R², adjusted R², AIC/AICc, BIC, RMSE, and residual diagnostics (depending on the analysis).",
-        "Figures are exported as high-resolution static images for manuscript preparation.",
-        "Tables are exported in a format suitable for copy/paste into manuscripts or supplementary information.",
+        "Figures are exported as high-resolution static images for paper preparation.",
+        "Tables are exported in a format suitable for copy/paste into papers or supplementary information.",
     ]
     for line in methods:
         doc.add_paragraph(line, style="List Bullet")

@@ -2486,7 +2486,7 @@ def create_dual_axis_plot(
     y2_label: str,
     title: str = "",
 ) -> go.Figure:
-    """Create publication-quality plot with two y-axes."""
+    """Create professional-quality plot with two y-axes."""
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
     # Primary y-axis trace (blue)
@@ -2590,7 +2590,7 @@ def create_dual_axis_plot(
 
 
 # =============================================================================
-# PUBLICATION EXPORT HELPERS
+# reporting EXPORT HELPERS
 # =============================================================================
 
 

@@ -470,7 +470,7 @@ def _get_temperature_k(params: dict) -> float:
 
 
 def render():
-    """Render isotherm analysis with publication-ready statistics."""
+    """Render isotherm analysis with professional statistics."""
     st.subheader("📈 Adsorption Isotherm Analysis")
     st.markdown("*Multi-model fitting with confidence intervals and statistical comparison*")
 
@@ -614,7 +614,7 @@ def render():
                 st.plotly_chart(fig, use_container_width=True, key="iso_overview_chart")
 
             else:  # Both
-                # Prefer two separate plots (cleaner and more publication-friendly than dual-axis)
+                # Prefer two separate plots (cleaner and more report-friendly than dual-axis)
                 st.markdown("**q<sub>e</sub> (mg/g)**")
                 fig_qe = go.Figure()
                 fig_qe.add_trace(
@@ -1234,7 +1234,7 @@ def _display_sips(Ce, qe, results):
 
 
 def _display_model_comparison(fitted_models, Ce, qe, T_K: float = 298.15):
-    """Display comprehensive model comparison with publication-standard error functions."""
+    """Display comprehensive model comparison with standard error functions."""
     st.markdown("**📊 Model Comparison**")
 
     # Check if PRESS was calculated
