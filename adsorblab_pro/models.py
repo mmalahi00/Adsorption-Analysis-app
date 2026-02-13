@@ -228,8 +228,8 @@ def sips_model(
     #
     # Physical interpretation: as Ks·Ce → ∞ the model correctly saturates at
     # qm (all sites occupied); the stable form returns exactly qm there.
-    u = ns * np.log(Ks * Ce)          # finite: Ks >= EPSILON, Ce >= EPSILON
-    safe_exp = np.exp(-np.abs(u))     # always in (0, 1] — overflow impossible
+    u = ns * np.log(Ks * Ce)  # finite: Ks >= EPSILON, Ce >= EPSILON
+    safe_exp = np.exp(-np.abs(u))  # always in (0, 1] — overflow impossible
     return qm * np.where(u >= 0, 1.0 / (1.0 + safe_exp), safe_exp / (1.0 + safe_exp))
 
 

@@ -1085,9 +1085,9 @@ def detect_common_errors(study_state: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 # Import model registry for cached bootstrap (avoid circular import at function level)
-def _get_model_registry() -> tuple[
-    dict[str, Callable[..., Any]], Callable[[str], Callable[..., Any] | None]
-]:
+def _get_model_registry() -> (
+    tuple[dict[str, Callable[..., Any]], Callable[[str], Callable[..., Any] | None]]
+):
     """Lazy import of model registry to avoid circular imports."""
     from .models import _MODEL_REGISTRY, get_model_by_name
 

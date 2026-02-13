@@ -1946,7 +1946,12 @@ def create_export_zip(
                         eff_dpi = 0
                     if eff_dpi <= 0:
                         try:
-                            eff_dpi = int(round(float(config["width"]) / float(config.get("target_width_in", 6.5))))
+                            eff_dpi = int(
+                                round(
+                                    float(config["width"])
+                                    / float(config.get("target_width_in", 6.5))
+                                )
+                            )
                         except Exception:
                             eff_dpi = int(EXPORT_DPI)
                     eff_dpi = max(72, eff_dpi)
@@ -2204,7 +2209,9 @@ def render():
             if not DOCX_AVAILABLE:
                 st.error("python-docx is not installed. Install with: pip install python-docx")
             else:
-                report_fig_width_in = _infer_docx_report_figure_width_in(default=report_fig_width_in)
+                report_fig_width_in = _infer_docx_report_figure_width_in(
+                    default=report_fig_width_in
+                )
                 st.caption(
                     f"Report layout (automatic): figure width {report_fig_width_in:.2f} in • max rows/table {report_max_table_rows}"
                 )
@@ -2288,12 +2295,12 @@ def render():
                     _doc_h_px = int(round(float(_doc_w_px) * float(_ratio)))
 
                     doc_cfg = DocxReportConfig(
-    img_format="png",
+                        img_format="png",
                         img_width_px=int(_doc_w_px),
                         img_height_px=int(_doc_h_px),
                         img_scale=1.0,
                         figure_width_in=float(report_fig_width_in),
-        text_preset=str(text_preset),
+                        text_preset=str(text_preset),
                         max_table_rows=int(report_max_table_rows),
                     )
 

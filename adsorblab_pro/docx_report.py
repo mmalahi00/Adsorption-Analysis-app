@@ -694,8 +694,6 @@ def _best_model_line(models: Any, label: str) -> str | None:
     return f"{label}: {best_name} (R²={best_r2:.4f})"
 
 
-
-
 def _recommended_docx_figure_width_in(
     doc: Any,
     *,
@@ -713,7 +711,7 @@ def _recommended_docx_figure_width_in(
     try:
         sec = doc.sections[0]
         avail = sec.page_width - sec.left_margin - sec.right_margin
-        avail_in = getattr(avail, 'inches', None)
+        avail_in = getattr(avail, "inches", None)
         if avail_in is None:
             # 914400 EMU per inch
             avail_in = float(avail) / 914400.0
@@ -723,6 +721,7 @@ def _recommended_docx_figure_width_in(
         return float(w)
     except Exception:
         return float(max_width_in)
+
 
 # =============================================================================
 # Public API
@@ -757,7 +756,7 @@ def create_docx_report(
     # Auto-clamp figure width to the usable page width (automatic export).
     try:
         auto_w = _recommended_docx_figure_width_in(doc)
-        if float(getattr(cfg, 'figure_width_in', 0.0) or 0.0) <= 0.0:
+        if float(getattr(cfg, "figure_width_in", 0.0) or 0.0) <= 0.0:
             cfg = replace(cfg, figure_width_in=float(auto_w))
         else:
             cfg = replace(cfg, figure_width_in=min(float(cfg.figure_width_in), float(auto_w)))
