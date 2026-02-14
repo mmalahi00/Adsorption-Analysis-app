@@ -12,8 +12,6 @@ Features:
 - Feature highlights and tips
 """
 
-import html
-
 from adsorblab_pro.streamlit_compat import st
 
 
@@ -167,12 +165,11 @@ def _render_session_status():
                     border_color = "#2E86AB" if is_active else "#ddd"
                     bg_color = "#f0f8ff" if is_active else "#fafafa"
 
-                    safe_name = html.escape(str(name))
                     st.markdown(
                         f"""
                     <div style="border: 2px solid {border_color}; border-radius: 10px;
                                 padding: 15px; background: {bg_color}; margin-bottom: 10px;">
-                        <h4 style="margin: 0; color: #333;">{"🔬 " if is_active else ""}{safe_name}</h4>
+                        <h4 style="margin: 0; color: #333;">{"🔬 " if is_active else ""}{name}</h4>
                         <p style="font-size: 0.85em; color: #666; margin: 5px 0;">
                             {len(analyses)}/7 analyses complete
                         </p>
