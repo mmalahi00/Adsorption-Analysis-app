@@ -1,111 +1,98 @@
-# AdsorbLab Pro v2.0.0
+# AdsorbLab Pro
 
-## professional Adsorption Data Analysis Platform
+**Professional Adsorption Data Analysis Platform**
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.28%2B-red.svg)](https://streamlit.io)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.10–3.12](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://adsorption.streamlit.app)
 [![CI](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml/badge.svg)](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml)
 
-AdsorbLab Pro is a comprehensive Streamlit-based application for analyzing adsorption equilibrium and kinetic data with statistical rigor. Designed by researchers, for researchers.
+AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption experiments. It fits isotherm and kinetic models using non-linear regression, provides bootstrap confidence intervals, performs rigorous model comparison (R², Adj-R², AIC, AICc, BIC, F-test), and generates publication-ready figures and Word reports — all without writing a single line of code.
+
+> **Try it now →** [adsorption.streamlit.app](https://adsorption.streamlit.app)
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [Key Features](#-key-features)
-- [Installation](#-installation)
-- [Quick Start](#-quick-start)
-- [Model Equations](#-model-equations)
-- [Statistical Methods](#-statistical-methods)
-- [Project Structure](#-project-structure)
-- [Troubleshooting](#-troubleshooting)
-- [Citation](#-citation)
-- [License](#-license)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Model Equations](#model-equations)
+- [Statistical Methods](#statistical-methods)
+- [Project Structure](#project-structure)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [Citation](#citation)
+- [License](#license)
 
 ---
 
-## 🎯 Key Features
+## Features
 
-### Isotherm Models (4)
-| Model | Best For | Parameters |
+### Isotherm Models
+
+| Model | Best for | Parameters |
 |-------|----------|------------|
 | **Langmuir** | Monolayer, homogeneous surfaces | qₘ, Kₗ |
 | **Freundlich** | Heterogeneous surfaces, multilayer | Kf, n |
-| **Temkin** | Adsorbate-adsorbate interactions | B₁, Kₜ |
+| **Temkin** | Adsorbate–adsorbate interactions | B₁, Kₜ |
 | **Sips** | Heterogeneous at high C, Langmuir at low C | qₘ, Kₛ, nₛ |
 
-### Kinetic Models (4+)
+### Kinetic Models
+
 | Model | Mechanism | Parameters |
 |-------|-----------|------------|
 | **Pseudo-First Order** | Physisorption | qₑ, k₁ |
 | **Pseudo-Second Order** | Chemisorption | qₑ, k₂, h |
+| **Revised PSO** (Bullen et al. 2021) | Concentration-corrected PSO | qₑ, k₂, C₀ |
 | **Elovich** | Heterogeneous chemisorption | α, β |
-| **Intraparticle Diffusion** | Pore diffusion | kᵢₚ, C |
+| **Intraparticle Diffusion** | Pore diffusion (Weber-Morris) | kᵢₚ, C |
 
-### Statistical Excellence
-- ✅ **Non-linear regression** (not linearized transforms)
-- ✅ **95% confidence intervals** on all parameters
-- ✅ **Adjusted R²** for fair model comparison
-- ✅ **AIC/BIC/AICc** for model selection with Akaike weights
-- ✅ **PRESS/Q²** leave-one-out cross-validation
-- ✅ **Bootstrap CI** (500-1000 iterations)
-- ✅ **Residual diagnostics** (Shapiro-Wilk, Durbin-Watson)
-- ✅ **Weighted Least Squares** (1/y, 1/y², √y schemes)
-
-### 🔬 Multi-Component Competitive Adsorption *(new in v2)*
+### Multi-Component Competitive Adsorption
 
 Predict how multiple adsorbates compete for the same binding sites — critical for real wastewater and multi-solute systems.
 
-| Model | Equation | Use Case |
-|-------|----------|----------|
-| **Extended Langmuir** (Butler-Ockrent) | qₑ,ᵢ = qₘ,ᵢ Kₗ,ᵢ Cₑ,ᵢ / (1 + Σ Kₗ,ⱼ Cₑ,ⱼ) | Binary/multi-solute systems with known single-component parameters |
-| **Extended Freundlich** (SRS) | qₑ,ᵢ = Kf,ᵢ Cₑ,ᵢ (Σ aᵢⱼ Cₑ,ⱼ)^(1/nᵢ − 1) | Heterogeneous surfaces with competition coefficients |
+| Model | Use case |
+|-------|----------|
+| **Extended Langmuir** (Butler-Ockrent) | Binary/multi-solute systems with known single-component parameters |
+| **Extended Freundlich** (SRS) | Heterogeneous surfaces with competition coefficients |
 
-- **Selectivity coefficient** (αᵢⱼ) calculation for preferential uptake analysis
-- Link single-component fits from existing studies **or** enter parameters manually
-- Side-by-side per-component bar charts and a combined comparison plot
-- Automated interpretation of competitive effects (suppression, enhancement, synergy)
+Includes selectivity coefficient (αᵢⱼ) calculation, the ability to link single-component fits or enter parameters manually, per-component bar charts, and automated interpretation of competitive effects.
 
-### 📊 3D Parameter Space Explorer *(new in v2)*
+### 3D Parameter Space Explorer
 
-Visualise how adsorption responds to **two variables at once** — no scripting required.
+Visualise how adsorption responds to two variables at once (e.g. Cₑ × T → qₑ, or pH × T → Removal %). Fully interactive Plotly 3D surfaces that can be exported as static images or embedded in the Word report.
 
-| Surface | X-axis | Y-axis | Z-axis |
-|---------|--------|--------|--------|
-| **Langmuir–Temperature** | Cₑ | T (K) | qₑ |
-| **pH–Temperature Response** | pH | T (K) | Removal % |
-| **Generic Parameter Sweep** | Any model param | Any model param | qₑ or qt |
+### Thermodynamics
 
-- Fully interactive Plotly 3D: rotate, zoom, hover to read exact (x, y, z) values
-- **Experimental design aid**: identify optimal (pH, T, dose) combinations before running costly batch tests
-- Export surfaces as static images (PNG/SVG) or embed in the Word report
+Van't Hoff analysis across multiple temperatures yielding ΔG°, ΔH°, and ΔS°.
 
-### Additional Advanced Features
-- 📑 **Auto-Reports**: Word document generation with embedded figures, tables, and captions
-- 🌡️ **Thermodynamics**: Van't Hoff analysis with Davies activity coefficient corrections
-- 🧪 **Revised PSO (rPSO)**: Concentration-corrected kinetic model (Bullen et al., 2021) that addresses the well-known PSO artifact
-- 📈 **Diffusion Analysis**: Biot number, Boyd plot, and Weber-Morris multilinearity for rate-limiting step identification
+### Additional Capabilities
+
+- **Calibration** — UV-Vis Beer–Lambert calibration with linearity diagnostics
+- **Effect studies** — pH, adsorbent dosage, and temperature optimization
+- **Diffusion analysis** — Biot number, Boyd plot, and Weber-Morris multilinearity for rate-limiting step identification
+- **Multi-study comparison** across datasets
+
+### Statistical Rigour
+
+- Non-linear regression (not linearized transforms)
+- 95 % confidence intervals on all parameters
+- Bootstrap CI (500–1000 iterations)
+- Model selection via Adj-R², AIC/AICc, BIC, and Akaike weights
+- PRESS/Q² leave-one-out cross-validation
+- Residual diagnostics (Shapiro-Wilk, Durbin-Watson)
+- Weighted Least Squares (1/y, 1/y², √y schemes)
+
+### Export
+
+- **ZIP package** — selected figures (PNG/SVG/PDF) + tables (CSV/XLSX)
+- **Word report (.docx)** — embedded figures, formatted tables, captions, and a methods summary
 
 ---
 
-## 📥 Exporting for reporting
-
-In the **Export** tab you can generate:
-
-- **ZIP package**: selected figures + tables as files (PNG/SVG/PDF + CSV/XLSX depending on selections)
-- **Word report (.docx)**: a report with embedded figures, tables, and notes
-
-### Word report settings
-
-When **Export type → Word report (.docx)** is selected:
-- **Embedded figure width (in)** controls how wide figures appear in the document
-- **Max rows per table in report** truncates very large tables to keep the report responsive
-
-For advanced tuning (image size/scale, numeric formatting), see `DocxReportConfig` in `adsorblab_pro/docx_report.py`
-or the full guide in `docs/USER_GUIDE.md`.
-
-## 📦 Installation
+## Installation
 
 ### System Requirements
 
@@ -116,43 +103,50 @@ or the full guide in `docs/USER_GUIDE.md`.
 | Storage | 500 MB | 1 GB |
 | OS | Windows 10, macOS 10.14, Ubuntu 20.04 | Latest |
 
-> **Supported Python: 3.10+**
+### Streamlit Cloud (no install)
 
-### Step-by-Step Installation
+Visit [adsorption.streamlit.app](https://adsorption.streamlit.app) and upload your data.
+
+### Local Install
 
 ```bash
-# 1. Clone or download the repository
+# 1. Clone the repository
 git clone https://github.com/mmalahi00/Adsorption-Analysis-app.git
 cd Adsorption-Analysis-app
 
-# 2. Create virtual environment (HIGHLY RECOMMENDED)
+# 2. Create and activate a virtual environment
 python -m venv venv
+source venv/bin/activate      # Linux / macOS
+# venv\Scripts\activate       # Windows
 
-# 3. Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
-
-# 4. Upgrade pip
+# 3. Install dependencies
 pip install --upgrade pip
-
-# 5. Install dependencies
 pip install -r requirements.txt
 
-# 6. Run the application (either command works)
-streamlit run adsorption_app.py          # recommended root launcher
-# or
-streamlit run adsorblab_pro/app.py       # package entry point
-# or
-python -m adsorblab_pro                  # module mode (no streamlit command needed)
+# 4. Launch the app
+streamlit run adsorption_app.py
+```
+
+The app opens at `http://localhost:8501`.
+
+Alternative launch methods:
+
+```bash
+streamlit run adsorblab_pro/app.py   # package entry point
+python -m adsorblab_pro              # module mode
+pip install -e . && adsorblab        # CLI shortcut after editable install
+```
+
+### Docker
+
+```bash
+docker compose up --build          # production on port 8501
+docker compose --profile dev up    # dev mode with hot-reload on port 8502
 ```
 
 ---
 
-## 🚀 Quick Start
-
-### Workflow Overview
+## Quick Start
 
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
@@ -164,156 +158,128 @@ python -m adsorblab_pro                  # module mode (no streamlit command nee
    slope, R²         qₘ, Kₗ, n          qₑ, k₂, h         ΔH°, ΔS°, ΔG°
 ```
 
-1. **Calibration Tab**: Enter UV-Vis data → Get Beer-Lambert parameters
-2. **Isotherm Tab**: Input C₀ and absorbances → Fit 4 models → Compare AIC
-3. **Kinetic Tab**: Time-series data → Fit 4 models → Identify mechanism
-4. **Thermodynamics Tab**: Multi-temperature → Van't Hoff → ΔH°, ΔS°, ΔG°
-5. **Statistical Summary**: Review checklist → Export report
+1. **Calibration** — Upload UV-Vis standards → Beer-Lambert parameters
+2. **Isotherm** — Input C₀ and absorbances → Fit 4 models → Compare via AIC
+3. **Kinetics** — Time-series data → Fit models → Identify mechanism
+4. **Thermodynamics** — Multi-temperature data → Van't Hoff → ΔH°, ΔS°, ΔG°
+5. **Statistical Summary** — Review diagnostics → Export report
+
+For direct concentration data (e.g. from the literature), select **"Direct Concentration"** in the sidebar and skip calibration.
+
+### Example Data
+
+The `examples/` directory contains ready-to-use datasets for every tab, in both Standard (absorbance) and Direct (concentration) modes. `expected_results.json` provides validation benchmarks. Three fully documented case studies are under `case_studies/`.
 
 ---
 
-## 📐 Model Equations
+## Model Equations
 
 ### Isotherm Models
 
-#### Langmuir (1918)
-Monolayer adsorption on homogeneous surface with finite identical sites.
+**Langmuir (1918)** — monolayer adsorption on a homogeneous surface with finite identical sites.
 
 ```
 qₑ = (qₘ · Kₗ · Cₑ) / (1 + Kₗ · Cₑ)
 ```
 
-| Parameter | Description | Units |
-|-----------|-------------|-------|
-| qₘ | Maximum monolayer capacity | mg/g |
-| Kₗ | Langmuir constant (affinity) | L/mg |
-| Rₗ | Separation factor = 1/(1+Kₗ·C₀) | dimensionless |
+Separation factor Rₗ = 1/(1 + Kₗ·C₀): Rₗ = 0 irreversible, 0 < Rₗ < 1 favourable, Rₗ = 1 linear, Rₗ > 1 unfavourable.
 
-**Separation Factor Interpretation:**
-- Rₗ = 0: Irreversible
-- 0 < Rₗ < 1: Favorable ✓
-- Rₗ = 1: Linear
-- Rₗ > 1: Unfavorable
-
-#### Freundlich (1906)
-Heterogeneous surfaces with non-uniform energy distribution.
+**Freundlich (1906)** — heterogeneous surfaces with non-uniform energy distribution.
 
 ```
 qₑ = Kf · Cₑ^(1/n)
 ```
 
-| Parameter | Description | Units |
-|-----------|-------------|-------|
-| Kf | Freundlich constant | (mg/g)(L/mg)^(1/n) |
-| n | Heterogeneity factor | dimensionless |
+n > 1 favourable, n = 1 linear, n < 1 unfavourable.
 
-**Interpretation:** n > 1 = Favorable, n = 1 = Linear, n < 1 = Unfavorable
-
-#### Temkin (1940)
-Heat of adsorption decreases linearly with coverage.
+**Temkin (1940)** — heat of adsorption decreases linearly with coverage.
 
 ```
-qₑ = B₁ · ln(Kₜ · Cₑ)
+qₑ = B₁ · ln(Kₜ · Cₑ)        where B₁ = RT / bₜ
 ```
 
-where B₁ = RT/bₜ (bₜ = Temkin constant, J/mol)
-
-#### Sips (Langmuir-Freundlich)
-Hybrid: Freundlich at low C, Langmuir at high C.
+**Sips (Langmuir-Freundlich)** — hybrid; reduces to Langmuir when nₛ = 1.
 
 ```
 qₑ = qₘ · (Kₛ · Cₑ)^nₛ / [1 + (Kₛ · Cₑ)^nₛ]
 ```
 
-When nₛ = 1, reduces to Langmuir.
-
 ### Kinetic Models
 
-#### Pseudo-First Order (Lagergren, 1898)
+**Pseudo-First Order (Lagergren 1898)**
+
 ```
-qₜ = qₑ · (1 - e^(-k₁·t))
+qₜ = qₑ · (1 − e^(−k₁·t))
 ```
 
-#### Pseudo-Second Order (Ho & McKay, 1999)
+**Pseudo-Second Order (Ho & McKay 1999)**
+
 ```
-qₜ = (qₑ² · k₂ · t) / (1 + qₑ · k₂ · t)
-h = k₂ · qₑ²  (initial rate)
+qₜ = (qₑ² · k₂ · t) / (1 + qₑ · k₂ · t)        h = k₂ · qₑ²  (initial rate)
 ```
 
-#### Elovich
+**Elovich**
+
 ```
 qₜ = (1/β) · ln(1 + α·β·t)
 ```
 
-#### Intraparticle Diffusion (Weber-Morris)
+**Intraparticle Diffusion (Weber-Morris)**
+
 ```
 qₜ = kᵢₚ · √t + C
 ```
 
-If C = 0, diffusion is sole rate-limiting step.
+If C = 0, intraparticle diffusion is the sole rate-limiting step.
+
+### Thermodynamics
+
+**Van't Hoff:**  `ln(Kd) = ΔS°/R − ΔH°/(RT)` — plot ln(Kd) vs 1/T to obtain slope = −ΔH°/R and intercept = ΔS°/R.
+
+**Gibbs free energy:**  `ΔG° = −RT·ln(Kd) = ΔH° − T·ΔS°`
 
 ---
 
-### Thermodynamic Equations
+## Statistical Methods
 
-#### Van't Hoff
+| Criterion | Purpose |
+|-----------|---------|
+| R² | Goodness of fit (0–1) |
+| Adj. R² | Penalises extra parameters |
+| AIC / AICc | Model selection (lower = better); AICc for small samples |
+| BIC | Stricter parameter penalty than AIC |
+| Q² (PRESS) | Predictive ability via leave-one-out cross-validation |
+
+**Bootstrap confidence intervals** — residuals are resampled 500–1000 times; the model is refit each iteration and the 2.5th/97.5th percentiles are reported.
+
+**PRESS / Q²:**
+
 ```
-ln(Kd) = ΔS°/R - ΔH°/(RT)
+PRESS = Σ(yᵢ − ŷᵢ₍₋ᵢ₎)²
+Q²    = 1 − PRESS / SStot
 ```
 
-Plot ln(Kd) vs 1/T: slope = -ΔH°/R, intercept = ΔS°/R
-
-#### Gibbs Free Energy
-```
-ΔG° = -RT·ln(Kd) = ΔH° - T·ΔS°
-```
-
----
-
-## 📊 Statistical Methods
-
-### Model Selection
-
-| Criterion | Use |
-|-----------|-----|
-| **R²** | Goodness of fit (0-1) |
-| **Adj. R²** | Penalizes extra parameters |
-| **AIC** | Model selection (lower = better) |
-| **AICc** | Small sample correction |
-| **BIC** | Stricter parameter penalty |
-| **Q²** | Predictive ability (PRESS-based) |
-
-### Bootstrap CI
-- Resample residuals 500-1000 times
-- Refit model each iteration
-- Report 2.5th and 97.5th percentiles
-
-### PRESS/Q²
-```
-PRESS = Σ(yᵢ - ŷᵢ₍₋ᵢ₎)²
-Q² = 1 - PRESS/SStot
-```
 Q² > 0.5 indicates good predictive ability.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
-MonAppAdsorption/
-├── adsorption_app.py              # Root Streamlit launcher (recommended)
+Adsorption-Analysis-app/
+├── adsorption_app.py              # Root Streamlit launcher
 ├── adsorblab_pro/
-│   ├── app.py                     # Streamlit entrypoint (package)
-│   ├── app_main.py                # Main UI + routing
-│   ├── config.py
-│   ├── models.py
-│   ├── utils.py
-│   ├── validation.py
-│   ├── sidebar_ui.py
-│   ├── plot_style.py
-│   ├── docx_report.py
-│   ├── streamlit_compat.py
-│   └── tabs/
+│   ├── app.py                     # Streamlit entry point
+│   ├── app_main.py                # Main UI and routing
+│   ├── config.py                  # Constants and configuration
+│   ├── models.py                  # Isotherm and kinetic models
+│   ├── utils.py                   # Calculations, bootstrap, statistics
+│   ├── validation.py              # Input validation and diagnostics
+│   ├── sidebar_ui.py              # Sidebar controls
+│   ├── plot_style.py              # Publication-quality plot styling
+│   ├── docx_report.py             # Word report generator
+│   ├── streamlit_compat.py        # Streamlit compatibility shim
+│   └── tabs/                      # One module per analysis tab
 │       ├── home_tab.py
 │       ├── calibration_tab.py
 │       ├── isotherm_tab.py
@@ -327,130 +293,115 @@ MonAppAdsorption/
 │       ├── statistical_summary_tab.py
 │       ├── threed_explorer_tab.py
 │       └── report_tab.py
+├── examples/                      # Sample datasets
+├── case_studies/                   # Reproducible case studies
+├── tests/                         # Test suite
 ├── docs/
 │   └── USER_GUIDE.md
-├── examples/
-├── tests/
-├── scripts/
+├── scripts/                       # Cleanup utilities
 ├── pyproject.toml
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── requirements-lock.txt
 ├── Dockerfile
 ├── docker-compose.yml
-├── LICENSE
 ├── CITATION.cff
-└── README.md
-
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── SECURITY.md
+└── LICENSE
 ```
 
 ---
 
-
-## 🚀 Production Deployment Notes
-
-Before packaging/deploying (especially when deploying from a ZIP checkout), clean build/test artifacts:
-
-- macOS/Linux: `bash scripts/clean_artifacts.sh`
-- Windows (PowerShell): `powershell -ExecutionPolicy Bypass -File scripts/clean_artifacts.ps1`
-
-These remove `.coverage`, `.pytest_cache`, `__pycache__`, and other transient caches.
-
-
-## 🔧 Troubleshooting
-
-### Installation Issues
-
-**"pip install fails with compilation errors"**
-```bash
-# Windows: Install Visual C++ Build Tools
-# macOS: xcode-select --install
-# Linux: sudo apt-get install build-essential python3-dev
-```
-
-**"ModuleNotFoundError: No module named 'streamlit'"**
-```bash
-# Activate venv first, then:
-pip install -r requirements.txt
-```
-
-**"Port 8501 already in use"**
-```bash
-streamlit run adsorblab_pro/app.py --server.port 8502
-```
-
-### Runtime Issues
-
-
-### Word Report (.docx) Issues
-
-- **DOCX option is disabled**: install the dependency and restart Streamlit:
-  - `pip install python-docx`
-- **ImportError related to lxml**: upgrade build tooling:
-  - `python -m pip install -U pip setuptools wheel`
-- **Report is huge/slow**: export fewer figures, reduce image scale, and/or lower “Max rows per table in report”.
-
-**"Fitting fails to converge"**
-- Check data for outliers
-- Verify Cₑ < C₀
-- Try simpler model first
-- Adjust initial parameter guesses
-
-**"Bootstrap CI very wide"**
-- Add more data points (6-8 minimum)
-- Check for outliers
-- Consider if model is appropriate
-
-### Data Quality Checklist
-- [ ] Cₑ ≤ C₀ for all points
-- [ ] No negative values
-- [ ] 5+ points for isotherm, 8+ for kinetics
-- [ ] Consistent units (mg/L, g, L, min)
-- [ ] Temperature in Kelvin for thermodynamics
-
----
-
-## 🧪 Running Tests
+## Development
 
 ```bash
-# All tests
-python -m pytest tests/ -v
+# Install runtime + dev dependencies
+pip install -r requirements.txt -r requirements-dev.txt
+
+# Run the test suite
+pytest tests/ -v
 
 # With coverage
-python -m pytest tests/ --cov=. --cov-report=html
+pytest tests/ --cov=adsorblab_pro --cov-report=html
 
-# Specific file
-python -m pytest tests/test_models.py -v
+# Lint
+ruff check .
+
+# Type checking
+mypy adsorblab_pro/
+```
+
+For reproducible builds, use `requirements-lock.txt`. See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
+
+### Production Deployment
+
+Before packaging or deploying from a ZIP checkout, clean build/test artefacts:
+
+```bash
+bash scripts/clean_artifacts.sh                                       # macOS / Linux
+powershell -ExecutionPolicy Bypass -File scripts/clean_artifacts.ps1  # Windows
 ```
 
 ---
 
-## 📝 Citation
+## Troubleshooting
+
+**pip install fails with compilation errors**
+
+```bash
+# Windows: install Visual C++ Build Tools
+# macOS:   xcode-select --install
+# Linux:   sudo apt-get install build-essential python3-dev
+```
+
+**Port 8501 already in use**
+
+```bash
+streamlit run adsorption_app.py --server.port 8502
+```
+
+**DOCX export option is disabled** — install the dependency and restart Streamlit: `pip install python-docx`. If you see an lxml ImportError, run `pip install -U pip setuptools wheel`.
+
+**Fitting fails to converge** — check for outliers, verify Cₑ < C₀, try a simpler model first, or adjust initial parameter guesses.
+
+**Bootstrap CI very wide** — ensure at least 6–8 data points, check for outliers, and consider whether the chosen model is appropriate.
+
+### Data Quality Checklist
+
+- Cₑ ≤ C₀ for all points
+- No negative concentrations or capacities
+- ≥ 5 points for isotherms, ≥ 8 for kinetics
+- Consistent units (mg/L, g, L, min)
+- Temperature in Kelvin for thermodynamic analysis
+
+---
+
+## Citation
+
+If you use AdsorbLab Pro in your research, please cite:
 
 ```bibtex
 @software{adsorblab_pro_2026,
-  title = {{AdsorbLab Pro}: professional Adsorption Data Analysis Platform},
-  author = {{Mohamed EL MALLAHI}},
-  year = {2026},
+  title   = {{AdsorbLab Pro}: Professional Adsorption Data Analysis Platform},
+  author  = {{Mohamed EL MALLAHI}},
+  year    = {2026},
   version = {2.0.0},
-  url = {https://github.com/mmalahi00/Adsorption-Analysis-app},
+  url     = {https://github.com/mmalahi00/Adsorption-Analysis-app},
   license = {MIT}
 }
 ```
 
 ---
 
-## 📄 License
+## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-## 🆘 Support
-
-- 🐛 [Report Bug](https://github.com/mmalahi00/Adsorption-Analysis-app/issues)
-- 💡 [Request Feature](https://github.com/mmalahi00/Adsorption-Analysis-app/issues)
+[MIT](LICENSE) © Mohamed EL MALLAHI
 
 ---
 
-**Made with ❤️ for the adsorption research community**
+## Support
+
+- [Report a bug](https://github.com/mmalahi00/Adsorption-Analysis-app/issues)
+- [Request a feature](https://github.com/mmalahi00/Adsorption-Analysis-app/issues)
