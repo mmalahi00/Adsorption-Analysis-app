@@ -4,6 +4,7 @@
 
 [![Python 3.10–3.12](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18501799.svg)](https://doi.org/10.5281/zenodo.18501799)
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://adsorption.streamlit.app)
 [![CI](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml/badge.svg)](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml)
 
@@ -389,6 +390,7 @@ If you use AdsorbLab Pro in your research, please cite:
   year    = {2026},
   version = {2.0.0},
   url     = {https://github.com/mmalahi00/Adsorption-Analysis-app},
+  doi     = {10.5281/zenodo.18501799},
   license = {MIT}
 }
 ```

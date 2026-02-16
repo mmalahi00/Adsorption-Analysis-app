@@ -599,6 +599,11 @@ st.markdown(
     <p style="font-size: 0.8em; margin-top: 10px;">
         Features: Bootstrap CI • AIC/BIC Selection • Multi-Study Comparison • Mechanism Interpretation
     </p>
+    <p style="font-size: 0.85em; margin-top: 8px;">
+        <a href="https://doi.org/10.5281/zenodo.18501799" target="_blank" style="color: #2E86AB; text-decoration: none;">
+            DOI: 10.5281/zenodo.18501799
+        </a>
+    </p>
     <p>© {current_year} Mohamed EL MALLAHI</p>
 </div>
 """,
