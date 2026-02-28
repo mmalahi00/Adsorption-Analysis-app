@@ -9,13 +9,9 @@ Tests include:
 - Parameter bounds handling
 - Numerical stability
 - Fitting convergence
-- Known literature values
-- Weighted least squares
 - Multi-component competitive models
-- Diffusion-based kinetic models
-- Rate-limiting step identification
-- Advanced fitting functions
-- Linear transform methods
+- Diffusion analysis (Biot number, rate-limiting step)
+- Helper functions (initial rate, equilibrium time)
 
 Author: AdsorbLab Team
 """

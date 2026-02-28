@@ -4,7 +4,6 @@ AdsorbLab Pro v2.0.0 - Configuration Module
 ============================================
 
 Centralized configuration for all settings, constants, and defaults.
-Addresses review item: Configuration Management improvements.
 """
 
 from typing import Any, TypedDict
@@ -115,7 +114,7 @@ ISOTHERM_MODELS = {
         "description": "Monolayer adsorption on homogeneous surface",
     },
     "Freundlich": {
-        "params": ["KF", "n"],
+        "params": ["KF", "1/n"],
         "n_params": 2,
         "formula": r"q_e = K_F C_e^{1/n}",
         "description": "Multilayer adsorption on heterogeneous surface",
@@ -213,14 +212,6 @@ KINETIC_MODELS = {
         "reference": "Bullen et al. (2021). Langmuir, 37(10), 3189-3201. DOI: 10.1021/acs.langmuir.1c00142",
         "advantage": "Reduces fitting errors by ~66% across varying experimental conditions",
         "requires_conditions": True,  # Indicates C0, m, V must be provided
-    },
-    "rPSO_simple": {
-        "params": ["qe", "k2"],
-        "n_params": 2,
-        "formula": r"q_t = \frac{k_2 q_e^2 t}{1 + k_2 q_e t \cdot \varphi}",
-        "description": "Revised PSO (simplified, fixed experimental conditions)",
-        "reference": "Bullen et al. (2021). Langmuir, 37(10), 3189-3201",
-        "note": "Use when C0, m, V are known constants entered separately",
     },
     "Elovich": {
         "params": ["alpha", "beta"],

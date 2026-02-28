@@ -16,7 +16,7 @@ Features:
 Usage:
     from plot_style import (
         apply_professional_style, create_isotherm_plot, create_kinetic_plot,
-        COLORS, MARKERS, get_plotly_template
+        COLORS, MARKERS
     )
 
     # For new plots

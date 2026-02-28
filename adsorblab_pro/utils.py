@@ -10,7 +10,7 @@ Advanced utility module providing:
 - Mechanism consistency checking
 - Methodological error detection
 - Parameter uncertainty propagation
-- Comprehensive model selection criteria (R², Adj-R², AIC, BIC, F-test)
+- Model selection criteria (R², Adj-R², AIC, AICc, BIC)
 - Residual analysis and diagnostics
 - Dual-unit calculations (mg/g and % Removal)
 - Intelligent rule-based model recommendations

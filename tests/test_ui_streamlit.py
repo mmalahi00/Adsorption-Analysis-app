@@ -227,24 +227,17 @@ class TestStreamlitApp:
 
     def test_app_starts(self):
         """Test that the main app starts without errors."""
-        try:
-            at = AppTest.from_file("adsorblab_pro/app.py", default_timeout=30)
-            at.run()
-            # App should not have uncaught exceptions
-            assert not at.exception
-        except Exception as e:
-            # If app fails to start, that's also useful information
-            pytest.skip(f"App failed to start: {e}")
+        at = AppTest.from_file("adsorblab_pro/app.py", default_timeout=30)
+        at.run()
+        # App should not have uncaught exceptions
+        assert not at.exception, f"App raised an exception: {at.exception}"
 
     def test_app_has_tabs(self):
         """Test that app creates expected tabs."""
-        try:
-            at = AppTest.from_file("adsorblab_pro/app.py", default_timeout=30)
-            at.run()
-            # Check for some expected elements
-            assert not at.exception
-        except Exception as e:
-            pytest.skip(f"App test failed: {e}")
+        at = AppTest.from_file("adsorblab_pro/app.py", default_timeout=30)
+        at.run()
+        # Check for some expected elements
+        assert not at.exception, f"App raised an exception: {at.exception}"
 
 
 # =============================================================================

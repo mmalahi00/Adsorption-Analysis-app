@@ -11,7 +11,7 @@ Comprehensive collection of isotherm and kinetic models with:
 - PRESS/Q² cross-validation
 
 Isotherm Models (Single-Component):
-- Langmuir (Type I, II)
+- Langmuir
 - Freundlich
 - Temkin
 - Sips (Langmuir-Freundlich)
@@ -1337,7 +1337,7 @@ def get_model_info() -> dict[str, dict]:
             },
             "Freundlich": {
                 "equation": r"q_e = K_F C_e^{1/n}",
-                "params": ["KF ((mg/g)(L/mg)^(1/n))", "n (dimensionless)"],
+                "params": ["KF ((mg/g)(L/mg)^(1/n))", "1/n (dimensionless)"],
                 "description": "Empirical model for heterogeneous surfaces",
             },
             "Temkin": {

@@ -6,7 +6,7 @@ AdsorbLab Pro - Advanced Adsorption Data Analysis Platform
 A comprehensive Python package for analyzing adsorption experiments with:
 - Advanced statistical analysis with confidence intervals
 - Bootstrap parameter estimation
-- Comprehensive model comparison (R², Adj-R², AIC, AICc, BIC, F-test)
+- Comprehensive model comparison (R², Adj-R², AIC, AICc, BIC)
 - Residual diagnostics and outlier detection
 
 Usage:

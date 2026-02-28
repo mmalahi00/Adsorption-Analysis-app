@@ -1,4 +1,4 @@
-# tests/test_coverage_comprehensive.py
+# tests/test_coverage.py
 """
 Comprehensive Test Coverage Suite
 ==================================

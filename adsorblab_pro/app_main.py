@@ -7,7 +7,7 @@ v2.0.0
 A comprehensive Streamlit application for analyzing adsorption experiments with:
 - Advanced statistical analysis with confidence intervals
 - Bootstrap parameter estimation
-- Comprehensive model comparison (R², Adj-R², AIC, AICc, BIC, F-test)
+- Comprehensive model comparison (R², Adj-R², AIC, AICc, BIC)
 - Residual diagnostics and outlier detection
 - Dual-unit reporting (mg/g and % Removal)
 - Intelligent rule-based model recommendations
@@ -18,7 +18,7 @@ NEW IN v2.0.0:
 - Revised PSO (rPSO) model with concentration correction (Bullen et al., 2021)
 - PSO mechanistic interpretation warnings (not proof of chemisorption)
 - Multi-component competitive adsorption models (Extended Langmuir/Freundlich)
-- Film/Pore diffusion models for mechanistic analysis (HSDM, Boyd)
+- Diffusion analysis: Biot number, Boyd plot, Weber-Morris multilinearity
 - Rate-limiting step identification (Biot number, Weber-Morris, Boyd plots)
 - Durbin-Watson autocorrelation test for kinetics (removed from isotherms)
 
@@ -246,6 +246,12 @@ def update_calibration():
             except Exception as e:
                 current_study_state["calibration_params"] = None
                 st.warning(f"Calibration calculation failed: {e}")
+    else:
+        # Calibration data is missing or insufficient - clear stale parameters
+        # to prevent downstream tabs from using invalid calibration
+        if current_study_state.get("calibration_params") is not None:
+            current_study_state["calibration_params"] = None
+            current_study_state["previous_calib_df"] = None
 
 
 # =============================================================================
@@ -281,7 +287,6 @@ with st.expander("✨ **Key Features**", expanded=False):
         - 95% Confidence Intervals
         - Bootstrap parameter estimation
         - Adjusted R², AIC, AICc, BIC
-        - F-test model comparison
         """)
     with col2:
         st.markdown("""

@@ -8,7 +8,7 @@
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://adsorption.streamlit.app)
 [![CI](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml/badge.svg)](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml)
 
-AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption experiments. It fits isotherm and kinetic models using non-linear regression, provides bootstrap confidence intervals, performs rigorous model comparison (R², Adj-R², AIC, AICc, BIC, F-test), and generates publication-ready figures and Word reports — all without writing a single line of code.
+AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption experiments. It fits isotherm and kinetic models using non-linear regression, provides bootstrap confidence intervals, performs rigorous model comparison (R², Adj-R², AIC, AICc, BIC), and generates publication-ready figures and Word reports — all without writing a single line of code.
 
 > **Try it now →** [adsorption.streamlit.app](https://adsorption.streamlit.app)
 
@@ -84,7 +84,6 @@ Van't Hoff analysis across multiple temperatures yielding ΔG°, ΔH°, and ΔS�
 - Model selection via Adj-R², AIC/AICc, BIC, and Akaike weights
 - PRESS/Q² leave-one-out cross-validation
 - Residual diagnostics (Shapiro-Wilk, Durbin-Watson)
-- Weighted Least Squares (1/y, 1/y², √y schemes)
 
 ### Export
 
