@@ -148,15 +148,9 @@ docker compose --profile dev up    # dev mode with hot-reload on port 8502
 
 ## Quick Start
 
-```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│ Calibration │ -> │  Isotherm   │ -> │   Kinetic   │ -> │  Thermo-    │
-│   Curve     │    │  Analysis   │    │  Analysis   │    │  dynamics   │
-└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
-       │                  │                  │                  │
-       v                  v                  v                  v
-   slope, R²         qₘ, Kₗ, n          qₑ, k₂, h         ΔH°, ΔS°, ΔG°
-```
+<p align="center">
+  <img src="docs/analysis_workflow.svg" alt="AdsorbLab Pro Analysis Workflow" width="620"/>
+</p>
 
 1. **Calibration** — Upload UV-Vis standards → Beer-Lambert parameters
 2. **Isotherm** — Input C₀ and absorbances → Fit 4 models → Compare via AIC
