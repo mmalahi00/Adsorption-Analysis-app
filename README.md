@@ -152,14 +152,6 @@ docker compose --profile dev up    # dev mode with hot-reload on port 8502
   <img src="docs/analysis_workflow.svg" alt="AdsorbLab Pro Analysis Workflow" width="620"/>
 </p>
 
-1. **Calibration** — Upload UV-Vis standards → Beer-Lambert parameters
-2. **Isotherm** — Input C₀ and absorbances → Fit 4 models → Compare via AIC
-3. **Kinetics** — Time-series data → Fit models → Identify mechanism
-4. **Thermodynamics** — Multi-temperature data → Van't Hoff → ΔH°, ΔS°, ΔG°
-5. **Statistical Summary** — Review diagnostics → Export report
-
-For direct concentration data (e.g. from the literature), select **"Direct Concentration"** in the sidebar and skip calibration.
-
 ### Example Data
 
 The `examples/` directory contains ready-to-use datasets for every tab, in both Standard (absorbance) and Direct (concentration) modes. `expected_results.json` provides validation benchmarks. Three fully documented case studies are under `case_studies/`.
