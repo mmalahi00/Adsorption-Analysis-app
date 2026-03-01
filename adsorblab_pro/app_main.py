@@ -474,7 +474,7 @@ if active_study_name:
         )
         st.session_state.studies[active_study_name]["input_mode_global"] = input_mode_global
 
-st.sidebar.markdown("---")
+    st.sidebar.markdown("---")
 
 
 # =============================================================================
