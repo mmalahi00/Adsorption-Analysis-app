@@ -8,7 +8,7 @@
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://adsorption.streamlit.app)
 [![CI](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml/badge.svg)](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml)
 
-AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption experiments. It fits isotherm and kinetic models using non-linear regression, provides bootstrap confidence intervals, performs rigorous model comparison (R², Adj-R², AIC, AICc, BIC), and generates publication-ready figures and Word reports — all without writing a single line of code.
+AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption experiments. It fits isotherm and kinetic models using non-linear regression, provides bootstrap confidence intervals, performs rigorous model comparison (R², Adj-R², AIC, AICc, BIC), and generates high-resolution figures and structured Word reports — all without writing a single line of code.
 
 > **Try it now →** [adsorption.streamlit.app](https://adsorption.streamlit.app)
 
@@ -262,7 +262,7 @@ Adsorption-Analysis-app/
 │   ├── utils.py                   # Calculations, bootstrap, statistics
 │   ├── validation.py              # Input validation and diagnostics
 │   ├── sidebar_ui.py              # Sidebar controls
-│   ├── plot_style.py              # Publication-quality plot styling
+│   ├── plot_style.py              # High-resolution plot styling
 │   ├── docx_report.py             # Word report generator
 │   ├── streamlit_compat.py        # Streamlit compatibility shim
 │   └── tabs/                      # One module per analysis tab

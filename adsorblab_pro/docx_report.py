@@ -6,8 +6,7 @@ This module powers the "Word report" export in the Report tab. It is designed to
 - Robust to missing optional dependencies (python-docx)
 - Flexible: callers provide figure/table generators, so this can be tested without Kaleido.
 
-The report is intended for scientific reporting workflows: it embeds selected figures,
-key tables, and a reproducibility-oriented summary of model fits.
+The report embeds selected figures, key tables, and a summary of model fits into a single Word document for convenience.
 
 Export quality notes
 --------------------
@@ -740,7 +739,7 @@ def create_docx_report(
     table_meta: Mapping[str, tuple[str, str]] | None = None,
     config: DocxReportConfig | None = None,
 ) -> tuple[bytes, list[str]]:
-    """Create a report-oriented Word report and return it as bytes.
+    """Create a formatted Word document with selected figures and tables and return it as bytes.
 
     Returns:
         (docx_bytes, warnings)
@@ -827,8 +826,8 @@ def create_docx_report(
     methods = [
         "Nonlinear regression is used to fit adsorption models when possible.",
         "Model quality may include metrics such as R², adjusted R², AIC/AICc, BIC, RMSE, and residual diagnostics (depending on the analysis).",
-        "Figures are exported as high-resolution static images for paper preparation.",
-        "Tables are exported in a format suitable for copy/paste into papers or supplementary information.",
+        "Figures are exported as high-resolution static images.",
+        "Tables are exported in a tabular format for further use.",
     ]
     for line in methods:
         doc.add_paragraph(line, style="List Bullet")

@@ -1,6 +1,6 @@
 # AdsorbLab Pro — User Guide
 
-This guide focuses on running adsorption analyses and exporting publication-ready outputs.
+This guide focuses on running adsorption analyses and exporting results.
 
 ## 1) Running the app
 
@@ -25,7 +25,7 @@ This guide focuses on running adsorption analyses and exporting publication-read
 3. **Kinetic tab**: Fit kinetic models and identify trends/mechanisms.
 4. **Thermodynamics tab**: Van’t Hoff analysis across temperatures.
 5. **Statistical Summary tab**: Review assumptions, diagnostics, and the data-quality checklist.
-6. **Export tab**: Export figures/tables for publication.
+6. **Export tab**: Export figures and tables.
 
 ## 3) Exporting results
 
@@ -59,7 +59,7 @@ The report includes:
 - A notes section listing anything that could not be embedded
 
 **Notes**
-- Figures are embedded as static images (best for publication).
+- - Figures are embedded as static images (suitable for inclusion in documents).
 - Very large exports may produce a large DOCX. Reduce the number of figures or lower export scale.
 
 ## 4) DOCX configuration options (advanced)
