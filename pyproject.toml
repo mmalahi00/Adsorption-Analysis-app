@@ -121,6 +121,10 @@ addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
+    "--cov=adsorblab_pro",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html:htmlcov",
+    "--cov-fail-under=45",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
@@ -138,15 +142,20 @@ omit = [
     "tests/*",
     "*/__pycache__/*",
     "*.pyc",
-    "adsorblab_pro/tabs/*",
-    "adsorblab_pro/app_main.py",
-    "adsorblab_pro/docx_report.py",
+    # Pure Streamlit UI — no testable logic without full app context
     "adsorblab_pro/app.py",
+    "adsorblab_pro/app_main.py",
     "adsorblab_pro/sidebar_ui.py",
+    "adsorblab_pro/streamlit_compat.py",
+    # Tabs that are mostly st.* rendering (enable as tests are added)
+    "adsorblab_pro/tabs/home_tab.py",
+    "adsorblab_pro/tabs/statistical_summary_tab.py",
 ]
 branch = true
 
 [tool.coverage.report]
+fail_under = 45
+show_missing = true
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
@@ -154,6 +163,24 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
+    # Streamlit-only rendering blocks
+    "st\\.error",
+    "st\\.warning",
+    "st\\.success",
+    "st\\.info",
+    "st\\.markdown",
+    "st\\.subheader",
+    "st\\.header",
+    "st\\.write",
+    "st\\.columns",
+    "st\\.expander",
+    "st\\.tabs",
+    "st\\.plotly_chart",
+    "st\\.dataframe",
+    "st\\.download_button",
+    "st\\.metric",
+    "st\\.caption",
+    "st\\.divider",
 ]
 
 [tool.ruff]

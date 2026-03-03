@@ -305,11 +305,11 @@ class TestCalculateTemperatureResults:
         assert "Ce_error" in result.data.columns
 
 
-class TestCalculationResultClass:
+class TestCalculationResult:
     """Test CalculationResult dataclass."""
 
-    def test_calculation_result_success(self):
-        """Test successful CalculationResult."""
+    def test_calculation_result_success_with_dict(self):
+        """Test successful CalculationResult with dict data."""
         from adsorblab_pro.utils import CalculationResult
 
         result = CalculationResult(success=True, data={"test": 123})
@@ -317,6 +317,19 @@ class TestCalculationResultClass:
         assert result.success is True
         assert result.data == {"test": 123}
         assert result.error is None
+
+    def test_calculation_result_success_with_dataframe(self):
+        """Test successful CalculationResult with DataFrame data."""
+        from adsorblab_pro.utils import CalculationResult
+
+        result = CalculationResult(
+            success=True,
+            data=pd.DataFrame({"x": [1, 2, 3]}),
+            error=None,
+        )
+        assert result.success is True
+        assert result.error is None
+        assert isinstance(result.data, pd.DataFrame)
 
     def test_calculation_result_failure(self):
         """Test failed CalculationResult."""
@@ -327,24 +340,8 @@ class TestCalculationResultClass:
         assert result.success is False
         assert result.error == "Test error message"
 
-
-class TestCalculationResultDataclass:
-    """Test CalculationResult dataclass."""
-
-    def test_calculation_result_success(self):
-        """Test successful CalculationResult."""
-        from adsorblab_pro.utils import CalculationResult
-
-        result = CalculationResult(
-            success=True,
-            data=pd.DataFrame({"x": [1, 2, 3]}),
-            error=None,
-        )
-        assert result.success
-        assert result.error is None
-
-    def test_calculation_result_failure(self):
-        """Test failed CalculationResult."""
+    def test_calculation_result_failure_with_none_data(self):
+        """Test failed CalculationResult with explicit None data."""
         from adsorblab_pro.utils import CalculationResult
 
         result = CalculationResult(
@@ -353,6 +350,7 @@ class TestCalculationResultDataclass:
             error="Error occurred",
         )
         assert not result.success
+        assert result.data is None
         assert "Error" in result.error
 
 
@@ -512,6 +510,7 @@ class TestConfigConstants:
         from adsorblab_pro.config import ISOTHERM_MODELS
 
         assert isinstance(ISOTHERM_MODELS, dict)
+        assert len(ISOTHERM_MODELS) > 0
         assert "Langmuir" in ISOTHERM_MODELS
         assert "Freundlich" in ISOTHERM_MODELS
         assert "Temkin" in ISOTHERM_MODELS
@@ -521,10 +520,9 @@ class TestConfigConstants:
         from adsorblab_pro.config import KINETIC_MODELS
 
         assert isinstance(KINETIC_MODELS, dict)
-        # Check for common kinetic models
-        has_pfo = any("PFO" in k or "first" in k.lower() for k in KINETIC_MODELS.keys())
-        has_pso = any("PSO" in k or "second" in k.lower() for k in KINETIC_MODELS.keys())
-        assert has_pfo or has_pso or len(KINETIC_MODELS) > 0
+        assert len(KINETIC_MODELS) > 0
+        assert "PFO" in KINETIC_MODELS
+        assert "PSO" in KINETIC_MODELS
 
     def test_mechanism_criteria(self):
         """Test mechanism criteria dictionary."""
@@ -587,26 +585,6 @@ class TestConfigGradingFunctions:
         assert "A+" in QUALITY_GRADES or "A" in QUALITY_GRADES
         for _grade, info in QUALITY_GRADES.items():
             assert "min_r2" in info or "min_score" in info
-
-
-class TestConfigModelDicts:
-    """Test model configuration dictionaries."""
-
-    def test_isotherm_models_dict(self):
-        """Test isotherm models dictionary."""
-        from adsorblab_pro.config import ISOTHERM_MODELS
-
-        assert isinstance(ISOTHERM_MODELS, dict)
-        assert "Langmuir" in ISOTHERM_MODELS
-        assert "Freundlich" in ISOTHERM_MODELS
-
-    def test_kinetic_models_dict(self):
-        """Test kinetic models dictionary."""
-        from adsorblab_pro.config import KINETIC_MODELS
-
-        assert isinstance(KINETIC_MODELS, dict)
-        assert "PFO" in KINETIC_MODELS
-        assert "PSO" in KINETIC_MODELS
 
 
 class TestConvertDfFunctions:
@@ -1359,23 +1337,6 @@ class TestMechanismConsistencyAdvanced:
         }
         result = check_mechanism_consistency(study_state)
         assert isinstance(result, dict)
-
-
-class TestModelComparisonStatistics:
-    """Test model comparison statistical functions."""
-
-    def test_calculate_akaike_weights(self):
-        """Test Akaike weights calculation."""
-        from adsorblab_pro.utils import calculate_akaike_weights
-
-        aic_values = [100, 105, 110]
-
-        weights = calculate_akaike_weights(aic_values)
-
-        # Weights should sum to 1
-        assert abs(np.sum(weights) - 1.0) < 0.01
-        # Lower AIC should have higher weight
-        assert weights[0] > weights[1] > weights[2]
 
 
 class TestModelFittingAdvanced:
@@ -2222,13 +2183,15 @@ class TestStatisticalFunctions:
         """Test Akaike weights calculation."""
         from adsorblab_pro.utils import calculate_akaike_weights
 
-        aic_values = [100.0, 105.0, 110.0]  # List of floats
+        aic_values = [100.0, 105.0, 110.0]
         weights = calculate_akaike_weights(aic_values)
 
         assert isinstance(weights, np.ndarray)
         assert len(weights) == 3
         # Weights should sum to approximately 1
         assert abs(np.sum(weights) - 1.0) < 0.01
+        # Lower AIC should have higher weight
+        assert weights[0] > weights[1] > weights[2]
 
     def test_calculate_q2(self):
         """Test Q² (predictive R²) calculation."""

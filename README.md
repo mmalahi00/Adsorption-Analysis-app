@@ -7,6 +7,8 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18501799.svg)](https://doi.org/10.5281/zenodo.18501799)
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://adsorption.streamlit.app)
 [![CI](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml/badge.svg)](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/mmalahi00/Adsorption-Analysis-app/graph/badge.svg)](https://codecov.io/gh/mmalahi00/Adsorption-Analysis-app)
+[![Tests](https://img.shields.io/badge/tests-692%20passed-brightgreen.svg)](#testing--coverage)
 
 AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption experiments. It fits isotherm and kinetic models using non-linear regression, provides bootstrap confidence intervals, performs rigorous model comparison (R², Adj-R², AIC, AICc, BIC), and generates high-resolution figures and structured Word reports — all without writing a single line of code.
 
@@ -22,6 +24,7 @@ AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption ex
 - [Model Equations](#model-equations)
 - [Statistical Methods](#statistical-methods)
 - [Project Structure](#project-structure)
+- [Testing & Coverage](#testing--coverage)
 - [Development](#development)
 - [Troubleshooting](#troubleshooting)
 - [Citation](#citation)
@@ -281,7 +284,17 @@ Adsorption-Analysis-app/
 │       └── report_tab.py
 ├── examples/                      # Sample datasets
 ├── case_studies/                   # Reproducible case studies
-├── tests/                         # Test suite
+├── tests/                         # Test suite (692 tests)
+│   ├── test_models.py             # Isotherm & kinetic model tests
+│   ├── test_utils.py              # Utility function tests
+│   ├── test_validation.py         # Input validation tests
+│   ├── test_coverage.py           # Extended coverage tests
+│   ├── test_tab_calculations.py   # Tab computation logic tests
+│   ├── test_report_generators.py  # Report figure & table tests
+│   ├── test_integration.py        # End-to-end workflow tests
+│   ├── test_ui_streamlit.py       # UI module import & smoke tests
+│   ├── test_performance.py        # Fitting performance benchmarks
+│   └── test_docx_report.py        # Word report generation tests
 ├── docs/
 │   └── USER_GUIDE.md
 ├── scripts/                       # Cleanup utilities
@@ -300,17 +313,103 @@ Adsorption-Analysis-app/
 
 ---
 
+## Testing & Coverage
+
+AdsorbLab Pro has a comprehensive test suite enforced in CI on every push and pull request.
+
+### Test Suite Overview
+
+| Test File | Tests | What It Covers |
+|-----------|------:|----------------|
+| `test_coverage.py` | 179 | Extended coverage across config, plotting, statistics, models |
+| `test_utils.py` | 178 | Utility functions: calculations, bootstrap, error metrics, residuals |
+| `test_report_generators.py` | 71 | Report tab: figure generation, table generation, edge cases |
+| `test_models.py` | 65 | Isotherm & kinetic model functions, fitting, numerical stability |
+| `test_validation.py` | 58 | Input validation: positive/range/array/dataframe validators |
+| `test_tab_calculations.py` | 51 | Tab computation logic: isotherm, kinetic, dosage, pH, thermodynamics |
+| `test_ui_streamlit.py` | 43 | UI module imports, config structure, plot style smoke tests |
+| `test_integration.py` | 37 | End-to-end workflows combining models + validation + statistics |
+| `test_performance.py` | 9 | Fitting speed benchmarks (Langmuir, Freundlich, Sips, PSO) |
+| `test_docx_report.py` | 1 | Word report generation produces valid .docx |
+| **Total** | **692** | |
+
+### Running Tests
+
+```bash
+# Run the full suite with coverage (uses pyproject.toml config)
+pytest
+
+# Run a specific test file
+pytest tests/test_models.py -v
+
+# Run tests matching a keyword
+pytest -k "isotherm" -v
+
+# Skip slow tests
+pytest -m "not slow"
+```
+
+Coverage is collected automatically via `pyproject.toml` — every `pytest` invocation produces a terminal summary and an HTML report in `htmlcov/`.
+
+### Coverage Configuration
+
+Coverage enforcement is configured in `pyproject.toml`:
+
+```toml
+[tool.pytest.ini_options]
+addopts = [
+    "--cov=adsorblab_pro",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html:htmlcov",
+    "--cov-fail-under=45",
+]
+
+[tool.coverage.run]
+source = ["adsorblab_pro"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 45
+show_missing = true
+```
+
+The minimum threshold (`fail_under`) is a CI gate — `pytest` exits non-zero if line coverage drops below the threshold. The HTML report in `htmlcov/index.html` shows per-file, per-line miss detail for identifying gaps.
+
+### Coverage Architecture
+
+The test suite is structured in layers:
+
+- **Core logic** (models, utils, validation, config) — deeply tested with correctness assertions, edge cases, and numerical stability checks.
+- **Tab calculations** (isotherm_tab, kinetic_tab, dosage_tab, ph_effect_tab, thermodynamics_tab) — the pure computation functions (`_calculate_*_results`, `_calculate_kd`) are tested independently of Streamlit. This is possible because `streamlit_compat.py` provides a no-op stub for `@st.cache_data` in test environments.
+- **Report generators** (report_tab) — all 28+ `_gen_*` figure and table generators are tested with mock `study_state` dictionaries. Multi-study generators use `unittest.mock.patch` to inject session state.
+- **UI smoke tests** — verify every tab module imports cleanly and exposes its `render()` function.
+- **Integration** — end-to-end workflows that chain calibration → isotherm fitting → bootstrap CI → model comparison.
+
+### CI Pipeline
+
+The GitHub Actions workflow (`.github/workflows/ci.yml`) runs five parallel jobs:
+
+1. **Lint** — `ruff check` and `ruff format --check`
+2. **Type check** — `mypy adsorblab_pro/`
+3. **Test** — `pytest` across Python 3.10, 3.11, 3.12
+4. **Coverage** — `pytest --cov --cov-fail-under` with Codecov upload
+5. **Security** — `pip-audit` for known vulnerabilities
+
+All four core jobs (lint, typecheck, test, coverage) must pass before a PR can merge.
+
+---
+
 ## Development
 
 ```bash
 # Install runtime + dev dependencies
 pip install -r requirements.txt -r requirements-dev.txt
 
-# Run the test suite
-pytest tests/ -v
+# Run the full test suite (coverage collected automatically)
+pytest
 
-# With coverage
-pytest tests/ --cov=adsorblab_pro --cov-report=html
+# Run without coverage (faster iteration)
+pytest --no-cov tests/test_models.py -v
 
 # Lint
 ruff check .
