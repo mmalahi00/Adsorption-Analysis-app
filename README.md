@@ -7,7 +7,6 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18501799.svg)](https://doi.org/10.5281/zenodo.18501799)
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://adsorption.streamlit.app)
 [![CI](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml/badge.svg)](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/mmalahi00/Adsorption-Analysis-app/graph/badge.svg)](https://codecov.io/gh/mmalahi00/Adsorption-Analysis-app)
 [![Tests](https://img.shields.io/badge/tests-692%20passed-brightgreen.svg)](#testing--coverage)
 
 AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption experiments. It fits isotherm and kinetic models using non-linear regression, provides bootstrap confidence intervals, performs rigorous model comparison (R², Adj-R², AIC, AICc, BIC), and generates high-resolution figures and structured Word reports — all without writing a single line of code.
