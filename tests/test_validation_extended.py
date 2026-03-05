@@ -20,7 +20,6 @@ Covers:
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from adsorblab_pro.validation import (
     ValidationLevel,
@@ -96,8 +95,12 @@ class TestValidationReportExtended:
         assert report.has_warnings is False
 
     def test_results_combines_all(self):
-        error = ValidationResult(is_valid=False, level=ValidationLevel.ERROR, message="e", field="a")
-        warning = ValidationResult(is_valid=True, level=ValidationLevel.WARNING, message="w", field="b")
+        error = ValidationResult(
+            is_valid=False, level=ValidationLevel.ERROR, message="e", field="a"
+        )
+        warning = ValidationResult(
+            is_valid=True, level=ValidationLevel.WARNING, message="w", field="b"
+        )
         info = ValidationResult(is_valid=True, level=ValidationLevel.INFO, message="i", field="c")
         report = ValidationReport(is_valid=False, errors=[error], warnings=[warning], info=[info])
         assert len(report.results) == 3
@@ -127,7 +130,8 @@ class TestValidateRequiredParamsExtended:
     def test_all_valid(self):
         params = {"C0": 100.0, "V": 0.05, "m": 0.1}
         valid, msg = validate_required_params(
-            params, [("C0", "Initial Concentration"), ("V", "Volume"), ("m", "Mass")],
+            params,
+            [("C0", "Initial Concentration"), ("V", "Volume"), ("m", "Mass")],
         )
         assert valid is True
         assert msg == ""
@@ -135,7 +139,8 @@ class TestValidateRequiredParamsExtended:
     def test_missing_param(self):
         params = {"C0": 100.0}
         valid, msg = validate_required_params(
-            params, [("C0", "Initial Concentration"), ("V", "Volume")],
+            params,
+            [("C0", "Initial Concentration"), ("V", "Volume")],
         )
         assert valid is False
         assert "missing" in msg.lower()
@@ -143,7 +148,8 @@ class TestValidateRequiredParamsExtended:
     def test_non_numeric_param(self):
         params = {"C0": "abc", "V": 0.05}
         valid, msg = validate_required_params(
-            params, [("C0", "Initial Concentration"), ("V", "Volume")],
+            params,
+            [("C0", "Initial Concentration"), ("V", "Volume")],
         )
         assert valid is False
         assert "number" in msg.lower()
@@ -151,7 +157,8 @@ class TestValidateRequiredParamsExtended:
     def test_negative_param(self):
         params = {"C0": -10.0, "V": 0.05}
         valid, msg = validate_required_params(
-            params, [("C0", "Initial Concentration"), ("V", "Volume")],
+            params,
+            [("C0", "Initial Concentration"), ("V", "Volume")],
         )
         assert valid is False
         assert "positive" in msg.lower()
@@ -159,7 +166,8 @@ class TestValidateRequiredParamsExtended:
     def test_zero_param(self):
         params = {"C0": 0.0, "V": 0.05}
         valid, msg = validate_required_params(
-            params, [("C0", "Initial Concentration"), ("V", "Volume")],
+            params,
+            [("C0", "Initial Concentration"), ("V", "Volume")],
         )
         assert valid is False
         assert "positive" in msg.lower()
@@ -167,7 +175,8 @@ class TestValidateRequiredParamsExtended:
     def test_none_value(self):
         params = {"C0": None}
         valid, msg = validate_required_params(
-            params, [("C0", "Initial Concentration")],
+            params,
+            [("C0", "Initial Concentration")],
         )
         assert valid is False
         assert "missing" in msg.lower()
@@ -260,11 +269,14 @@ class TestValidateIsothermDataExtended:
         report = validate_isotherm_data(
             Ce=np.array([1, 5, 10, 20, 50]),
             qe=np.array([5, 15, 22, 30, 40]),
-            C0=100.0, V=50.0,  # Likely mL, not L
+            C0=100.0,
+            V=50.0,  # Likely mL, not L
         )
         if report.has_warnings:
-            assert any("mL" in str(w.message) or "volume" in str(w.message).lower()
-                       for w in report.warnings)
+            assert any(
+                "mL" in str(w.message) or "volume" in str(w.message).lower()
+                for w in report.warnings
+            )
 
 
 # =============================================================================
@@ -292,8 +304,12 @@ class TestValidateKineticDataExtended:
         )
         # Should warn about missing t=0
         if report.has_warnings:
-            assert any("t0" in str(w.message).lower() or "t=0" in str(w.message).lower() or "start" in str(w.message).lower()
-                       for w in report.warnings)
+            assert any(
+                "t0" in str(w.message).lower()
+                or "t=0" in str(w.message).lower()
+                or "start" in str(w.message).lower()
+                for w in report.warnings
+            )
 
     def test_too_few_points(self):
         report = validate_kinetic_data(
@@ -490,7 +506,9 @@ class TestValidateRangeExtended:
         assert validate_range(0.0, "x", min_val=0, max_val=10).is_valid is True
 
     def test_at_min_exclusive(self):
-        assert validate_range(0.0, "x", min_val=0, max_val=10, inclusive_min=False).is_valid is False
+        assert (
+            validate_range(0.0, "x", min_val=0, max_val=10, inclusive_min=False).is_valid is False
+        )
 
     def test_no_bounds(self):
         assert validate_range(999.0, "x").is_valid is True
@@ -550,7 +568,9 @@ class TestQuickValidateExtended:
 class TestFormatValidationErrorsExtended:
     def test_with_errors(self):
         errors = [
-            ValidationResult(is_valid=False, level=ValidationLevel.ERROR, message="Error 1", field="a"),
+            ValidationResult(
+                is_valid=False, level=ValidationLevel.ERROR, message="Error 1", field="a"
+            ),
         ]
         report = ValidationReport(is_valid=False, errors=errors)
         result = format_validation_errors(report)
@@ -558,7 +578,9 @@ class TestFormatValidationErrorsExtended:
 
     def test_with_warnings(self):
         warnings = [
-            ValidationResult(is_valid=True, level=ValidationLevel.WARNING, message="Warn 1", field="b"),
+            ValidationResult(
+                is_valid=True, level=ValidationLevel.WARNING, message="Warn 1", field="b"
+            ),
         ]
         report = ValidationReport(is_valid=True, warnings=warnings)
         result = format_validation_errors(report)

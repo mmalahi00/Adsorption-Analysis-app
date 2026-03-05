@@ -67,7 +67,7 @@ class TestConfigConstants:
         assert R_GAS_CONSTANT == pytest.approx(8.314, rel=0.01)
 
     def test_pi_squared(self):
-        assert PI_SQUARED == pytest.approx(np.pi ** 2)
+        assert PI_SQUARED == pytest.approx(np.pi**2)
 
     def test_temperature_limits(self):
         assert TEMP_MIN_KELVIN < TEMP_MAX_KELVIN

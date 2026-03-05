@@ -230,9 +230,7 @@ class TestCalculateIsothermResults:
     def test_no_uncertainty_fallback(self, isotherm_absorbance_input, calib_params_no_uncertainty):
         from adsorblab_pro.tabs.isotherm_tab import _calculate_isotherm_results
 
-        result = _calculate_isotherm_results(
-            isotherm_absorbance_input, calib_params_no_uncertainty
-        )
+        result = _calculate_isotherm_results(isotherm_absorbance_input, calib_params_no_uncertainty)
         assert result.success is True
         df = result.data
         # With fallback SE=0, errors should be 0
@@ -294,9 +292,7 @@ class TestCalculateIsothermResultsDirect:
         from adsorblab_pro.tabs.isotherm_tab import _calculate_isotherm_results_direct
 
         mixed_input = {
-            "data": pd.DataFrame(
-                {"C0": [10.0, 20.0, 50.0], "Ce": [5.0, 25.0, 30.0]}
-            ),
+            "data": pd.DataFrame({"C0": [10.0, 20.0, 50.0], "Ce": [5.0, 25.0, 30.0]}),
             "params": {"m": 0.1, "V": 0.05},
         }
         result = _calculate_isotherm_results_direct(mixed_input)

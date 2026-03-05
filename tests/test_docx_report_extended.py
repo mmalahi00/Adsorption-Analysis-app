@@ -2,9 +2,6 @@
 Extended tests for adsorblab_pro/docx_report.py - boosting coverage.
 """
 
-import numpy as np
-import pytest
-
 from adsorblab_pro.docx_report import (
     create_docx_report,
 )

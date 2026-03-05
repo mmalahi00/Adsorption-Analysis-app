@@ -52,8 +52,11 @@ class TestPropagateKdUncertainty:
         """Dimensionless Kd_se should be finite and positive."""
         Kd_se = propagate_kd_uncertainty(
             "dimensionless",
-            expt_data["C0"], expt_data["Ce"], expt_data["qe"],
-            expt_data["m"], expt_data["V"],
+            expt_data["C0"],
+            expt_data["Ce"],
+            expt_data["qe"],
+            expt_data["m"],
+            expt_data["V"],
             expt_data["Ce_se"],
         )
         assert Kd_se.shape == expt_data["Ce"].shape
@@ -65,8 +68,13 @@ class TestPropagateKdUncertainty:
         C0, Ce, Ce_se = expt_data["C0"], expt_data["Ce"], expt_data["Ce_se"]
         expected = C0 / Ce**2 * Ce_se
         actual = propagate_kd_uncertainty(
-            "dimensionless", C0, Ce, expt_data["qe"],
-            expt_data["m"], expt_data["V"], Ce_se,
+            "dimensionless",
+            C0,
+            Ce,
+            expt_data["qe"],
+            expt_data["m"],
+            expt_data["V"],
+            Ce_se,
         )
         assert_allclose(actual, expected, rtol=1e-10)
 
@@ -75,8 +83,11 @@ class TestPropagateKdUncertainty:
     def test_mass_based_basic(self, expt_data):
         Kd_se = propagate_kd_uncertainty(
             "mass_based",
-            expt_data["C0"], expt_data["Ce"], expt_data["qe"],
-            expt_data["m"], expt_data["V"],
+            expt_data["C0"],
+            expt_data["Ce"],
+            expt_data["qe"],
+            expt_data["m"],
+            expt_data["V"],
             expt_data["Ce_se"],
         )
         assert np.all(Kd_se > 0)
@@ -87,15 +98,22 @@ class TestPropagateKdUncertainty:
         qe_se = np.array([0.5, 0.4, 0.3, 0.2])  # Custom
         Kd_se_auto = propagate_kd_uncertainty(
             "mass_based",
-            expt_data["C0"], expt_data["Ce"], expt_data["qe"],
-            expt_data["m"], expt_data["V"],
+            expt_data["C0"],
+            expt_data["Ce"],
+            expt_data["qe"],
+            expt_data["m"],
+            expt_data["V"],
             expt_data["Ce_se"],
         )
         Kd_se_explicit = propagate_kd_uncertainty(
             "mass_based",
-            expt_data["C0"], expt_data["Ce"], expt_data["qe"],
-            expt_data["m"], expt_data["V"],
-            expt_data["Ce_se"], qe_se=qe_se,
+            expt_data["C0"],
+            expt_data["Ce"],
+            expt_data["qe"],
+            expt_data["m"],
+            expt_data["V"],
+            expt_data["Ce_se"],
+            qe_se=qe_se,
         )
         # They should differ because the qe_se values differ
         assert not np.allclose(Kd_se_auto, Kd_se_explicit)
@@ -105,8 +123,11 @@ class TestPropagateKdUncertainty:
     def test_volume_corrected_basic(self, expt_data):
         Kd_se = propagate_kd_uncertainty(
             "volume_corrected",
-            expt_data["C0"], expt_data["Ce"], expt_data["qe"],
-            expt_data["m"], expt_data["V"],
+            expt_data["C0"],
+            expt_data["Ce"],
+            expt_data["qe"],
+            expt_data["m"],
+            expt_data["V"],
             expt_data["Ce_se"],
         )
         assert np.all(Kd_se > 0)
@@ -117,8 +138,11 @@ class TestPropagateKdUncertainty:
     def test_zero_uncertainty_gives_zero(self, expt_data):
         Kd_se = propagate_kd_uncertainty(
             "dimensionless",
-            expt_data["C0"], expt_data["Ce"], expt_data["qe"],
-            expt_data["m"], expt_data["V"],
+            expt_data["C0"],
+            expt_data["Ce"],
+            expt_data["qe"],
+            expt_data["m"],
+            expt_data["V"],
             Ce_se=np.zeros(4),
         )
         assert_allclose(Kd_se, 0.0)
@@ -126,8 +150,11 @@ class TestPropagateKdUncertainty:
     def test_unknown_method(self, expt_data):
         Kd_se = propagate_kd_uncertainty(
             "unknown_method",
-            expt_data["C0"], expt_data["Ce"], expt_data["qe"],
-            expt_data["m"], expt_data["V"],
+            expt_data["C0"],
+            expt_data["Ce"],
+            expt_data["qe"],
+            expt_data["m"],
+            expt_data["V"],
             expt_data["Ce_se"],
         )
         assert_allclose(Kd_se, 0.0)
@@ -138,20 +165,34 @@ class TestPropagateKdUncertainty:
         Ce_se = np.array([1e-13, 1e-7, 0.1])
         qe = np.array([50.0, 50.0, 49.5])
         Kd_se = propagate_kd_uncertainty(
-            "dimensionless", 100.0, Ce, qe, 0.1, 0.05, Ce_se,
+            "dimensionless",
+            100.0,
+            Ce,
+            qe,
+            0.1,
+            0.05,
+            Ce_se,
         )
         assert np.all(np.isfinite(Kd_se))
 
     def test_heteroscedastic_Kd_se(self, expt_data):
         """Larger Ce_se → larger Kd_se (monotonic in Ce_se magnitude)."""
         Kd_se_small = propagate_kd_uncertainty(
-            "dimensionless", expt_data["C0"], expt_data["Ce"], expt_data["qe"],
-            expt_data["m"], expt_data["V"],
+            "dimensionless",
+            expt_data["C0"],
+            expt_data["Ce"],
+            expt_data["qe"],
+            expt_data["m"],
+            expt_data["V"],
             Ce_se=np.array([0.1, 0.1, 0.1, 0.1]),
         )
         Kd_se_large = propagate_kd_uncertainty(
-            "dimensionless", expt_data["C0"], expt_data["Ce"], expt_data["qe"],
-            expt_data["m"], expt_data["V"],
+            "dimensionless",
+            expt_data["C0"],
+            expt_data["Ce"],
+            expt_data["qe"],
+            expt_data["m"],
+            expt_data["V"],
             Ce_se=np.array([5.0, 5.0, 5.0, 5.0]),
         )
         assert np.all(Kd_se_large > Kd_se_small)
@@ -302,7 +343,11 @@ class TestFullPropagationChain:
         Ce_vals, Ce_se_vals, qe_vals = [], [], []
         for abs_val in absorbances:
             Ce, Ce_se = propagate_calibration_uncertainty(
-                abs_val, slope, intercept, slope_se, intercept_se,
+                abs_val,
+                slope,
+                intercept,
+                slope_se,
+                intercept_se,
             )
             Ce_vals.append(Ce)
             Ce_se_vals.append(Ce_se)
@@ -317,7 +362,13 @@ class TestFullPropagationChain:
         Ce_safe = np.maximum(Ce_arr, 1e-10)
         Kd_arr = (C0 - Ce_safe) / Ce_safe  # dimensionless
         Kd_se_arr = propagate_kd_uncertainty(
-            "dimensionless", C0, Ce_arr, qe_arr, m, V, Ce_se_arr,
+            "dimensionless",
+            C0,
+            Ce_arr,
+            qe_arr,
+            m,
+            V,
+            Ce_se_arr,
         )
 
         assert np.all(Kd_se_arr > 0)
@@ -348,7 +399,11 @@ class TestFullPropagationChain:
             Ce_arr, Ce_se_arr, qe_arr = [], [], []
             for abs_val in absorbances:
                 Ce, Ce_se = propagate_calibration_uncertainty(
-                    abs_val, slope, intercept, slope_se, intercept_se,
+                    abs_val,
+                    slope,
+                    intercept,
+                    slope_se,
+                    intercept_se,
                 )
                 Ce_arr.append(Ce)
                 Ce_se_arr.append(Ce_se)
@@ -358,7 +413,13 @@ class TestFullPropagationChain:
             qe_arr = np.array(qe_arr)
             Kd = (C0 - np.maximum(Ce_arr, 1e-10)) / np.maximum(Ce_arr, 1e-10)
             Kd_se = propagate_kd_uncertainty(
-                "dimensionless", C0, Ce_arr, qe_arr, m, V, Ce_se_arr,
+                "dimensionless",
+                C0,
+                Ce_arr,
+                qe_arr,
+                m,
+                V,
+                Ce_se_arr,
             )
             return calculate_thermodynamic_parameters(T_K, Kd, Kd_se=Kd_se)
 
@@ -379,7 +440,11 @@ class TestFullPropagationChain:
         Ce_arr, Ce_se_arr, qe_arr = [], [], []
         for abs_val in absorbances:
             Ce, Ce_se = propagate_calibration_uncertainty(
-                abs_val, slope, intercept, slope_se, intercept_se,
+                abs_val,
+                slope,
+                intercept,
+                slope_se,
+                intercept_se,
             )
             Ce_arr.append(Ce)
             Ce_se_arr.append(Ce_se)
@@ -392,7 +457,13 @@ class TestFullPropagationChain:
         # mass-based: Kd = qe / Ce
         Kd = qe_arr / np.maximum(Ce_arr, 1e-10)
         Kd_se = propagate_kd_uncertainty(
-            "mass_based", C0, Ce_arr, qe_arr, m, V, Ce_se_arr,
+            "mass_based",
+            C0,
+            Ce_arr,
+            qe_arr,
+            m,
+            V,
+            Ce_se_arr,
         )
 
         result = calculate_thermodynamic_parameters(T_K, Kd, Kd_se=Kd_se)
@@ -409,7 +480,13 @@ class TestFullPropagationChain:
 
         Kd = (qe * m) / (np.maximum(Ce, 1e-10) * V)
         Kd_se = propagate_kd_uncertainty(
-            "volume_corrected", C0, Ce, qe, m, V, Ce_se,
+            "volume_corrected",
+            C0,
+            Ce,
+            qe,
+            m,
+            V,
+            Ce_se,
         )
 
         result = calculate_thermodynamic_parameters(T_K, Kd, Kd_se=Kd_se)
@@ -437,8 +514,13 @@ class TestKdMethodsWithUncertainty:
     @pytest.mark.parametrize("method", ["dimensionless", "mass_based", "volume_corrected"])
     def test_all_methods_produce_positive_se(self, data, method):
         Kd_se = propagate_kd_uncertainty(
-            method, data["C0"], data["Ce"], data["qe"],
-            data["m"], data["V"], data["Ce_se"],
+            method,
+            data["C0"],
+            data["Ce"],
+            data["qe"],
+            data["m"],
+            data["V"],
+            data["Ce_se"],
         )
         assert np.all(Kd_se > 0)
         assert np.all(np.isfinite(Kd_se))
@@ -447,12 +529,22 @@ class TestKdMethodsWithUncertainty:
     def test_scaling_with_Ce_se(self, data, method):
         """Double the Ce uncertainty → roughly double the Kd uncertainty."""
         se1 = propagate_kd_uncertainty(
-            method, data["C0"], data["Ce"], data["qe"],
-            data["m"], data["V"], data["Ce_se"],
+            method,
+            data["C0"],
+            data["Ce"],
+            data["qe"],
+            data["m"],
+            data["V"],
+            data["Ce_se"],
         )
         se2 = propagate_kd_uncertainty(
-            method, data["C0"], data["Ce"], data["qe"],
-            data["m"], data["V"], data["Ce_se"] * 2,
+            method,
+            data["C0"],
+            data["Ce"],
+            data["qe"],
+            data["m"],
+            data["V"],
+            data["Ce_se"] * 2,
         )
         # Ratio should be approximately 2 (exactly 2 for dimensionless)
         ratios = se2 / se1

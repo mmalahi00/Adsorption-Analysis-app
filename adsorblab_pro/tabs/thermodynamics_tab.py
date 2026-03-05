@@ -239,19 +239,22 @@ def render():
             # ----- Propagate uncertainty to Kd (Phase 1.3) -----
             Kd_se_arr = None
             has_uncertainty = (
-                "Ce_error" in temp_results.columns
-                and temp_results["Ce_error"].sum() > 0
+                "Ce_error" in temp_results.columns and temp_results["Ce_error"].sum() > 0
             )
             if has_uncertainty:
                 Ce_se_vals = temp_results["Ce_error"].values
                 qe_se_vals = (
-                    temp_results["qe_error"].values
-                    if "qe_error" in temp_results.columns
-                    else None
+                    temp_results["qe_error"].values if "qe_error" in temp_results.columns else None
                 )
                 Kd_se_arr = propagate_kd_uncertainty(
-                    method_id, C0, Ce, qe, m, V,
-                    Ce_se=Ce_se_vals, qe_se=qe_se_vals,
+                    method_id,
+                    C0,
+                    Ce,
+                    qe,
+                    m,
+                    V,
+                    Ce_se=Ce_se_vals,
+                    qe_se=qe_se_vals,
                 )
 
             temp_results["Kd"] = Kd
@@ -321,7 +324,10 @@ def render():
             elif calculate_btn:
                 # Pass confidence_level to thermodynamic calculation
                 thermo_result = calculate_thermodynamic_parameters(
-                    T_K, Kd, confidence_level, Kd_se=Kd_se_arr,
+                    T_K,
+                    Kd,
+                    confidence_level,
+                    Kd_se=Kd_se_arr,
                 )
 
                 if thermo_result.get("success"):

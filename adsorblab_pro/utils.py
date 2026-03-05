@@ -2022,7 +2022,9 @@ def interpret_separation_factor(RL: np.ndarray) -> str:
 # THERMODYNAMIC PARAMETERS
 # =============================================================================
 def calculate_thermodynamic_parameters(
-    T_K: np.ndarray, Kd: np.ndarray, confidence_level: float = 0.95,
+    T_K: np.ndarray,
+    Kd: np.ndarray,
+    confidence_level: float = 0.95,
     Kd_se: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """
@@ -2195,25 +2197,25 @@ def calculate_thermodynamic_parameters(
                     # Weighted R²
                     ss_tot_w = np.sum(wts * (yw - np.average(yw, weights=wts)) ** 2)
                     ss_res_w = np.sum(wts * wls_residuals**2)
-                    wls_r_squared = (
-                        1 - ss_res_w / ss_tot_w if ss_tot_w > EPSILON_DIV else 0
-                    )
+                    wls_r_squared = 1 - ss_res_w / ss_tot_w if ss_tot_w > EPSILON_DIV else 0
 
-                    result.update({
-                        "ln_Kd_se": ln_Kd_se,
-                        "Kd_se": Kd_se,
-                        "wls_delta_H": wls_delta_H,
-                        "wls_delta_H_se": wls_delta_H_se,
-                        "wls_delta_H_ci": wls_delta_H_ci,
-                        "wls_delta_S": wls_delta_S,
-                        "wls_delta_S_se": wls_delta_S_se,
-                        "wls_delta_S_ci": wls_delta_S_ci,
-                        "wls_delta_G": wls_delta_G,
-                        "wls_slope": wls_slope,
-                        "wls_intercept": wls_intercept,
-                        "wls_r_squared": wls_r_squared,
-                        "wls_n_points": nw,
-                    })
+                    result.update(
+                        {
+                            "ln_Kd_se": ln_Kd_se,
+                            "Kd_se": Kd_se,
+                            "wls_delta_H": wls_delta_H,
+                            "wls_delta_H_se": wls_delta_H_se,
+                            "wls_delta_H_ci": wls_delta_H_ci,
+                            "wls_delta_S": wls_delta_S,
+                            "wls_delta_S_se": wls_delta_S_se,
+                            "wls_delta_S_ci": wls_delta_S_ci,
+                            "wls_delta_G": wls_delta_G,
+                            "wls_slope": wls_slope,
+                            "wls_intercept": wls_intercept,
+                            "wls_r_squared": wls_r_squared,
+                            "wls_n_points": nw,
+                        }
+                    )
                 except np.linalg.LinAlgError:
                     logger.warning("WLS matrix inversion failed; OLS results only.")
             else:
@@ -2680,8 +2682,7 @@ def propagate_kd_uncertainty(
         # ∂Kd/∂qe = m / (Ce × V), ∂Kd/∂Ce = -(qe × m) / (Ce² × V)
         V_safe = max(V, EPSILON_DIV)
         Kd_se = np.sqrt(
-            (m * qe_se / (Ce_safe * V_safe)) ** 2
-            + (m * qe * Ce_se / (Ce_safe**2 * V_safe)) ** 2
+            (m * qe_se / (Ce_safe * V_safe)) ** 2 + (m * qe * Ce_se / (Ce_safe**2 * V_safe)) ** 2
         )
     else:
         Kd_se = np.zeros_like(Ce)

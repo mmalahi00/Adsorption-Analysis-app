@@ -33,9 +33,7 @@ def calibration_state():
     conc = np.array([5.0, 10.0, 20.0, 40.0, 60.0, 80.0, 100.0])
     absorbance = 0.05 * conc + 0.01 + np.random.default_rng(42).normal(0, 0.005, len(conc))
     return {
-        "calib_df_input": pd.DataFrame(
-            {"Concentration": conc, "Absorbance": absorbance}
-        ),
+        "calib_df_input": pd.DataFrame({"Concentration": conc, "Absorbance": absorbance}),
         "calibration_params": {
             "slope": 0.05,
             "intercept": 0.01,

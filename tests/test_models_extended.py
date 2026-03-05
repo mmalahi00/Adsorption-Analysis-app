@@ -117,8 +117,11 @@ class TestExtendedLangmuirMulticomponent:
         KL_metal = 0.1
 
         qe = extended_langmuir_multicomponent(
-            Ce_i=Ce_dye, qm_i=qm_dye, KL_i=KL_dye,
-            Ce_all=[Ce_dye, Ce_metal], KL_all=[KL_dye, KL_metal],
+            Ce_i=Ce_dye,
+            qm_i=qm_dye,
+            KL_i=KL_dye,
+            Ce_all=[Ce_dye, Ce_metal],
+            KL_all=[KL_dye, KL_metal],
         )
         assert qe.shape == Ce_dye.shape
         assert np.all(qe > 0)
@@ -130,14 +133,20 @@ class TestExtendedLangmuirMulticomponent:
 
         # Single component (no competition)
         qe_single = extended_langmuir_multicomponent(
-            Ce_i=Ce, qm_i=qm, KL_i=KL,
-            Ce_all=[Ce], KL_all=[KL],
+            Ce_i=Ce,
+            qm_i=qm,
+            KL_i=KL,
+            Ce_all=[Ce],
+            KL_all=[KL],
         )
         # With competitor
         Ce_comp = np.array([5.0, 10.0, 15.0])
         qe_comp = extended_langmuir_multicomponent(
-            Ce_i=Ce, qm_i=qm, KL_i=KL,
-            Ce_all=[Ce, Ce_comp], KL_all=[KL, 0.1],
+            Ce_i=Ce,
+            qm_i=qm,
+            KL_i=KL,
+            Ce_all=[Ce, Ce_comp],
+            KL_all=[KL, 0.1],
         )
         # Competition should reduce capacity
         assert np.all(qe_comp <= qe_single + 1e-10)
@@ -146,15 +155,21 @@ class TestExtendedLangmuirMulticomponent:
         Ce = np.array([10.0, 20.0])
         Ce_zero = np.array([0.0, 0.0])
         qe = extended_langmuir_multicomponent(
-            Ce_i=Ce, qm_i=100.0, KL_i=0.05,
-            Ce_all=[Ce, Ce_zero], KL_all=[0.05, 0.1],
+            Ce_i=Ce,
+            qm_i=100.0,
+            KL_i=0.05,
+            Ce_all=[Ce, Ce_zero],
+            KL_all=[0.05, 0.1],
         )
         assert np.all(np.isfinite(qe))
 
     def test_scalar_like_input(self):
         qe = extended_langmuir_multicomponent(
-            Ce_i=np.array([10.0]), qm_i=50.0, KL_i=0.05,
-            Ce_all=[np.array([10.0])], KL_all=[0.05],
+            Ce_i=np.array([10.0]),
+            qm_i=50.0,
+            KL_i=0.05,
+            Ce_all=[np.array([10.0])],
+            KL_all=[0.05],
         )
         assert qe.shape == (1,)
 
@@ -167,8 +182,12 @@ class TestExtendedFreundlichMulticomponent:
         Kf_2, n_2 = 3.0, 0.6
 
         qe = extended_freundlich_multicomponent(
-            Ce_i=Ce_1, Kf_i=Kf_1, n_i=n_1,
-            Ce_all=[Ce_1, Ce_2], Kf_all=[Kf_1, Kf_2], n_all=[n_1, n_2],
+            Ce_i=Ce_1,
+            Kf_i=Kf_1,
+            n_i=n_1,
+            Ce_all=[Ce_1, Ce_2],
+            Kf_all=[Kf_1, Kf_2],
+            n_all=[n_1, n_2],
         )
         assert qe.shape == Ce_1.shape
         assert np.all(qe > 0)
@@ -177,8 +196,12 @@ class TestExtendedFreundlichMulticomponent:
     def test_single_component(self):
         Ce = np.array([10.0, 20.0, 30.0])
         qe = extended_freundlich_multicomponent(
-            Ce_i=Ce, Kf_i=5.0, n_i=0.5,
-            Ce_all=[Ce], Kf_all=[5.0], n_all=[0.5],
+            Ce_i=Ce,
+            Kf_i=5.0,
+            n_i=0.5,
+            Ce_all=[Ce],
+            Kf_all=[5.0],
+            n_all=[0.5],
         )
         assert np.all(np.isfinite(qe))
         assert np.all(qe > 0)
@@ -186,8 +209,12 @@ class TestExtendedFreundlichMulticomponent:
     def test_zero_concentration(self):
         Ce = np.array([0.0, 10.0, 20.0])
         qe = extended_freundlich_multicomponent(
-            Ce_i=Ce, Kf_i=5.0, n_i=0.5,
-            Ce_all=[Ce], Kf_all=[5.0], n_all=[0.5],
+            Ce_i=Ce,
+            Kf_i=5.0,
+            n_i=0.5,
+            Ce_all=[Ce],
+            Kf_all=[5.0],
+            n_all=[0.5],
         )
         assert np.all(np.isfinite(qe))
 
@@ -198,7 +225,10 @@ class TestExtendedFreundlichMulticomponent:
 class TestSelectivityCoefficientExtended:
     def test_scalar_inputs(self):
         alpha = calculate_selectivity_coefficient(
-            qe_i=80.0, Ce_i=10.0, qe_j=20.0, Ce_j=20.0,
+            qe_i=80.0,
+            Ce_i=10.0,
+            qe_j=20.0,
+            Ce_j=20.0,
         )
         assert isinstance(alpha, float)
         assert alpha == pytest.approx(8.0)
@@ -214,19 +244,28 @@ class TestSelectivityCoefficientExtended:
 
     def test_zero_concentration_returns_nan(self):
         alpha = calculate_selectivity_coefficient(
-            qe_i=80.0, Ce_i=0.0, qe_j=20.0, Ce_j=20.0,
+            qe_i=80.0,
+            Ce_i=0.0,
+            qe_j=20.0,
+            Ce_j=20.0,
         )
         assert np.isnan(alpha)
 
     def test_zero_qe_j_returns_nan(self):
         alpha = calculate_selectivity_coefficient(
-            qe_i=80.0, Ce_i=10.0, qe_j=0.0, Ce_j=20.0,
+            qe_i=80.0,
+            Ce_i=10.0,
+            qe_j=0.0,
+            Ce_j=20.0,
         )
         assert np.isnan(alpha)
 
     def test_equal_preference(self):
         alpha = calculate_selectivity_coefficient(
-            qe_i=50.0, Ce_i=10.0, qe_j=50.0, Ce_j=10.0,
+            qe_i=50.0,
+            Ce_i=10.0,
+            qe_j=50.0,
+            Ce_j=10.0,
         )
         assert alpha == pytest.approx(1.0)
 
@@ -268,7 +307,7 @@ class TestRevisedPSOFixedConditions:
         assert np.all(np.isfinite(qt))
 
     def test_registered_in_registry(self):
-        model = revised_pso_model_fixed_conditions(C0=100.0, m=0.5, V=0.1)
+        revised_pso_model_fixed_conditions(C0=100.0, m=0.5, V=0.1)
         # Check that the registry key exists
         found = any(k.startswith("rPSO_C0=") for k in _MODEL_REGISTRY)
         assert found
@@ -287,8 +326,10 @@ class TestRevisedPSOFixedConditions:
 class TestLangmuir3DSurface:
     def test_basic_output_shape(self):
         Ce_grid, T_grid, qe_grid = langmuir_3d_surface(
-            Ce_range=(1.0, 100.0), temp_range=(20.0, 60.0),
-            qm=100.0, KL=0.05,
+            Ce_range=(1.0, 100.0),
+            temp_range=(20.0, 60.0),
+            qm=100.0,
+            KL=0.05,
         )
         assert Ce_grid.shape == (30, 30)
         assert T_grid.shape == (30, 30)
@@ -296,8 +337,10 @@ class TestLangmuir3DSurface:
 
     def test_values_positive(self):
         _, _, qe_grid = langmuir_3d_surface(
-            Ce_range=(1.0, 100.0), temp_range=(20.0, 60.0),
-            qm=100.0, KL=0.05,
+            Ce_range=(1.0, 100.0),
+            temp_range=(20.0, 60.0),
+            qm=100.0,
+            KL=0.05,
         )
         assert np.all(qe_grid > 0)
         assert np.all(np.isfinite(qe_grid))
@@ -305,8 +348,11 @@ class TestLangmuir3DSurface:
     def test_exothermic_process(self):
         # Exothermic: capacity should decrease with temperature
         _, T_grid, qe_grid = langmuir_3d_surface(
-            Ce_range=(50.0, 50.0), temp_range=(20.0, 60.0),
-            qm=100.0, KL=0.05, delta_H=-25000,
+            Ce_range=(50.0, 50.0),
+            temp_range=(20.0, 60.0),
+            qm=100.0,
+            KL=0.05,
+            delta_H=-25000,
         )
         # At fixed Ce, qe should decrease as T increases (exothermic)
         qe_col = qe_grid[:, 0]
@@ -314,8 +360,11 @@ class TestLangmuir3DSurface:
 
     def test_endothermic_process(self):
         _, T_grid, qe_grid = langmuir_3d_surface(
-            Ce_range=(50.0, 50.0), temp_range=(20.0, 60.0),
-            qm=100.0, KL=0.05, delta_H=25000,
+            Ce_range=(50.0, 50.0),
+            temp_range=(20.0, 60.0),
+            qm=100.0,
+            KL=0.05,
+            delta_H=25000,
         )
         qe_col = qe_grid[:, 0]
         assert qe_col[-1] > qe_col[0]
@@ -324,7 +373,8 @@ class TestLangmuir3DSurface:
 class TestPHTemperatureResponseSurface:
     def test_basic_output_shape(self):
         pH_grid, T_grid, response = ph_temperature_response_surface(
-            pH_range=(2.0, 12.0), temp_range=(20.0, 60.0),
+            pH_range=(2.0, 12.0),
+            temp_range=(20.0, 60.0),
         )
         assert pH_grid.shape == (25, 25)
         assert T_grid.shape == (25, 25)
@@ -332,14 +382,18 @@ class TestPHTemperatureResponseSurface:
 
     def test_positive_values(self):
         _, _, response = ph_temperature_response_surface(
-            pH_range=(2.0, 12.0), temp_range=(20.0, 60.0),
+            pH_range=(2.0, 12.0),
+            temp_range=(20.0, 60.0),
         )
         assert np.all(response >= 0)
 
     def test_max_at_optimal(self):
         pH_grid, T_grid, response = ph_temperature_response_surface(
-            pH_range=(2.0, 12.0), temp_range=(20.0, 60.0),
-            optimal_pH=6.0, optimal_temp=40.0, max_capacity=100.0,
+            pH_range=(2.0, 12.0),
+            temp_range=(20.0, 60.0),
+            optimal_pH=6.0,
+            optimal_temp=40.0,
+            max_capacity=100.0,
         )
         max_idx = np.unravel_index(np.argmax(response), response.shape)
         assert response[max_idx] <= 100.0
@@ -349,7 +403,8 @@ class TestParameterSpaceVisualization:
     def test_with_langmuir(self):
         p1_grid, p2_grid, qe_grid = parameter_space_visualization(
             model_func=langmuir_model,
-            param1_range=(10.0, 200.0), param2_range=(0.01, 0.2),
+            param1_range=(10.0, 200.0),
+            param2_range=(0.01, 0.2),
             Ce_fixed=50.0,
         )
         assert p1_grid.shape == (25, 25)
@@ -363,7 +418,8 @@ class TestParameterSpaceVisualization:
 
         p1, p2, qe = parameter_space_visualization(
             model_func=bad_model,
-            param1_range=(10.0, 100.0), param2_range=(0.01, 0.1),
+            param1_range=(10.0, 100.0),
+            param2_range=(0.01, 0.1),
             Ce_fixed=50.0,
         )
         assert qe.shape == (25, 25)
@@ -384,7 +440,10 @@ class TestFitModelCore:
     def test_successful_fit(self, langmuir_data):
         Ce, qe = langmuir_data
         result = _fit_model_core(
-            langmuir_model, Ce, qe, p0=[80.0, 0.03],
+            langmuir_model,
+            Ce,
+            qe,
+            p0=[80.0, 0.03],
             param_names=["qm", "KL"],
         )
         assert result is not None
@@ -402,7 +461,10 @@ class TestFitModelCore:
     def test_with_bounds(self, langmuir_data):
         Ce, qe = langmuir_data
         result = _fit_model_core(
-            langmuir_model, Ce, qe, p0=[80.0, 0.03],
+            langmuir_model,
+            Ce,
+            qe,
+            p0=[80.0, 0.03],
             bounds=((0, 0), (500, 1)),
             param_names=["qm", "KL"],
         )
@@ -419,14 +481,35 @@ class TestFitModelCore:
     def test_result_keys(self, langmuir_data):
         Ce, qe = langmuir_data
         result = _fit_model_core(
-            langmuir_model, Ce, qe, p0=[80.0, 0.03],
+            langmuir_model,
+            Ce,
+            qe,
+            p0=[80.0, 0.03],
             param_names=["qm", "KL"],
         )
         expected_keys = {
-            "params", "popt", "pcov", "perr", "ci_95", "y_pred", "y_data",
-            "x_data", "residuals", "r_squared", "adj_r_squared", "rmse",
-            "chi_squared", "aic", "aicc", "bic", "sse", "sst",
-            "n_points", "num_params", "dof", "converged",
+            "params",
+            "popt",
+            "pcov",
+            "perr",
+            "ci_95",
+            "y_pred",
+            "y_data",
+            "x_data",
+            "residuals",
+            "r_squared",
+            "adj_r_squared",
+            "rmse",
+            "chi_squared",
+            "aic",
+            "aicc",
+            "bic",
+            "sse",
+            "sst",
+            "n_points",
+            "num_params",
+            "dof",
+            "converged",
         }
         assert expected_keys.issubset(result.keys())
 
@@ -444,7 +527,10 @@ class TestFitModelCore:
     def test_ci_95_contains_param_names(self, langmuir_data):
         Ce, qe = langmuir_data
         result = _fit_model_core(
-            langmuir_model, Ce, qe, p0=[80.0, 0.03],
+            langmuir_model,
+            Ce,
+            qe,
+            p0=[80.0, 0.03],
             param_names=["qm", "KL"],
         )
         assert "qm" in result["ci_95"]
@@ -499,6 +585,7 @@ class TestFitModelCachedImpl:
 class TestFitModelWithCI:
     def test_unregistered_model_direct(self):
         """Unregistered model should fall back to direct _fit_model_core."""
+
         def custom_model(x, a, b):
             return a * x / (1 + b * x)
 
@@ -506,8 +593,12 @@ class TestFitModelWithCI:
         qe = custom_model(Ce, 100.0, 0.05)
 
         result = fit_model_with_ci(
-            custom_model, Ce, qe, p0=[80.0, 0.03],
-            param_names=["a", "b"], use_cache=False,
+            custom_model,
+            Ce,
+            qe,
+            p0=[80.0, 0.03],
+            param_names=["a", "b"],
+            use_cache=False,
         )
         assert result is not None
         assert result["converged"] is True
@@ -517,7 +608,10 @@ class TestFitModelWithCI:
         qe = langmuir_model(Ce, 100.0, 0.05) + np.random.RandomState(42).normal(0, 0.5, 7)
 
         result = fit_model_with_ci(
-            langmuir_model, Ce, qe, p0=[80.0, 0.03],
+            langmuir_model,
+            Ce,
+            qe,
+            p0=[80.0, 0.03],
             param_names=["qm", "KL"],
         )
         assert result is not None
