@@ -124,7 +124,7 @@ addopts = [
     "--cov=adsorblab_pro",
     "--cov-report=term-missing:skip-covered",
     "--cov-report=html:htmlcov",
-    "--cov-fail-under=45",
+    "--cov-fail-under=65",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
@@ -154,7 +154,7 @@ omit = [
 branch = true
 
 [tool.coverage.report]
-fail_under = 45
+fail_under = 65
 show_missing = true
 exclude_lines = [
     "pragma: no cover",

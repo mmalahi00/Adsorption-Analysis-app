@@ -127,6 +127,7 @@ __all__ = [
     "create_dual_axis_plot",
     # Uncertainty propagation
     "propagate_calibration_uncertainty",
+    "propagate_kd_uncertainty",
     # Export utilities
     "convert_df_to_csv",
     "convert_df_to_excel",
@@ -2021,12 +2022,20 @@ def interpret_separation_factor(RL: np.ndarray) -> str:
 # THERMODYNAMIC PARAMETERS
 # =============================================================================
 def calculate_thermodynamic_parameters(
-    T_K: np.ndarray, Kd: np.ndarray, confidence_level: float = 0.95
+    T_K: np.ndarray, Kd: np.ndarray, confidence_level: float = 0.95,
+    Kd_se: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """
     Calculate thermodynamic parameters from Van't Hoff analysis.
 
     Van't Hoff equation: ln(Kd) = -ΔH°/RT + ΔS°/R
+
+    When ``Kd_se`` is supplied the function performs **both** ordinary
+    least-squares (OLS) and weighted least-squares (WLS) regression on
+    the Van't Hoff plot. The WLS weights are ``1 / σ²(ln Kd)`` where
+    ``σ(ln Kd) = Kd_se / Kd`` (delta method).  This completes the
+    calibration → Ce → qe → Kd → ln Kd → thermodynamic parameter
+    uncertainty propagation chain.
 
     Parameters
     ----------
@@ -2036,19 +2045,33 @@ def calculate_thermodynamic_parameters(
         Distribution coefficients
     confidence_level : float
         Confidence level for intervals (default 0.95)
+    Kd_se : np.ndarray or None
+        Standard errors of Kd values (from ``propagate_kd_uncertainty``).
+        When provided, WLS results are included alongside OLS results.
 
     Returns
     -------
     dict
-        Thermodynamic parameters including ΔH°, ΔS°, ΔG°, R², statistics
+        Thermodynamic parameters including ΔH°, ΔS°, ΔG°, R², statistics.
+        When ``Kd_se`` is provided the dict also contains keys prefixed
+        with ``wls_`` holding the weighted-least-squares estimates and
+        the ``ln_Kd_se`` array used as weights.
     """
     if len(T_K) < 2 or len(Kd) < 2:
         return {"success": False, "error": "Need at least 2 temperature points"}
 
     # Filter valid Kd values
     valid_mask = (Kd > 0) & np.isfinite(Kd) & np.isfinite(T_K) & (T_K > 0)
+
+    # Also filter Kd_se if provided
+    if Kd_se is not None:
+        Kd_se = np.asarray(Kd_se, dtype=float)
+        valid_mask = valid_mask & np.isfinite(Kd_se)
+
     T_K = T_K[valid_mask]
     Kd = Kd[valid_mask]
+    if Kd_se is not None:
+        Kd_se = Kd_se[valid_mask]
 
     if len(T_K) < 2:
         return {"success": False, "error": "Insufficient valid data points"}
@@ -2057,7 +2080,9 @@ def calculate_thermodynamic_parameters(
         x = 1 / T_K  # 1/T
         y = np.log(Kd)  # ln(Kd)
 
-        # Linear regression
+        # -----------------------------------------------------------------
+        # OLS regression (always performed)
+        # -----------------------------------------------------------------
         slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
 
         # Calculate thermodynamic parameters
@@ -2093,7 +2118,7 @@ def calculate_thermodynamic_parameters(
             delta_H_ci = delta_H_se * 2  # Rough estimate
             delta_S_ci = delta_S_se * 2
 
-        return {
+        result = {
             "success": True,
             "delta_H": delta_H,
             "delta_H_se": delta_H_se,
@@ -2112,6 +2137,89 @@ def calculate_thermodynamic_parameters(
             "n_points": n,
             "confidence_level": confidence_level,
         }
+
+        # -----------------------------------------------------------------
+        # WLS regression (when Kd_se is provided)
+        # -----------------------------------------------------------------
+        if Kd_se is not None:
+            # Delta method: σ(ln Kd) = σ(Kd) / Kd
+            ln_Kd_se = Kd_se / np.maximum(Kd, EPSILON_DIV)
+
+            # Filter out zero / near-zero uncertainties to avoid infinite weights
+            valid_w = ln_Kd_se > EPSILON_DIV
+            if np.sum(valid_w) >= 2:
+                xw = x[valid_w]
+                yw = y[valid_w]
+                wts = 1.0 / ln_Kd_se[valid_w] ** 2
+
+                # Weighted linear regression:  minimise Σ w_i (y_i - a - b x_i)²
+                # β = (X'WX)^{-1} X'Wy   where X = [1, x]
+                W = np.diag(wts)
+                X = np.column_stack([np.ones_like(xw), xw])
+                XtW = X.T @ W
+                XtWX = XtW @ X
+                try:
+                    XtWX_inv = np.linalg.inv(XtWX)
+                    beta_wls = XtWX_inv @ (XtW @ yw)
+
+                    wls_intercept = beta_wls[0]
+                    wls_slope = beta_wls[1]
+
+                    # Residual variance (weighted)
+                    nw = len(xw)
+                    yw_pred = wls_intercept + wls_slope * xw
+                    wls_residuals = yw - yw_pred
+                    wls_mse = np.sum(wts * wls_residuals**2) / (nw - 2) if nw > 2 else 0
+
+                    # Standard errors from covariance matrix
+                    cov_beta = wls_mse * XtWX_inv
+                    wls_se_intercept = np.sqrt(max(cov_beta[0, 0], 0))
+                    wls_se_slope = np.sqrt(max(cov_beta[1, 1], 0))
+
+                    # Thermodynamic params from WLS
+                    wls_delta_H = -wls_slope * R_GAS_CONSTANT / 1000
+                    wls_delta_S = wls_intercept * R_GAS_CONSTANT
+                    wls_delta_G = wls_delta_H - T_K * wls_delta_S / 1000
+
+                    wls_delta_H_se = wls_se_slope * R_GAS_CONSTANT / 1000
+                    wls_delta_S_se = wls_se_intercept * R_GAS_CONSTANT
+
+                    if nw > 2:
+                        wls_t_crit = t_dist.ppf((1 + confidence_level) / 2, nw - 2)
+                        wls_delta_H_ci = wls_t_crit * wls_delta_H_se
+                        wls_delta_S_ci = wls_t_crit * wls_delta_S_se
+                    else:
+                        wls_delta_H_ci = wls_delta_H_se * 2
+                        wls_delta_S_ci = wls_delta_S_se * 2
+
+                    # Weighted R²
+                    ss_tot_w = np.sum(wts * (yw - np.average(yw, weights=wts)) ** 2)
+                    ss_res_w = np.sum(wts * wls_residuals**2)
+                    wls_r_squared = (
+                        1 - ss_res_w / ss_tot_w if ss_tot_w > EPSILON_DIV else 0
+                    )
+
+                    result.update({
+                        "ln_Kd_se": ln_Kd_se,
+                        "Kd_se": Kd_se,
+                        "wls_delta_H": wls_delta_H,
+                        "wls_delta_H_se": wls_delta_H_se,
+                        "wls_delta_H_ci": wls_delta_H_ci,
+                        "wls_delta_S": wls_delta_S,
+                        "wls_delta_S_se": wls_delta_S_se,
+                        "wls_delta_S_ci": wls_delta_S_ci,
+                        "wls_delta_G": wls_delta_G,
+                        "wls_slope": wls_slope,
+                        "wls_intercept": wls_intercept,
+                        "wls_r_squared": wls_r_squared,
+                        "wls_n_points": nw,
+                    })
+                except np.linalg.LinAlgError:
+                    logger.warning("WLS matrix inversion failed; OLS results only.")
+            else:
+                logger.warning("Too few valid uncertainty points for WLS.")
+
+        return result
 
     except Exception as e:
         logger.error(f"Failed to calculate thermodynamic parameters: {e}")
@@ -2485,6 +2593,100 @@ def propagate_calibration_uncertainty(
     Ce_se = np.sqrt(max(0, variance))
 
     return max(0, Ce), Ce_se
+
+
+def propagate_kd_uncertainty(
+    method_id: str,
+    C0: float,
+    Ce: np.ndarray,
+    qe: np.ndarray,
+    m: float,
+    V: float,
+    Ce_se: np.ndarray,
+    qe_se: np.ndarray | None = None,
+) -> np.ndarray:
+    """
+    Propagate Ce/qe uncertainties to the distribution coefficient Kd.
+
+    Uses first-order error propagation (delta method) for each Kd formula.
+
+    Parameters
+    ----------
+    method_id : str
+        One of: 'dimensionless', 'mass_based', 'volume_corrected'
+    C0 : float
+        Initial concentration (mg/L)
+    Ce : np.ndarray
+        Equilibrium concentrations (mg/L)
+    qe : np.ndarray
+        Adsorption capacities (mg/g)
+    m : float
+        Adsorbent mass (g)
+    V : float
+        Solution volume (L)
+    Ce_se : np.ndarray
+        Standard error of Ce values
+    qe_se : np.ndarray or None
+        Standard error of qe values.  When None, qe uncertainty is derived
+        from Ce uncertainty via  σ(qe) = (V/m) × σ(Ce).
+
+    Returns
+    -------
+    np.ndarray
+        Standard error of Kd at each temperature point.
+
+    Notes
+    -----
+    Propagation formulae by Kd method:
+
+    **Dimensionless** Kd = (C0 − Ce) / Ce
+
+        ∂Kd/∂Ce = −C0 / Ce²
+        σ(Kd) = |∂Kd/∂Ce| × σ(Ce) = (C0 / Ce²) × σ(Ce)
+
+    **Mass-based** Kd = qe / Ce
+
+        σ(Kd)² = (1/Ce)² σ(qe)² + (qe/Ce²)² σ(Ce)²
+
+    **Volume-corrected** Kd = (qe × m) / (Ce × V)
+
+        Same structure as mass-based with an extra m/V factor.
+    """
+    Ce = np.asarray(Ce, dtype=float)
+    Ce_se = np.asarray(Ce_se, dtype=float)
+    qe = np.asarray(qe, dtype=float)
+
+    # Derive qe_se from Ce_se if not provided: qe = (C0 - Ce) × V / m
+    if qe_se is None:
+        qe_se = (V / m) * Ce_se if m > EPSILON_DIV else np.zeros_like(Ce_se)
+    else:
+        qe_se = np.asarray(qe_se, dtype=float)
+
+    Ce_safe = np.maximum(Ce, EPSILON_DIV)
+
+    if method_id == "dimensionless":
+        # Kd = (C0 - Ce) / Ce = C0/Ce - 1
+        # ∂Kd/∂Ce = -C0 / Ce²
+        dKd_dCe = C0 / Ce_safe**2
+        Kd_se = dKd_dCe * Ce_se
+
+    elif method_id == "mass_based":
+        # Kd = qe / Ce
+        # ∂Kd/∂qe = 1 / Ce, ∂Kd/∂Ce = -qe / Ce²
+        Kd_se = np.sqrt((qe_se / Ce_safe) ** 2 + (qe * Ce_se / Ce_safe**2) ** 2)
+
+    elif method_id == "volume_corrected":
+        # Kd = (qe × m) / (Ce × V)
+        # ∂Kd/∂qe = m / (Ce × V), ∂Kd/∂Ce = -(qe × m) / (Ce² × V)
+        V_safe = max(V, EPSILON_DIV)
+        Kd_se = np.sqrt(
+            (m * qe_se / (Ce_safe * V_safe)) ** 2
+            + (m * qe * Ce_se / (Ce_safe**2 * V_safe)) ** 2
+        )
+    else:
+        Kd_se = np.zeros_like(Ce)
+
+    return np.maximum(Kd_se, 0.0)
 
 
 # =============================================================================

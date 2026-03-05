@@ -28,6 +28,7 @@ from ..utils import (
     display_results_table,
     get_current_study_state,
     interpret_thermodynamics,
+    propagate_kd_uncertainty,
     validate_required_params,
 )
 from ..validation import format_validation_errors, validate_thermodynamic_data
@@ -235,6 +236,24 @@ def render():
 
             Kd = _calculate_kd(method_id, C0, Ce, qe, m, V)
 
+            # ----- Propagate uncertainty to Kd (Phase 1.3) -----
+            Kd_se_arr = None
+            has_uncertainty = (
+                "Ce_error" in temp_results.columns
+                and temp_results["Ce_error"].sum() > 0
+            )
+            if has_uncertainty:
+                Ce_se_vals = temp_results["Ce_error"].values
+                qe_se_vals = (
+                    temp_results["qe_error"].values
+                    if "qe_error" in temp_results.columns
+                    else None
+                )
+                Kd_se_arr = propagate_kd_uncertainty(
+                    method_id, C0, Ce, qe, m, V,
+                    Ce_se=Ce_se_vals, qe_se=qe_se_vals,
+                )
+
             temp_results["Kd"] = Kd
             temp_results["ln_Kd"] = np.log(Kd)
             temp_results["1/T"] = 1 / temp_results["Temperature_K"]
@@ -301,7 +320,9 @@ def render():
                 show_results = True
             elif calculate_btn:
                 # Pass confidence_level to thermodynamic calculation
-                thermo_result = calculate_thermodynamic_parameters(T_K, Kd, confidence_level)
+                thermo_result = calculate_thermodynamic_parameters(
+                    T_K, Kd, confidence_level, Kd_se=Kd_se_arr,
+                )
 
                 if thermo_result.get("success"):
                     thermo_params = thermo_result
@@ -397,6 +418,75 @@ def render():
                     }
                 )
                 display_results_table(dG_df.round(2))
+
+                # =============================================================
+                # WLS vs OLS comparison (Phase 1.3 — Error Propagation)
+                # =============================================================
+                if "wls_delta_H" in thermo_params:
+                    st.markdown("---")
+                    st.markdown("### 4.1 🔗 Propagated Uncertainty (WLS vs OLS)")
+                    st.markdown(
+                        "*When calibration uncertainty is provided, a weighted "
+                        "least-squares (WLS) Van't Hoff regression is performed "
+                        "using propagated σ(ln Kd) as weights, completing the "
+                        "uncertainty chain from calibration to thermodynamic "
+                        "parameters.*"
+                    )
+
+                    wls_H = thermo_params["wls_delta_H"]
+                    wls_S = thermo_params["wls_delta_S"]
+                    wls_G = thermo_params["wls_delta_G"]
+
+                    comp_df = pd.DataFrame(
+                        {
+                            "Parameter": [
+                                "ΔH° (kJ/mol)",
+                                "SE(ΔH°)",
+                                f"{ci_pct}% CI half-width",
+                                "ΔS° (J/(mol·K))",
+                                "SE(ΔS°)",
+                                f"{ci_pct}% CI half-width",
+                                "R²",
+                            ],
+                            "OLS (regression-only)": [
+                                f"{delta_H:.4f}",
+                                f"{thermo_params.get('delta_H_se', 0):.4f}",
+                                f"{thermo_params.get('delta_H_ci', 0):.4f}",
+                                f"{delta_S:.4f}",
+                                f"{thermo_params.get('delta_S_se', 0):.4f}",
+                                f"{thermo_params.get('delta_S_ci', 0):.4f}",
+                                f"{thermo_params.get('r_squared', 0):.6f}",
+                            ],
+                            "WLS (propagated)": [
+                                f"{wls_H:.4f}",
+                                f"{thermo_params.get('wls_delta_H_se', 0):.4f}",
+                                f"{thermo_params.get('wls_delta_H_ci', 0):.4f}",
+                                f"{wls_S:.4f}",
+                                f"{thermo_params.get('wls_delta_S_se', 0):.4f}",
+                                f"{thermo_params.get('wls_delta_S_ci', 0):.4f}",
+                                f"{thermo_params.get('wls_r_squared', 0):.6f}",
+                            ],
+                        }
+                    )
+                    display_results_table(comp_df)
+
+                    # ΔG° comparison table
+                    dG_cmp = pd.DataFrame(
+                        {
+                            "Temperature (K)": T_K,
+                            "ΔG° OLS (kJ/mol)": delta_G,
+                            "ΔG° WLS (kJ/mol)": wls_G,
+                        }
+                    )
+                    display_results_table(dG_cmp.round(4))
+
+                    st.caption(
+                        "**OLS** uses only the residual scatter of the Van't Hoff "
+                        "fit.  **WLS** additionally accounts for the propagated "
+                        "measurement uncertainty in each ln(Kd) point, giving "
+                        "more weight to data points with smaller experimental "
+                        "error."
+                    )
 
                 # Summary metrics
                 col1, col2, col3, col4 = st.columns(4)
