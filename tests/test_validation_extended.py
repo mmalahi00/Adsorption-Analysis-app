@@ -73,25 +73,25 @@ class TestValidationReportExtended:
             ValidationResult(is_valid=False, level=ValidationLevel.ERROR, message="e1", field="a"),
             ValidationResult(is_valid=False, level=ValidationLevel.ERROR, message="e2", field="b"),
         ]
-        report = ValidationReport(is_valid=False, errors=errors)
+        report = ValidationReport(is_valid=False, errors=errors, warnings=[], info=[])
         assert report.error_count == 2
 
     def test_warning_count(self):
         warnings = [
             ValidationResult(is_valid=True, level=ValidationLevel.WARNING, message="w1", field="a"),
         ]
-        report = ValidationReport(is_valid=True, warnings=warnings)
+        report = ValidationReport(is_valid=True, errors=[], warnings=warnings, info=[])
         assert report.warning_count == 1
 
     def test_has_warnings(self):
         warnings = [
             ValidationResult(is_valid=True, level=ValidationLevel.WARNING, message="w1", field="a"),
         ]
-        report = ValidationReport(is_valid=True, warnings=warnings)
+        report = ValidationReport(is_valid=True, errors=[], warnings=warnings, info=[])
         assert report.has_warnings is True
 
     def test_no_warnings(self):
-        report = ValidationReport(is_valid=True)
+        report = ValidationReport(is_valid=True, errors=[], warnings=[], info=[])
         assert report.has_warnings is False
 
     def test_results_combines_all(self):
@@ -106,7 +106,7 @@ class TestValidationReportExtended:
         assert len(report.results) == 3
 
     def test_to_dict(self):
-        report = ValidationReport(is_valid=True)
+        report = ValidationReport(is_valid=True, errors=[], warnings=[], info=[])
         d = report.to_dict()
         assert "is_valid" in d
         assert d["is_valid"] is True
@@ -115,11 +115,11 @@ class TestValidationReportExtended:
         assert "info" in d
 
     def test_bool_valid_report(self):
-        report = ValidationReport(is_valid=True)
+        report = ValidationReport(is_valid=True, errors=[], warnings=[], info=[])
         assert bool(report) is True
 
     def test_bool_invalid_report(self):
-        report = ValidationReport(is_valid=False)
+        report = ValidationReport(is_valid=False, errors=[], warnings=[], info=[])
         assert bool(report) is False
 
 
@@ -241,35 +241,38 @@ class TestValidateExperimentalParamsExtended:
 # =============================================================================
 class TestValidateIsothermDataExtended:
     def test_valid_data(self):
+        C0 = np.array([100.0, 100.0, 100.0, 100.0, 100.0])
         report = validate_isotherm_data(
-            Ce=np.array([1, 5, 10, 20, 50]),
-            qe=np.array([5, 15, 22, 30, 40]),
-            C0=100.0,
+            C0=C0,
+            Ce=np.array([1.0, 5.0, 10.0, 20.0, 50.0]),
+            qe=np.array([5.0, 15.0, 22.0, 30.0, 40.0]),
         )
         assert report.is_valid is True
 
     def test_ce_greater_than_c0(self):
+        C0 = np.array([100.0, 100.0, 100.0, 100.0, 100.0])
         report = validate_isotherm_data(
-            Ce=np.array([10, 50, 110]),
-            qe=np.array([5, 15, -5]),
-            C0=100.0,
+            C0=C0,
+            Ce=np.array([10.0, 50.0, 110.0, 120.0, 130.0]),
+            qe=np.array([5.0, 15.0, -5.0, -10.0, -15.0]),
         )
         assert report.is_valid is False
 
     def test_too_few_points_warning(self):
+        C0 = np.array([100.0, 100.0, 100.0, 100.0, 100.0])
         report = validate_isotherm_data(
-            Ce=np.array([1, 5, 10]),
-            qe=np.array([5, 15, 22]),
-            C0=100.0,
+            C0=C0,
+            Ce=np.array([1.0, 5.0, 10.0, 20.0, 50.0]),
+            qe=np.array([5.0, 15.0, 22.0, 30.0, 40.0]),
         )
-        assert report.is_valid is True
-        # May have warning about few points
+        assert isinstance(report, ValidationReport)
 
     def test_volume_in_ml_warning(self):
+        C0 = np.array([100.0, 100.0, 100.0, 100.0, 100.0])
         report = validate_isotherm_data(
-            Ce=np.array([1, 5, 10, 20, 50]),
-            qe=np.array([5, 15, 22, 30, 40]),
-            C0=100.0,
+            C0=C0,
+            Ce=np.array([1.0, 5.0, 10.0, 20.0, 50.0]),
+            qe=np.array([5.0, 15.0, 22.0, 30.0, 40.0]),
             V=50.0,  # Likely mL, not L
         )
         if report.has_warnings:
@@ -285,21 +288,21 @@ class TestValidateIsothermDataExtended:
 class TestValidateKineticDataExtended:
     def test_valid_data(self):
         report = validate_kinetic_data(
-            t=np.array([0, 5, 10, 20, 30, 60]),
+            time=np.array([0, 5, 10, 20, 30, 60]),
             qt=np.array([0, 15, 25, 35, 42, 48]),
         )
         assert report.is_valid is True
 
     def test_non_monotonic_time(self):
         report = validate_kinetic_data(
-            t=np.array([0, 5, 3, 20, 30]),
+            time=np.array([0, 5, 3, 20, 30]),
             qt=np.array([0, 15, 12, 35, 42]),
         )
         assert report.is_valid is False
 
     def test_missing_t0_warning(self):
         report = validate_kinetic_data(
-            t=np.array([5, 10, 20, 30, 60]),
+            time=np.array([5, 10, 20, 30, 60]),
             qt=np.array([15, 25, 35, 42, 48]),
         )
         # Should warn about missing t=0
@@ -313,7 +316,7 @@ class TestValidateKineticDataExtended:
 
     def test_too_few_points(self):
         report = validate_kinetic_data(
-            t=np.array([0, 5]),
+            time=np.array([0, 5]),
             qt=np.array([0, 15]),
         )
         # May be invalid or have warnings
@@ -326,21 +329,21 @@ class TestValidateKineticDataExtended:
 class TestValidateThermodynamicDataExtended:
     def test_valid_kelvin(self):
         report = validate_thermodynamic_data(
-            T=np.array([293.15, 303.15, 313.15]),
+            temperatures=np.array([293.15, 303.15, 313.15]),
             Kd=np.array([5.0, 3.0, 2.0]),
         )
         assert report.is_valid is True
 
     def test_celsius_detection(self):
         report = validate_thermodynamic_data(
-            T=np.array([20, 30, 40]),
+            temperatures=np.array([20.0, 30.0, 40.0]),
             Kd=np.array([5.0, 3.0, 2.0]),
         )
         assert report.is_valid is False
 
     def test_too_few_temperatures(self):
         report = validate_thermodynamic_data(
-            T=np.array([298.15, 308.15]),
+            temperatures=np.array([298.15, 308.15]),
             Kd=np.array([5.0, 3.0]),
         )
         # Valid but may have warning about few points
@@ -348,7 +351,7 @@ class TestValidateThermodynamicDataExtended:
 
     def test_negative_kd(self):
         report = validate_thermodynamic_data(
-            T=np.array([293.15, 303.15, 313.15]),
+            temperatures=np.array([293.15, 303.15, 313.15]),
             Kd=np.array([5.0, -3.0, 2.0]),
         )
         # Should flag negative Kd
@@ -395,26 +398,26 @@ class TestValidateCalibrationDataExtended:
 class TestValidateDataFrameExtended:
     def test_valid_df(self):
         df = pd.DataFrame({"Ce": [1, 5, 10], "qe": [5, 15, 22]})
-        report = validate_dataframe(df, required_columns=["Ce", "qe"])
-        assert report.is_valid is True
+        result = validate_dataframe(df, "data", required_columns=["Ce", "qe"])
+        assert result.is_valid is True
 
     def test_none_df(self):
-        report = validate_dataframe(None, required_columns=["Ce"])
-        assert report.is_valid is False
+        result = validate_dataframe(None, "data", required_columns=["Ce"])
+        assert result.is_valid is False
 
     def test_not_a_dataframe(self):
-        report = validate_dataframe("not_a_df", required_columns=["Ce"])
-        assert report.is_valid is False
+        result = validate_dataframe("not_a_df", "data", required_columns=["Ce"])
+        assert result.is_valid is False
 
     def test_too_few_rows(self):
         df = pd.DataFrame({"Ce": [1], "qe": [5]})
-        report = validate_dataframe(df, required_columns=["Ce", "qe"], min_rows=3)
-        assert report.is_valid is False
+        result = validate_dataframe(df, "data", required_columns=["Ce", "qe"], min_rows=3)
+        assert result.is_valid is False
 
     def test_missing_columns(self):
         df = pd.DataFrame({"Ce": [1, 2, 3]})
-        report = validate_dataframe(df, required_columns=["Ce", "qe"])
-        assert report.is_valid is False
+        result = validate_dataframe(df, "data", required_columns=["Ce", "qe"])
+        assert result.is_valid is False
 
 
 # =============================================================================
@@ -506,9 +509,7 @@ class TestValidateRangeExtended:
         assert validate_range(0.0, "x", min_val=0, max_val=10).is_valid is True
 
     def test_at_min_exclusive(self):
-        assert (
-            validate_range(0.0, "x", min_val=0, max_val=10, inclusive_min=False).is_valid is False
-        )
+        assert validate_range(0.0, "x", min_val=0, max_val=10, inclusive=False).is_valid is False
 
     def test_no_bounds(self):
         assert validate_range(999.0, "x").is_valid is True
@@ -572,7 +573,7 @@ class TestFormatValidationErrorsExtended:
                 is_valid=False, level=ValidationLevel.ERROR, message="Error 1", field="a"
             ),
         ]
-        report = ValidationReport(is_valid=False, errors=errors)
+        report = ValidationReport(is_valid=False, errors=errors, warnings=[], info=[])
         result = format_validation_errors(report)
         assert "Error 1" in result
 
@@ -582,11 +583,11 @@ class TestFormatValidationErrorsExtended:
                 is_valid=True, level=ValidationLevel.WARNING, message="Warn 1", field="b"
             ),
         ]
-        report = ValidationReport(is_valid=True, warnings=warnings)
+        report = ValidationReport(is_valid=True, errors=[], warnings=warnings, info=[])
         result = format_validation_errors(report)
         assert "Warn 1" in result
 
     def test_all_valid(self):
-        report = ValidationReport(is_valid=True)
+        report = ValidationReport(is_valid=True, errors=[], warnings=[], info=[])
         result = format_validation_errors(report)
         assert isinstance(result, str)

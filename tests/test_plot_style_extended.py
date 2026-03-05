@@ -89,14 +89,16 @@ class TestStudyColors:
 
 class TestDetermineLegendPosition:
     def test_increasing_curve(self):
-        y = np.array([1, 5, 10, 20, 40])
-        pos = _determine_legend_position(y)
-        assert isinstance(pos, dict) or isinstance(pos, str)
+        x = np.array([1, 5, 10, 20, 40], dtype=float)
+        y = np.array([1, 5, 10, 20, 40], dtype=float)
+        pos = _determine_legend_position(x, y, y)
+        assert isinstance(pos, tuple) and len(pos) == 2
 
     def test_decreasing_curve(self):
-        y = np.array([40, 20, 10, 5, 1])
-        pos = _determine_legend_position(y)
-        assert isinstance(pos, dict) or isinstance(pos, str)
+        x = np.array([1, 5, 10, 20, 40], dtype=float)
+        y = np.array([40, 20, 10, 5, 1], dtype=float)
+        pos = _determine_legend_position(x, y, y)
+        assert isinstance(pos, tuple) and len(pos) == 2
 
 
 # =============================================================================
@@ -138,13 +140,13 @@ class TestStyleFitTraceExtended:
         assert isinstance(style, dict)
 
     def test_secondary(self):
-        style = style_fit_trace("Freundlich", is_secondary=True)
+        style = style_fit_trace("Freundlich", is_primary=False)
         assert isinstance(style, dict)
 
 
 class TestStyleStudyTrace:
     def test_basic(self):
-        style = style_study_trace("Study 1", 0)
+        style = style_study_trace(0, "Study 1")
         assert isinstance(style, dict)
 
 
@@ -180,36 +182,48 @@ class TestCreateKineticPlotExtended:
 
 
 class TestCreateModelComparisonPlotExtended:
+    def _make_model_funcs(self):
+        from adsorblab_pro.models import langmuir_model, freundlich_model
+
+        def langmuir_wrap(x, params):
+            return langmuir_model(x, params.get("qm", 100), params.get("KL", 0.05))
+
+        def freundlich_wrap(x, params):
+            return freundlich_model(x, params.get("KF", 5), params.get("n_inv", 0.5))
+
+        return {"Langmuir": langmuir_wrap, "Freundlich": freundlich_wrap}
+
     def test_basic_comparison(self):
-        x_data = np.array([1, 5, 10, 20, 50])
-        y_data = np.array([5, 15, 22, 30, 40])
+        x_data = np.array([1.0, 5.0, 10.0, 20.0, 50.0])
+        y_data = np.array([5.0, 15.0, 22.0, 30.0, 40.0])
         model_results = {
             "Langmuir": {
                 "converged": True,
-                "y_pred": np.array([4.5, 14.8, 22.5, 30.2, 39.5]),
+                "params": {"qm": 100.0, "KL": 0.05},
                 "r_squared": 0.98,
             },
             "Freundlich": {
                 "converged": True,
-                "y_pred": np.array([5.2, 15.5, 21.0, 29.5, 41.0]),
+                "params": {"KF": 5.0, "n_inv": 0.5},
                 "r_squared": 0.95,
             },
         }
-        fig = create_model_comparison_plot(x_data, y_data, model_results)
+        fig = create_model_comparison_plot(x_data, y_data, model_results, self._make_model_funcs())
         assert isinstance(fig, go.Figure)
 
     def test_with_unconverged(self):
-        x_data = np.array([1, 5, 10, 20, 50])
-        y_data = np.array([5, 15, 22, 30, 40])
+        x_data = np.array([1.0, 5.0, 10.0, 20.0, 50.0])
+        y_data = np.array([5.0, 15.0, 22.0, 30.0, 40.0])
         model_results = {
             "Langmuir": {
                 "converged": True,
-                "y_pred": np.array([4.5, 14.8, 22.5, 30.2, 39.5]),
+                "params": {"qm": 100.0, "KL": 0.05},
                 "r_squared": 0.98,
             },
             "Sips": {"converged": False},
         }
-        fig = create_model_comparison_plot(x_data, y_data, model_results)
+        model_funcs = self._make_model_funcs()
+        fig = create_model_comparison_plot(x_data, y_data, model_results, model_funcs)
         assert isinstance(fig, go.Figure)
 
 
@@ -233,7 +247,10 @@ class TestCreateVantHoffPlot:
     def test_basic(self):
         inv_T = np.array([0.00330, 0.00325, 0.00320])
         ln_Kd = np.array([1.5, 1.3, 1.1])
-        fig = create_vant_hoff_plot(inv_T, ln_Kd)
+        # Fit a line to get slope and intercept
+        slope, intercept = np.polyfit(inv_T, ln_Kd, 1)
+        r_squared = 0.99
+        fig = create_vant_hoff_plot(inv_T, ln_Kd, slope, intercept, r_squared, "Van't Hoff")
         assert isinstance(fig, go.Figure)
 
 
@@ -241,7 +258,7 @@ class TestCreateEffectPlot:
     def test_basic(self):
         x = np.array([2, 4, 6, 8, 10])
         y = np.array([60, 75, 90, 85, 70])
-        fig = create_effect_plot(x, y, x_label="pH", y_label="Removal (%)")
+        fig = create_effect_plot(x, y, title="pH Effect", x_title="pH", y_title="Removal (%)")
         assert isinstance(fig, go.Figure)
 
 
@@ -282,7 +299,7 @@ class TestApplyStandardLayout:
     def test_basic(self):
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=[1, 2], y=[3, 4]))
-        styled = apply_standard_layout(fig, title="Test")
+        styled = apply_standard_layout(fig, title="Test", x_title="X", y_title="Y")
         assert isinstance(styled, go.Figure)
 
 
@@ -293,7 +310,7 @@ class TestPrepareForExport:
     def test_basic(self):
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=[1, 2, 3], y=[4, 5, 6]))
-        exported = prepare_figure_for_export(fig)
+        exported = prepare_figure_for_export(fig, scale=3.0)
         assert isinstance(exported, go.Figure)
 
 

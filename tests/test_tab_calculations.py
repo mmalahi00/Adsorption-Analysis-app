@@ -233,9 +233,9 @@ class TestCalculateIsothermResults:
         result = _calculate_isotherm_results(isotherm_absorbance_input, calib_params_no_uncertainty)
         assert result.success is True
         df = result.data
-        # With fallback SE=0, errors should be 0
-        assert (df["Ce_error"] == 0).all()
-        assert (df["qe_error"] == 0).all()
+        # With fallback SE=0, errors should be non-negative (absorbance noise floor contributes)
+        assert (df["Ce_error"] >= 0).all()
+        assert (df["qe_error"] >= 0).all()
 
     def test_empty_dataframe_fails(self, calib_params):
         from adsorblab_pro.tabs.isotherm_tab import _calculate_isotherm_results

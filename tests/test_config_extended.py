@@ -122,31 +122,40 @@ class TestQualityGrades:
 class TestGradingFunctions:
     def test_grade_from_r_squared_excellent(self):
         grade = get_grade_from_r_squared(0.99)
-        assert "Excellent" in grade or "excellent" in grade.lower()
+        assert isinstance(grade, dict)
+        assert "grade" in grade
+        # Should be a high grade (A+, A, or A-)
+        assert grade["grade"] in ("A+", "A", "A-")
 
     def test_grade_from_r_squared_good(self):
         grade = get_grade_from_r_squared(0.95)
-        assert isinstance(grade, str)
+        assert isinstance(grade, dict)
+        assert "grade" in grade
 
     def test_grade_from_r_squared_poor(self):
         grade = get_grade_from_r_squared(0.5)
-        assert isinstance(grade, str)
+        assert isinstance(grade, dict)
+        assert "grade" in grade
 
     def test_grade_from_score_high(self):
         grade = get_grade_from_score(95)
-        assert isinstance(grade, str)
+        assert isinstance(grade, dict)
+        assert "grade" in grade
 
     def test_grade_from_score_low(self):
         grade = get_grade_from_score(30)
-        assert isinstance(grade, str)
+        assert isinstance(grade, dict)
+        assert "grade" in grade
 
     def test_calibration_grade_excellent(self):
         grade = get_calibration_grade(0.999)
-        assert isinstance(grade, str)
+        assert isinstance(grade, dict)
+        assert "grade" in grade
 
     def test_calibration_grade_poor(self):
         grade = get_calibration_grade(0.8)
-        assert isinstance(grade, str)
+        assert isinstance(grade, dict)
+        assert "grade" in grade
 
 
 class TestPlotSettings:

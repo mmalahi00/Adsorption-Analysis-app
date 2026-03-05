@@ -1167,7 +1167,12 @@ def quick_validate(value: Any, field: str, validator_type: str = "positive") -> 
     elif validator_type == "non_negative":
         return validate_positive(value, field, allow_zero=True).is_valid
     elif validator_type == "array":
-        return validate_array(np.asarray(value), field).is_valid
+        if value is None:
+            return False
+        arr = np.asarray(value)
+        if arr.ndim == 0:
+            return False
+        return validate_array(arr, field).is_valid
     else:
         return True
 
