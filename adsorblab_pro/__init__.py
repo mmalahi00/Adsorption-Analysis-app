@@ -25,10 +25,10 @@ Example:
 """
 
 try:
-    from importlib.metadata import version
+    from importlib.metadata import PackageNotFoundError, version
 
     __version__ = version("adsorblab-pro")
-except Exception:
+except PackageNotFoundError:
     __version__ = "dev"
 __author__ = "Mohamed EL MALLAHI"
 __license__ = "MIT"

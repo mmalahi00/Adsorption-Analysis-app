@@ -57,6 +57,6 @@ try:
 
     st = _st
     STREAMLIT_AVAILABLE = True
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     st = _StreamlitStub()
     STREAMLIT_AVAILABLE = False

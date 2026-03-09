@@ -41,7 +41,7 @@ try:
     WD_ALIGN_PARAGRAPH = _WD_ALIGN_PARAGRAPH
     Inches = _Inches
     DOCX_AVAILABLE = True
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     Document = None
     WD_ALIGN_PARAGRAPH = None
     Inches = None
@@ -167,10 +167,10 @@ def _strip_user_headings_plotly(fig: Any, *, fig_id: str | None = None) -> None:
                         # Skip heading-like annotations above plot area
                         continue
                     kept.append(ann)
-                except Exception:
+                except (AttributeError, TypeError):
                     kept.append(ann)
             fig.update_layout(annotations=kept)
-    except Exception:
+    except (AttributeError, TypeError):
         pass
 
     # Clear layout title text
@@ -178,11 +178,11 @@ def _strip_user_headings_plotly(fig: Any, *, fig_id: str | None = None) -> None:
         title_text = ""
         try:
             title_text = str(fig.layout.title.text or "")
-        except Exception:
+        except AttributeError:
             title_text = ""
         if title_text.strip():
             fig.update_layout(title_text="")
-    except Exception:
+    except (AttributeError, TypeError):
         pass
 
 
@@ -222,13 +222,13 @@ def _fix_axis_gradient_overlaps_plotly(
         standoff = max(24, int(1.4 * axis_title_px))
         fig.update_xaxes(automargin=True, title_standoff=standoff)
         fig.update_yaxes(automargin=True, title_standoff=standoff)
-    except Exception:
+    except (AttributeError, TypeError, ValueError):
         pass
 
     # Base safe margins (even without colorbars)
     try:
         has_title = bool(str(getattr(fig.layout.title, "text", "") or "").strip())
-    except Exception:
+    except AttributeError:
         has_title = False
 
     try:
@@ -237,7 +237,7 @@ def _fix_axis_gradient_overlaps_plotly(
         r = int(cur.get("r", 40))
         t = int(cur.get("t", 40))
         b = int(cur.get("b", 70))
-    except Exception:
+    except (AttributeError, TypeError, ValueError):
         margin_l, r, t, b = 70, 40, 40, 70
 
     min_l = max(90, int(0.09 * width_px), int(2.8 * axis_title_px), int(2.4 * tick_px))
@@ -256,7 +256,7 @@ def _fix_axis_gradient_overlaps_plotly(
 
     try:
         fig.update_layout(margin={"l": margin_l, "r": r, "t": t, "b": b, "pad": 10})
-    except Exception:
+    except (ValueError, TypeError):
         pass
 
     # Detect colorbars and, if present, push outward + add margin
@@ -325,7 +325,7 @@ def _fix_axis_gradient_overlaps_plotly(
                 r = max(r, int(max(180, 0.14 * width_px)))
 
             fig.update_layout(margin={"l": margin_l, "r": r, "t": t, "b": b, "pad": 10})
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             pass
 
         # Push layout-level coloraxis colorbars outward
@@ -347,7 +347,7 @@ def _fix_axis_gradient_overlaps_plotly(
                             }
                         }
                     )
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             pass
 
         # Push trace-level colorbars outward
@@ -372,10 +372,10 @@ def _fix_axis_gradient_overlaps_plotly(
                         ypad=10,
                         tickfont={"size": tick_px, "family": font_family},
                     )
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             pass
 
-    except Exception:
+    except (AttributeError, TypeError, ValueError):
         pass
 
 
@@ -446,7 +446,7 @@ def _style_plotly_for_docx_export(fig_obj: Any, cfg: DocxReportConfig) -> Any:
     # STEP 2: Force export dimensions
     try:
         fig.update_layout(width=int(cfg.img_width_px), height=int(cfg.img_height_px))
-    except Exception:
+    except (ValueError, TypeError):
         pass
 
     # STEP 3: Typography presets
@@ -469,7 +469,7 @@ def _style_plotly_for_docx_export(fig_obj: Any, cfg: DocxReportConfig) -> Any:
     # Base font
     try:
         fig.update_layout(font={"family": "Arial, sans-serif", "size": base_px})
-    except Exception:
+    except (ValueError, TypeError):
         pass
 
     # 2D axes typography
@@ -482,14 +482,14 @@ def _style_plotly_for_docx_export(fig_obj: Any, cfg: DocxReportConfig) -> Any:
             tickfont={"size": tick_px, "family": "Arial, sans-serif"},
             title_font={"size": axis_title_px, "family": "Arial, sans-serif"},
         )
-    except Exception:
+    except (AttributeError, ValueError, TypeError):
         pass
 
     # Legend
     try:
         if getattr(fig.layout, "legend", None) is not None:
             fig.update_layout(legend={"font": {"size": legend_px, "family": "Arial, sans-serif"}})
-    except Exception:
+    except (AttributeError, ValueError, TypeError):
         pass
 
     # Legend symbols: constant size
@@ -497,7 +497,7 @@ def _style_plotly_for_docx_export(fig_obj: Any, cfg: DocxReportConfig) -> Any:
         leg = fig.layout.legend.to_plotly_json() if getattr(fig.layout, "legend", None) else {}
         leg.update({"itemsizing": "constant"})
         fig.update_layout(legend=leg)
-    except Exception:
+    except (AttributeError, TypeError):
         pass
 
     # Title font
@@ -506,11 +506,11 @@ def _style_plotly_for_docx_export(fig_obj: Any, cfg: DocxReportConfig) -> Any:
             current_text = ""
             try:
                 current_text = str(fig.layout.title.text or "")
-            except Exception:
+            except AttributeError:
                 current_text = ""
             if current_text.strip() != "":
                 fig.update_layout(title={"font": {"size": title_px, "family": "Arial, sans-serif"}})
-    except Exception:
+    except (AttributeError, TypeError):
         pass
 
     # Annotations: make typography consistent
@@ -521,9 +521,9 @@ def _style_plotly_for_docx_export(fig_obj: Any, cfg: DocxReportConfig) -> Any:
                     ann_font = ann.font.to_plotly_json() if getattr(ann, "font", None) else {}
                     ann_font.update({"family": "Arial, sans-serif", "size": base_px})
                     ann.font = ann_font
-                except Exception:
+                except (AttributeError, TypeError):
                     pass
-    except Exception:
+    except (AttributeError, TypeError):
         pass
 
     # Prevent axis-title vs gradient/colorbar overlaps
@@ -547,11 +547,7 @@ def _style_plotly_for_docx_export(fig_obj: Any, cfg: DocxReportConfig) -> Any:
 
 def _ensure_caption_style(doc: Any) -> str | None:
     """Ensure 'Caption' style exists in document; return its name or None."""
-    try:
-        return "Caption"
-    except Exception:
-        pass
-    return None
+    return "Caption"
 
 
 def _add_dataframe_table(
@@ -590,7 +586,7 @@ def _add_dataframe_table(
                         row_cells[i].text = config.float_format.format(val)
                     else:
                         row_cells[i].text = str(val)
-                except Exception:
+                except (ValueError, TypeError):
                     row_cells[i].text = str(val)
 
     # Add caption
@@ -601,17 +597,21 @@ def _add_dataframe_table(
         cap_par = doc.add_paragraph(caption)
         try:
             cap_par.runs[0].italic = True
-        except Exception:
+        except (AttributeError, IndexError):
             pass
     try:
         cap_par.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    except Exception:
+    except (AttributeError, TypeError):
         pass
     doc.add_paragraph(" ")  # spacer
 
 
 def _coerce_image_bytes(fig_obj: Any, config: DocxReportConfig) -> bytes:
     """Convert Plotly figure to image bytes."""
+    import logging as _logging
+
+    _logger = _logging.getLogger(__name__)
+
     # Apply export styling (copy, don't mutate)
     styled_fig = _style_plotly_for_docx_export(fig_obj, config)
 
@@ -623,8 +623,8 @@ def _coerce_image_bytes(fig_obj: Any, config: DocxReportConfig) -> bytes:
             height=config.img_height_px,
             scale=config.img_scale,
         )
-    except Exception:
-        pass
+    except (ValueError, OSError, RuntimeError) as exc:
+        _logger.debug("Primary to_image failed: %s", exc)
 
     # Fallback: use kaleido if available
     try:
@@ -636,7 +636,7 @@ def _coerce_image_bytes(fig_obj: Any, config: DocxReportConfig) -> bytes:
             height=config.img_height_px,
             scale=config.img_scale,
         )
-    except Exception:
+    except (ValueError, OSError, RuntimeError, ImportError):
         raise RuntimeError("Cannot export figure to image. Install kaleido: pip install kaleido")
 
 
@@ -653,7 +653,7 @@ def _add_figure(
     # Center the paragraph containing the picture
     try:
         doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    except Exception:
+    except (AttributeError, IndexError):
         pass
 
     cap_style = _ensure_caption_style(doc)
@@ -663,11 +663,11 @@ def _add_figure(
         cap_par = doc.add_paragraph(caption)
         try:
             cap_par.runs[0].italic = True
-        except Exception:
+        except (AttributeError, IndexError):
             pass
     try:
         cap_par.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    except Exception:
+    except (AttributeError, TypeError):
         pass
     doc.add_paragraph(" ")  # spacer
 
@@ -682,7 +682,7 @@ def _best_model_line(models: Any, label: str) -> str | None:
             r2 = payload.get("r_squared")
             try:
                 r2v = float(r2) if r2 is not None else float("-inf")
-            except Exception:
+            except (ValueError, TypeError):
                 r2v = float("-inf")
             candidates.append((r2v, name))
     if not candidates:
@@ -718,7 +718,7 @@ def _recommended_docx_figure_width_in(
         w = max(float(min_width_in), w)
         w = min(float(max_width_in), w)
         return float(w)
-    except Exception:
+    except (AttributeError, TypeError, ValueError, ZeroDivisionError):
         return float(max_width_in)
 
 
@@ -759,7 +759,7 @@ def create_docx_report(
             cfg = replace(cfg, figure_width_in=float(auto_w))
         else:
             cfg = replace(cfg, figure_width_in=min(float(cfg.figure_width_in), float(auto_w)))
-    except Exception:
+    except (AttributeError, TypeError, ValueError):
         pass
 
     # Title
@@ -810,7 +810,7 @@ def create_docx_report(
                     str(dG),
                 )
             )
-        except Exception:
+        except (TypeError, ValueError, KeyError):
             summary_lines.append("Thermodynamics: (computed; see tables section)")
 
     if summary_lines:
@@ -844,7 +844,7 @@ def create_docx_report(
             df = None
             try:
                 df = table_generator(tbl_id, study_state)
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError, RuntimeError) as e:
                 warnings.append(f"Table '{tbl_id}' could not be generated: {e}")
             if df is None or df.empty:
                 warnings.append(f"Table '{tbl_id}' is empty or unavailable.")
@@ -870,7 +870,7 @@ def create_docx_report(
             fig_obj = None
             try:
                 fig_obj = figure_generator(fig_id, study_state)
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError, RuntimeError) as e:
                 warnings.append(f"Figure '{fig_id}' could not be generated: {e}")
                 continue
 
@@ -880,7 +880,7 @@ def create_docx_report(
 
             try:
                 img_bytes = _coerce_image_bytes(fig_obj, cfg)
-            except Exception as e:
+            except (ValueError, OSError, RuntimeError) as e:
                 warnings.append(f"Figure '{fig_id}' export failed: {e}")
                 continue
 

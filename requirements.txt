@@ -3,13 +3,13 @@
 # CANONICAL SOURCE: pyproject.toml
 #
 # This file mirrors pyproject.toml [project.dependencies] for:
-#   - Streamlit Cloud deployment (requires requirements.txt)
-#   - Users who prefer pip install -r requirements.txt
+#   - Streamlit Cloud deployment (requires a requirements.txt at the repo root)
+#   - Users who prefer: pip install -r requirements.txt
 #
 # Keep in sync with pyproject.toml when updating dependencies.
 #
-# For reproducible builds: pip install -r requirements-lock.txt
-# For development: pip install -r requirements-dev.txt
+# For reproducible / production builds: pip install -r requirements-lock.txt
+# For development:                      pip install -r requirements-dev.txt
 
 # Core Framework
 streamlit>=1.28.0

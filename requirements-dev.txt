@@ -2,6 +2,7 @@
 # ========================================
 # CANONICAL SOURCE: pyproject.toml [project.optional-dependencies.dev]
 #
+# This file exists for CI and users who prefer plain pip.
 # Keep in sync with pyproject.toml when updating.
 #
 # Alternative install: pip install -e ".[dev]"
@@ -12,17 +13,16 @@ pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-timeout>=2.2.0
 
-# Linting (pinned for CI stability)
-ruff==0.8.6
-
-# Security scanning
-pip-audit==2.7.3
-
 # Coverage
 coverage>=7.6.1
 
-# Code Quality (optional but recommended)
-# ruff>=0.1.0
-# black>=23.0.0
-# isort>=5.12.0
-# mypy>=1.5.0
+# Linting — pinned for CI reproducibility (pyproject.toml uses >=0.1.0 as a floor)
+ruff==0.8.6
+
+# Type checking
+mypy>=1.5.0
+types-requests>=2.31.0
+pandas-stubs>=2.0.0
+
+# Security scanning
+pip-audit==2.7.3

@@ -11,6 +11,8 @@ Features:
 - Analysis completeness checklist
 """
 
+import html
+
 import numpy as np
 import pandas as pd
 
@@ -92,6 +94,8 @@ def render():
             }
         )
         display_results_table(calib_df)
+    else:
+        st.caption("📊 Calibration: not yet completed.")
 
     # Section 2: Isotherm Models Summary
     if iso_models:
@@ -164,7 +168,9 @@ def render():
                         f"**Best Isotherm Model:** {best_model} (Adj-R² = {iso_df.loc[best_idx, 'Adj-R²']:.4f})"
                     )
             except (KeyError, ValueError):
-                pass
+                st.caption("⚠️ Could not determine best isotherm model (missing Adj-R² values).")
+    else:
+        st.caption("📈 Isotherms: not yet completed.")
 
     # Section 3: Kinetic Models Summary
     if kin_models:
@@ -238,7 +244,9 @@ def render():
                         "⚠️ Note: Best statistical fit ≠ mechanistic evidence. Use Boyd/Weber-Morris plots and activation energy for mechanism identification."
                     )
             except (KeyError, ValueError):
-                pass
+                st.caption("⚠️ Could not determine best kinetic model (missing Adj-R² values).")
+    else:
+        st.caption("⏱️ Kinetics: not yet completed.")
 
     # Section 4: Thermodynamic Summary
     if thermo_params:
@@ -293,6 +301,8 @@ def render():
             mechanism = "Chemical Adsorption"
 
         st.info(f"**Adsorption Mechanism:** {mechanism} (|ΔH°| = {abs_H:.2f} kJ/mol)")
+    else:
+        st.caption("🌡️ Thermodynamics: not yet completed.")
 
     # ==========================================================================
     # Section 5: MECHANISM CONSISTENCY CHECK (NEW)
@@ -456,6 +466,7 @@ def _render_consistency_check(study_state: dict):
     config = status_configs.get(result["status"], status_configs["consistent"])
 
     # Overall status banner
+    safe_interpretation = html.escape(str(result["interpretation"]))
     st.markdown(
         f"""
     <div style="background: {config["bg"]}; padding: 20px; border-radius: 10px;
@@ -465,7 +476,7 @@ def _render_consistency_check(study_state: dict):
             <span style="font-size: 2em;">{config["icon"]}</span>
             <div>
                 <h4 style="color: {config["text"]}; margin: 0; font-size: 1.15em;">
-                    {result["interpretation"]}
+                    {safe_interpretation}
                 </h4>
                 <p style="color: {config["text"]}; margin: 5px 0 0 0; font-size: 0.9em; opacity: 0.8;">
                     {n_passed}/{n_checks} checks passed
@@ -608,6 +619,7 @@ def _render_common_errors(study_state: dict):
         status_text = f"{low_count} minor suggestion(s)"
 
     # Status banner
+    safe_status_text = html.escape(status_text)
     st.markdown(
         f"""
     <div style="background: {bg_color}; padding: 20px; border-radius: 10px;
@@ -616,7 +628,7 @@ def _render_common_errors(study_state: dict):
         <div style="display: flex; align-items: center; gap: 12px;">
             <span style="font-size: 2em;">{icon}</span>
             <div>
-                <h4 style="color: {text_color}; margin: 0;">{status_text}</h4>
+                <h4 style="color: {text_color}; margin: 0;">{safe_status_text}</h4>
                 <p style="color: {text_color}; margin: 5px 0 0 0; opacity: 0.8;">
                     {len(errors)} total issue(s) detected
                 </p>

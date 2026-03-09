@@ -468,7 +468,7 @@ def _render_isotherm_comparison(studies_data: dict, study_names: list):
                         }
                     )
             except (KeyError, ValueError):
-                pass
+                st.caption(f"⚠️ Could not determine best model for {name} (missing AIC values).")
 
     if best_models:
         best_df = pd.DataFrame(best_models)
@@ -908,13 +908,16 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
 
         fig_ph = go.Figure()
         has_ph_data = False
+        skipped_ph = []
 
         for i, name in enumerate(study_names):
             data = studies_data.get(name, {})
             ph_results = data.get("ph_effect_results")
             if ph_results is None or getattr(ph_results, "empty", True):
+                skipped_ph.append(f"{name} (no pH data)")
                 continue
             if "pH" not in ph_results.columns or "qe_mg_g" not in ph_results.columns:
+                skipped_ph.append(f"{name} (missing required columns)")
                 continue
 
             has_ph_data = True
@@ -954,6 +957,8 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
                 display_results_table(pd.DataFrame(opt_ph_data))
         else:
             st.info("No pH effect data available.")
+        if skipped_ph:
+            st.caption(f"Studies skipped: {', '.join(skipped_ph)}")
 
     # --- Temperature Effect ---
     with effect_tab2:
@@ -961,11 +966,13 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
 
         fig_temp = go.Figure()
         has_temp_data = False
+        skipped_temp = []
 
         for i, name in enumerate(study_names):
             data = studies_data.get(name, {})
             temp_results = data.get("temp_effect_results")
             if temp_results is None or getattr(temp_results, "empty", True):
+                skipped_temp.append(f"{name} (no temperature data)")
                 continue
 
             x_col = (
@@ -974,6 +981,7 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
                 else ("Temperature" if "Temperature" in temp_results.columns else None)
             )
             if x_col is None or "qe_mg_g" not in temp_results.columns:
+                skipped_temp.append(f"{name} (missing required columns)")
                 continue
 
             has_temp_data = True
@@ -993,6 +1001,8 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
             st.plotly_chart(fig_temp, use_container_width=True)
         else:
             st.info("No temperature effect data available.")
+        if skipped_temp:
+            st.caption(f"Studies skipped: {', '.join(skipped_temp)}")
 
     # --- Dosage Effect ---
     with effect_tab3:
@@ -1000,11 +1010,13 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
 
         fig_dos = go.Figure()
         has_dos_data = False
+        skipped_dos = []
 
         for i, name in enumerate(study_names):
             data = studies_data.get(name, {})
-            dos_results = data.get("dosage_effect_results")
+            dos_results = data.get("dosage_results")
             if dos_results is None or getattr(dos_results, "empty", True):
+                skipped_dos.append(f"{name} (no dosage data)")
                 continue
 
             # x column
@@ -1015,6 +1027,7 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
                 x_col = "Mass_g"
                 x_label = "Mass (g)"
             else:
+                skipped_dos.append(f"{name} (missing dosage/mass column)")
                 continue
 
             # y preference: qe if present else removal
@@ -1027,6 +1040,7 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
                 y_label = "Removal (%)"
                 hover = "Dosage: %{x:.4f}<br>Removal: %{y:.2f}%<extra></extra>"
             else:
+                skipped_dos.append(f"{name} (missing qe/removal column)")
                 continue
 
             has_dos_data = True
@@ -1047,6 +1061,8 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
             st.plotly_chart(fig_dos, use_container_width=True)
         else:
             st.info("No dosage effect data available.")
+        if skipped_dos:
+            st.caption(f"Studies skipped: {', '.join(skipped_dos)}")
 
 
 def _render_overall_ranking(studies_data: dict, study_names: list):
@@ -1300,7 +1316,7 @@ def _render_overall_ranking(studies_data: dict, study_names: list):
     mech_df = pd.DataFrame(mechanism_data)
 
     # Display mechanism table
-    display_cols = ["Study", "Adsorption Type", "Favorability", "Process", "Bonding"]
+    display_cols = ["Study", "n (Freundlich)", "Favorability", "Process", "Bonding"]
     if all(col in mech_df.columns for col in display_cols):
         display_results_table(mech_df[display_cols])
 

@@ -7,7 +7,7 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18501799.svg)](https://doi.org/10.5281/zenodo.18501799)
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://adsorption.streamlit.app)
 [![CI](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml/badge.svg)](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-692%20passed-brightgreen.svg)](#testing--coverage)
+[![Tests](https://img.shields.io/badge/tests-1058%20passed-brightgreen.svg)](#testing--coverage)
 
 AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption experiments. It fits isotherm and kinetic models using non-linear regression, provides bootstrap confidence intervals, performs rigorous model comparison (R², Adj-R², AIC, AICc, BIC), and generates high-resolution figures and structured Word reports — all without writing a single line of code.
 
@@ -156,7 +156,7 @@ docker compose --profile dev up    # dev mode with hot-reload on port 8502
 
 ### Example Data
 
-The `examples/` directory contains ready-to-use datasets for every tab, in both Standard (absorbance) and Direct (concentration) modes. `expected_results.json` provides validation benchmarks. Three fully documented case studies are under `case_studies/`.
+The `examples/` directory contains ready-to-use datasets for every tab, in both Standard (absorbance) and Direct (concentration) modes. `expected_results.json` provides validation benchmarks.
 
 ---
 
@@ -282,18 +282,24 @@ Adsorption-Analysis-app/
 │       ├── threed_explorer_tab.py
 │       └── report_tab.py
 ├── examples/                      # Sample datasets
-├── case_studies/                   # Reproducible case studies
-├── tests/                         # Test suite (692 tests)
+├── tests/                         # Test suite
 │   ├── test_models.py             # Isotherm & kinetic model tests
+│   ├── test_models_extended.py    # Extended model edge cases
 │   ├── test_utils.py              # Utility function tests
+│   ├── test_utils_extended.py     # Extended utility tests
 │   ├── test_validation.py         # Input validation tests
+│   ├── test_validation_extended.py # Extended validation tests
+│   ├── test_config_extended.py    # Configuration tests
 │   ├── test_coverage.py           # Extended coverage tests
 │   ├── test_tab_calculations.py   # Tab computation logic tests
 │   ├── test_report_generators.py  # Report figure & table tests
 │   ├── test_integration.py        # End-to-end workflow tests
 │   ├── test_ui_streamlit.py       # UI module import & smoke tests
 │   ├── test_performance.py        # Fitting performance benchmarks
-│   └── test_docx_report.py        # Word report generation tests
+│   ├── test_docx_report.py        # Word report generation tests
+│   ├── test_docx_report_extended.py # Extended report tests
+│   ├── test_plot_style_extended.py  # Plot styling tests
+│   └── test_thermo_error_propagation.py # Thermodynamic error propagation tests
 ├── docs/
 │   └── USER_GUIDE.md
 ├── scripts/                       # Cleanup utilities
@@ -322,15 +328,22 @@ AdsorbLab Pro has a comprehensive test suite enforced in CI on every push and pu
 |-----------|------:|----------------|
 | `test_coverage.py` | 179 | Extended coverage across config, plotting, statistics, models |
 | `test_utils.py` | 178 | Utility functions: calculations, bootstrap, error metrics, residuals |
+| `test_utils_extended.py` | 102 | Extended utility edge cases and helpers |
+| `test_validation_extended.py` | 88 | Extended validation edge cases |
+| `test_models_extended.py` | 76 | Extended model edge cases and numerical stability |
 | `test_report_generators.py` | 71 | Report tab: figure generation, table generation, edge cases |
 | `test_models.py` | 65 | Isotherm & kinetic model functions, fitting, numerical stability |
 | `test_validation.py` | 58 | Input validation: positive/range/array/dataframe validators |
 | `test_tab_calculations.py` | 51 | Tab computation logic: isotherm, kinetic, dosage, pH, thermodynamics |
 | `test_ui_streamlit.py` | 43 | UI module imports, config structure, plot style smoke tests |
+| `test_plot_style_extended.py` | 39 | Plot styling, export formatting, and layout tests |
 | `test_integration.py` | 37 | End-to-end workflows combining models + validation + statistics |
+| `test_config_extended.py` | 33 | Configuration constants, session keys, and defaults |
+| `test_thermo_error_propagation.py` | 26 | Thermodynamic error propagation and uncertainty analysis |
 | `test_performance.py` | 9 | Fitting speed benchmarks (Langmuir, Freundlich, Sips, PSO) |
+| `test_docx_report_extended.py` | 2 | Extended Word report edge cases |
 | `test_docx_report.py` | 1 | Word report generation produces valid .docx |
-| **Total** | **692** | |
+| **Total** | **1058** | |
 
 ### Running Tests
 
@@ -360,7 +373,7 @@ addopts = [
     "--cov=adsorblab_pro",
     "--cov-report=term-missing:skip-covered",
     "--cov-report=html:htmlcov",
-    "--cov-fail-under=45",
+    "--cov-fail-under=65",
 ]
 
 [tool.coverage.run]
@@ -368,7 +381,7 @@ source = ["adsorblab_pro"]
 branch = true
 
 [tool.coverage.report]
-fail_under = 45
+fail_under = 65
 show_missing = true
 ```
 
@@ -394,7 +407,7 @@ The GitHub Actions workflow (`.github/workflows/ci.yml`) runs five parallel jobs
 4. **Coverage** — `pytest --cov --cov-fail-under` with Codecov upload
 5. **Security** — `pip-audit` for known vulnerabilities
 
-All four core jobs (lint, typecheck, test, coverage) must pass before a PR can merge.
+All four core jobs (lint, typecheck, test, coverage) must pass before a PR can merge. The security audit runs independently.
 
 ---
 

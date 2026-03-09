@@ -97,7 +97,14 @@ def _parse_uploaded_file(file_content: bytes, file_name: str, required_cols: lis
 
         return df[required_cols].reset_index(drop=True), status
 
-    except Exception as e:
+    except (
+        pd.errors.ParserError,
+        pd.errors.EmptyDataError,
+        UnicodeDecodeError,
+        ValueError,
+        KeyError,
+        OSError,
+    ) as e:
         status["messages"].append(("error", f"Error reading file: {e}"))
         status["status"] = "error"
         return None, status
@@ -249,7 +256,7 @@ def _generate_excel_template(columns: list[str], study_type: str) -> io.BytesIO:
                 if available_cols:
                     df = df[available_cols].copy()
                     source_info = f"Loaded from examples/{csv_file}"
-            except Exception as e:
+            except (pd.errors.ParserError, UnicodeDecodeError, ValueError, OSError) as e:
                 logger.warning(f"Could not load {csv_file}: {e}")
                 df = None
 

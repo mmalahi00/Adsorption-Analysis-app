@@ -64,12 +64,15 @@ dependencies = [
 [project.optional-dependencies]
 # Development and testing dependencies
 dev = [
-    "pytest>=7.3.0",
+    "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "pytest-timeout>=2.2.0",
     "coverage>=7.6.1",
     "ruff>=0.1.0",
     "mypy>=1.5.0",
+    "types-requests>=2.31.0",
+    "pandas-stubs>=2.0.0",
+    "pip-audit>=2.7.0",
 ]
 
 # Full installation (all optional dependencies)
@@ -142,12 +145,13 @@ omit = [
     "tests/*",
     "*/__pycache__/*",
     "*.pyc",
-    # Pure Streamlit UI — no testable logic without full app context
+    # TODO(coverage): These UI modules are temporarily excluded.
+    # Remove each exclusion as targeted UI/state tests are added.
+    # Smoke-test coverage exists in test_ui_streamlit.py (import + callable checks).
     "adsorblab_pro/app.py",
     "adsorblab_pro/app_main.py",
     "adsorblab_pro/sidebar_ui.py",
     "adsorblab_pro/streamlit_compat.py",
-    # Tabs that are mostly st.* rendering (enable as tests are added)
     "adsorblab_pro/tabs/home_tab.py",
     "adsorblab_pro/tabs/statistical_summary_tab.py",
 ]
@@ -163,7 +167,9 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
-    # Streamlit-only rendering blocks
+    # Fire-and-forget Streamlit display calls (no return value used in logic).
+    # NOTE: Do NOT add st.columns, st.expander, or st.tabs here — those return
+    # objects that drive layout/routing logic and should be covered by tests.
     "st\\.error",
     "st\\.warning",
     "st\\.success",
@@ -172,9 +178,6 @@ exclude_lines = [
     "st\\.subheader",
     "st\\.header",
     "st\\.write",
-    "st\\.columns",
-    "st\\.expander",
-    "st\\.tabs",
     "st\\.plotly_chart",
     "st\\.dataframe",
     "st\\.download_button",

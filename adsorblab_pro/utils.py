@@ -2999,11 +2999,27 @@ def cleanup_session_state_keys(
 
 
 def validate_study_name(name: str, existing_studies: dict | None = None) -> tuple[bool, str]:
-    """Validate a study name for creation."""
+    """Validate a study name for creation.
+
+    Constraints:
+    - Non-empty after stripping whitespace
+    - Maximum 100 characters
+    - No HTML-sensitive characters (< > & " ') to prevent injection
+    - Must not duplicate an existing study name
+    """
+    import re
+
     name = (name or "").strip()
 
     if not name:
         return False, "Please enter a study name."
+
+    if len(name) > 100:
+        return False, "Study name must be 100 characters or fewer."
+
+    # Reject characters that are dangerous in HTML contexts
+    if re.search(r'[<>&"\']', name):
+        return False, "Study name cannot contain <, >, &, \", or ' characters."
 
     if existing_studies is None:
         if _STREAMLIT_AVAILABLE:

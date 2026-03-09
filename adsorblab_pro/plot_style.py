@@ -722,7 +722,7 @@ def create_model_comparison_plot(
         params = results.get("params", {})
         try:
             y_fit = model_functions[model_name](x_line, params)
-        except Exception as e:
+        except (TypeError, ValueError, ArithmeticError, RuntimeError) as e:
             logger.debug(f"Could not plot {model_name} curve: {e}")
             continue
 
@@ -1243,7 +1243,7 @@ def apply_professional_style(
                 tr.update(cliponaxis=False)
                 if getattr(tr, "text", None) is not None and getattr(tr, "textfont", None) is None:
                     tr.update(textfont={"size": 12, "family": FONT_FAMILY})
-            except Exception:
+            except (ValueError, TypeError):
                 pass
 
     return fig
@@ -1416,7 +1416,7 @@ def prepare_figure_for_export(
                     cb.title.font.size = _scaled(cb.title.font.size)
                 if cb and cb.tickfont and cb.tickfont.size:
                     cb.tickfont.size = _scaled(cb.tickfont.size)
-            except Exception:
+            except (AttributeError, TypeError):
                 pass
 
         # Text font on traces (bar labels, etc.)
@@ -1761,7 +1761,7 @@ def apply_professional_3d_style(
                         }
                     }
                 )
-        except Exception:
+        except (AttributeError, TypeError):
             pass
 
     return fig
@@ -1777,12 +1777,12 @@ def infer_figure_kind(fig: go.Figure) -> str:
     try:
         if fig.layout.scene.to_plotly_json():
             return "3d"
-    except Exception:
+    except AttributeError:
         pass
     try:
         if fig.layout.polar.to_plotly_json():
             return "polar"
-    except Exception:
+    except AttributeError:
         pass
     return "2d"
 
@@ -1814,19 +1814,19 @@ def finalize_figure(
     if title is None and getattr(fig.layout, "title", None) is not None:
         try:
             title = fig.layout.title.text
-        except Exception:
+        except AttributeError:
             title = None
 
     if x_title is None:
         try:
             x_title = fig.layout.xaxis.title.text
-        except Exception:
+        except AttributeError:
             x_title = None
 
     if y_title is None:
         try:
             y_title = fig.layout.yaxis.title.text
-        except Exception:
+        except AttributeError:
             y_title = None
 
     # Default height (if not passed)
