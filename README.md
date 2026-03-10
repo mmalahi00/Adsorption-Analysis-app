@@ -7,7 +7,7 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18501799.svg)](https://doi.org/10.5281/zenodo.18501799)
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://adsorption.streamlit.app)
 [![CI](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml/badge.svg)](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1058%20passed-brightgreen.svg)](#testing--coverage)
+[![Tests](https://img.shields.io/badge/tests-1234%20passed-brightgreen.svg)](#testing--coverage)
 
 AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption experiments. It fits isotherm and kinetic models using non-linear regression, provides bootstrap confidence intervals, performs rigorous model comparison (R², Adj-R², AIC, AICc, BIC), and generates high-resolution figures and structured Word reports — all without writing a single line of code.
 
@@ -206,6 +206,14 @@ qₜ = qₑ · (1 − e^(−k₁·t))
 qₜ = (qₑ² · k₂ · t) / (1 + qₑ · k₂ · t)        h = k₂ · qₑ²  (initial rate)
 ```
 
+**Revised PSO (Bullen et al. 2021)** — concentration-corrected PSO that accounts for changing solution concentration.
+
+```
+qₜ = (qₑ² · k₂ · t) / (1 + qₑ · k₂ · t · φ)     φ = 1 + (qₑ · m) / (C₀ · V)
+```
+
+Reduces fitting error by ~66% compared to standard PSO when experimental conditions vary.
+
 **Elovich**
 
 ```
@@ -225,6 +233,20 @@ If C = 0, intraparticle diffusion is the sole rate-limiting step.
 **Van't Hoff:**  `ln(Kd) = ΔS°/R − ΔH°/(RT)` — plot ln(Kd) vs 1/T to obtain slope = −ΔH°/R and intercept = ΔS°/R.
 
 **Gibbs free energy:**  `ΔG° = −RT·ln(Kd) = ΔH° − T·ΔS°`
+
+### Multi-Component Competitive Models
+
+**Extended Langmuir (Butler-Ockrent 1930)** — predicts competitive adsorption from single-component parameters.
+
+```
+qₑ,ᵢ = (qₘ,ᵢ · Kₗ,ᵢ · Cₑ,ᵢ) / (1 + Σⱼ Kₗ,ⱼ · Cₑ,ⱼ)
+```
+
+**Extended Freundlich (SRS — Sheindorf-Rebhun-Sheintuch 1981)** — for heterogeneous surfaces with competition coefficients.
+
+```
+qₑ,ᵢ = Kf,ᵢ · Cₑ,ᵢ · (Σⱼ aᵢⱼ · Cₑ,ⱼ)^(1/nᵢ − 1)
+```
 
 ---
 
@@ -248,6 +270,47 @@ Q²    = 1 − PRESS / SStot
 ```
 
 Q² > 0.5 indicates good predictive ability.
+
+---
+
+## Implemented Feature Matrix
+
+This table is the single source of truth. Every row maps a model name to its code location, config key, and expected-results key. If a model is not in this table, it is **not implemented**.
+
+### Isotherm Models
+
+| Model | Registry key | `config.py` key | `expected_results.json` key | Parameters |
+|-------|-------------|-----------------|---------------------------|------------|
+| Langmuir | `Langmuir` | `ISOTHERM_MODELS["Langmuir"]` | `langmuir` | qm, KL |
+| Freundlich | `Freundlich` | `ISOTHERM_MODELS["Freundlich"]` | `freundlich` | KF, 1/n |
+| Temkin | `Temkin` | `ISOTHERM_MODELS["Temkin"]` | `temkin` | B1, KT |
+| Sips | `Sips` | `ISOTHERM_MODELS["Sips"]` | `sips` | qm, Ks, ns |
+
+### Kinetic Models
+
+| Model | Registry key | `config.py` key | `expected_results.json` key | Parameters |
+|-------|-------------|-----------------|---------------------------|------------|
+| Pseudo-First Order | `PFO` | `KINETIC_MODELS["PFO"]` | `pfo` | qe, k1 |
+| Pseudo-Second Order | `PSO` | `KINETIC_MODELS["PSO"]` | `pso` | qe, k2 |
+| Revised PSO | `rPSO` | `KINETIC_MODELS["rPSO"]` | — | qe, k2 (+C0, m, V) |
+| Elovich | `Elovich` | `KINETIC_MODELS["Elovich"]` | `elovich` | α, β |
+| Intraparticle Diffusion | `IPD` | `KINETIC_MODELS["IPD"]` | `ipd` | kid, C |
+
+### Competitive Models
+
+| Model | Function | `config.py` key | Parameters |
+|-------|----------|-----------------|------------|
+| Extended Langmuir | `extended_langmuir_multicomponent` | `MULTICOMPONENT_MODELS["Extended-Langmuir"]` | qm_i, KL_i per species |
+| Extended Freundlich | `extended_freundlich_multicomponent` | `MULTICOMPONENT_MODELS["Extended-Freundlich"]` | Kf_i, n_i per species |
+
+### Diffusion / Mechanistic Analysis
+
+| Feature | Function | Notes |
+|---------|----------|-------|
+| Biot number | `calculate_biot_number` | Film vs. pore diffusion indicator |
+| Boyd plot | `identify_rate_limiting_step` | Bt vs. t linearity through origin |
+| Weber-Morris multilinearity | IPD model + `identify_rate_limiting_step` | kid, C from √t plot |
+| Rate-limiting step ID | `identify_rate_limiting_step` | Combines Biot + Boyd + Weber-Morris |
 
 ---
 
@@ -327,23 +390,26 @@ AdsorbLab Pro has a comprehensive test suite enforced in CI on every push and pu
 | Test File | Tests | What It Covers |
 |-----------|------:|----------------|
 | `test_coverage.py` | 179 | Extended coverage across config, plotting, statistics, models |
-| `test_utils.py` | 178 | Utility functions: calculations, bootstrap, error metrics, residuals |
+| `test_utils.py` | 175 | Utility functions: calculations, bootstrap, error metrics, residuals |
 | `test_utils_extended.py` | 102 | Extended utility edge cases and helpers |
 | `test_validation_extended.py` | 88 | Extended validation edge cases |
+| `test_reviewer_workflows.py` | 82 | End-to-end: CSV → fit → verify params/stats → export ZIP/DOCX |
 | `test_models_extended.py` | 76 | Extended model edge cases and numerical stability |
 | `test_report_generators.py` | 71 | Report tab: figure generation, table generation, edge cases |
 | `test_models.py` | 65 | Isotherm & kinetic model functions, fitting, numerical stability |
 | `test_validation.py` | 58 | Input validation: positive/range/array/dataframe validators |
+| `test_docx_report_logic.py` | 56 | DOCX export: styling, tables, figures, config, edge cases |
 | `test_tab_calculations.py` | 51 | Tab computation logic: isotherm, kinetic, dosage, pH, thermodynamics |
 | `test_ui_streamlit.py` | 43 | UI module imports, config structure, plot style smoke tests |
 | `test_plot_style_extended.py` | 39 | Plot styling, export formatting, and layout tests |
+| `test_tab_helpers.py` | 37 | Tab helper functions: hashing, validation wrappers, calculation |
 | `test_integration.py` | 37 | End-to-end workflows combining models + validation + statistics |
 | `test_config_extended.py` | 33 | Configuration constants, session keys, and defaults |
-| `test_thermo_error_propagation.py` | 26 | Thermodynamic error propagation and uncertainty analysis |
+| `test_thermo_error_propagation.py` | 30 | Thermodynamic error propagation and uncertainty analysis |
 | `test_performance.py` | 9 | Fitting speed benchmarks (Langmuir, Freundlich, Sips, PSO) |
 | `test_docx_report_extended.py` | 2 | Extended Word report edge cases |
 | `test_docx_report.py` | 1 | Word report generation produces valid .docx |
-| **Total** | **1058** | |
+| **Total** | **1234** | |
 
 ### Running Tests
 

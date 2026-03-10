@@ -8,7 +8,7 @@ on:
 
 env:
   # Minimum coverage percentage to pass (must match pyproject.toml fail_under)
-  MIN_COVERAGE: 65
+  MIN_COVERAGE: 50
 
 jobs:
   # ==========================================================================

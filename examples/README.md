@@ -78,9 +78,9 @@ Minimal input for literature data validation.
 - Temperature: 25°C (298.15 K)
 - pH: 7.0
 
-**Expected Best Model:** Langmuir (R² 0.995)
-- qm: 78.5 mg/g
-- KL: 0.018 L/mg
+**Expected Best Model:** Sips (R² > 0.999)
+- Sips qm: ~86 mg/g, ns: ~0.74
+- Langmuir qm: ~65 mg/g, KL: ~0.023 L/mg (R² > 0.99)
 
 ---
 
@@ -106,9 +106,9 @@ Time-resolved adsorption data with absorbance measurements.
 - Volume: 50 mL
 - Adsorbent mass: 0.1 g
 
-**Expected Best Model:** Pseudo-Second-Order (R² 0.998)
-- qe: 47.2 mg/g
-- k2: 0.0012 g/(mg·min)
+**Expected Best Model:** Pseudo-Second-Order (R² > 0.995)
+- qe: ~48.8 mg/g
+- k2: ~0.0012 g/(mg·min)
 - Equilibrium time: ~240 minutes
 
 ---
@@ -204,8 +204,8 @@ Time-resolved adsorption data with absorbance measurements.
 Comprehensive validation benchmarks containing:
 
 - **Calibration parameters** (slope, intercept, R²)
-- **Isotherm model parameters** (Langmuir, Freundlich, Temkin, Sips, Redlich-Peterson)
-- **Kinetic model parameters** (PFO, PSO, Elovich, IPD, Avrami)
+- **Isotherm model parameters** (Langmuir, Freundlich, Temkin, Sips)
+- **Kinetic model parameters** (PFO, PSO, rPSO, Elovich, IPD)
 - **Effect study results** (pH, dosage, temperature optima)
 - **Statistical validation criteria** (Bootstrap CI, PRESS Q², residual diagnostics)
 
