@@ -36,6 +36,7 @@ from ..models import (
 # Professional plot styling
 from ..plot_style import (
     apply_professional_style,
+    create_dual_axis_effect_plot,
     create_isotherm_plot,
     create_model_comparison_plot,
     create_parity_plot,
@@ -614,52 +615,22 @@ def render():
                 st.plotly_chart(fig, use_container_width=True, key="iso_overview_chart")
 
             else:  # Both
-                # Prefer two separate plots (cleaner and more report-friendly than dual-axis)
-                st.markdown("**q<sub>e</sub> (mg/g)**")
-                fig_qe = go.Figure()
-                fig_qe.add_trace(
-                    go.Scatter(
-                        x=iso_results["Ce_mgL"],
-                        y=iso_results["qe_mg_g"],
-                        **style_experimental_trace(name="Experimental"),
-                    )
-                )
-
-                fig_qe = apply_professional_style(
-                    fig_qe,
+                fig = create_dual_axis_effect_plot(
+                    x=iso_results["Ce_mgL"],
+                    y1=iso_results["qe_mg_g"],
+                    y2=iso_results["removal_%"],
                     title="Isotherm Curve",
-                    x_title="Concentration C<sub>e</sub> (mg/L)",
-                    y_title="q<sub>e</sub> (mg/g)",
-                    height=420,
-                    show_legend=True,
-                    legend_position="upper left",
+                    x_title="Concentration Ce (mg/L)",
+                    y1_title="qe (mg/g)",
+                    y2_title="Removal (%)",
+                    y1_name="qe (mg/g)",
+                    y2_name="Removal (%)",
+                    height=500,
+                    x_tozero=True,
+                    y1_tozero=True,
+                    y2_tozero=True,
                 )
-                fig_qe.update_xaxes(rangemode="tozero")
-                fig_qe.update_yaxes(rangemode="tozero")
-                st.plotly_chart(fig_qe, use_container_width=True, key="iso_overview_chart_qe")
-
-                st.markdown("**Removal (%)**")
-                fig_rem = go.Figure()
-                fig_rem.add_trace(
-                    go.Scatter(
-                        x=iso_results["Ce_mgL"],
-                        y=iso_results["removal_%"],
-                        **style_experimental_trace(name="Experimental"),
-                    )
-                )
-
-                fig_rem = apply_professional_style(
-                    fig_rem,
-                    title="Removal vs C<sub>e</sub>",
-                    x_title="Concentration C<sub>e</sub> (mg/L)",
-                    y_title="Removal (%)",
-                    height=420,
-                    show_legend=True,
-                    legend_position="upper left",
-                )
-                fig_rem.update_xaxes(rangemode="tozero")
-                fig_rem.update_yaxes(rangemode="tozero")
-                st.plotly_chart(fig_rem, use_container_width=True, key="iso_overview_chart_removal")
+                st.plotly_chart(fig, use_container_width=True, key="iso_overview_chart")
 
             # Model Fitting Section
             st.markdown("---")
