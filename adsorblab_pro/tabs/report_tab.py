@@ -59,7 +59,6 @@ from ..plot_style import (
     create_isotherm_plot,
     create_kinetic_plot,
     create_model_comparison_plot,
-    create_effect_plot,
     create_dual_axis_effect_plot,
     create_residual_plot,
     get_axis_style,
@@ -597,28 +596,29 @@ def _gen_calibration_residuals(study_state: dict) -> go.Figure | None:
 
 
 def _gen_isotherm_overview(study_state: dict) -> go.Figure | None:
-    """Generate isotherm overview figure."""
+    """Generate isotherm overview figure (dual-axis export, house style)."""
     iso_data = study_state.get("isotherm_results")
 
     if iso_data is None:
         return None
 
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=iso_data["Ce_mgL"],
-            y=iso_data["qe_mg_g"],
-            **style_experimental_trace(name="Experimental"),
-        )
-    )
+    y2 = iso_data["removal_%"] if "removal_%" in iso_data.columns else None
 
-    fig = apply_professional_style(
-        fig,
-        "Adsorption Isotherm - Experimental Data",
-        "Equilibrium Concentration, Ce (mg/L)",
-        "Adsorption Capacity, qe (mg/g)",
+    return create_dual_axis_effect_plot(
+        x=iso_data["Ce_mgL"],
+        y1=iso_data["qe_mg_g"],
+        y2=y2,
+        title="Adsorption Isotherm - Experimental Data",
+        x_title="Equilibrium Concentration, Ce (mg/L)",
+        y1_title="qe (mg/g)",
+        y2_title="Removal (%)",
+        y1_name="qe (mg/g)",
+        y2_name="Removal (%)",
+        height=450,
+        x_tozero=True,
+        y1_tozero=True,
+        y2_tozero=True,
     )
-    return fig
 
 
 def _gen_isotherm_model(study_state: dict, model_name: str) -> go.Figure | None:
@@ -762,29 +762,28 @@ def _gen_separation_factor(study_state: dict) -> go.Figure | None:
 
 
 def _gen_kinetic_overview(study_state: dict) -> go.Figure | None:
-    """Generate kinetic overview figure (house style)."""
+    """Generate kinetic overview figure (dual-axis export, house style)."""
     kin_data = study_state.get("kinetic_results_df")
     if kin_data is None:
         return None
 
-    t = np.asarray(kin_data["Time"], dtype=float)
-    qt = np.asarray(kin_data["qt_mg_g"], dtype=float)
+    y2 = kin_data["removal_%"] if "removal_%" in kin_data.columns else None
 
-    fig = go.Figure()
-    exp_kwargs = style_experimental_trace(name="Experimental")
-    exp_kwargs["legendrank"] = 1
-    fig.add_trace(go.Scatter(x=t, y=qt, **exp_kwargs))
-
-    fig = apply_professional_style(
-        fig,
-        "Adsorption Kinetics (Experimental)",
-        "Time (min)",
-        "q<sub>t</sub> (mg/g)",
-        legend_position="lower right",
+    return create_dual_axis_effect_plot(
+        x=kin_data["Time"],
+        y1=kin_data["qt_mg_g"],
+        y2=y2,
+        title="Adsorption Kinetics (Experimental)",
+        x_title="Time (min)",
+        y1_title="qt (mg/g)",
+        y2_title="Removal (%)",
+        y1_name="qt (mg/g)",
+        y2_name="Removal (%)",
+        height=450,
+        x_tozero=True,
+        y1_tozero=True,
+        y2_tozero=True,
     )
-    fig.update_xaxes(rangemode="tozero")
-    fig.update_yaxes(rangemode="tozero")
-    return fig
 
 
 def _gen_kinetic_model(study_state: dict, model_name: str) -> go.Figure | None:
@@ -1017,7 +1016,7 @@ def _gen_ph_effect(study_state: dict) -> go.Figure | None:
 
 
 def _gen_temperature_effect(study_state: dict) -> go.Figure | None:
-    """Generate temperature effect figure (house style)."""
+    """Generate temperature effect figure (dual-axis export, house style)."""
     temp_results = study_state.get("temp_effect_results")
     if temp_results is None or getattr(temp_results, "empty", False):
         return None
@@ -1026,18 +1025,22 @@ def _gen_temperature_effect(study_state: dict) -> go.Figure | None:
     if x_col not in temp_results.columns or "qe_mg_g" not in temp_results.columns:
         return None
 
-    return create_effect_plot(
+    y2 = temp_results["removal_%"] if "removal_%" in temp_results.columns else None
+
+    return create_dual_axis_effect_plot(
         x=temp_results[x_col],
-        y=temp_results["qe_mg_g"],
+        y1=temp_results["qe_mg_g"],
+        y2=y2,
         title="Effect of Temperature on Adsorption",
         x_title="Temperature (°C)",
-        y_title="qe (mg/g)",
+        y1_title="qe (mg/g)",
+        y2_title="Removal (%)",
+        y1_name="qe (mg/g)",
+        y2_name="Removal (%)",
         height=450,
-        series_name="Temperature Effect",
-        show_legend=False,
         x_tozero=False,
-        y_tozero=True,
-        hovertemplate="T: %{x:.1f}°C<br>qe: %{y:.2f}<extra></extra>",
+        y1_tozero=True,
+        y2_tozero=True,
     )
 
 
