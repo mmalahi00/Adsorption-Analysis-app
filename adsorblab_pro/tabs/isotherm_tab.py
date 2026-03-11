@@ -1014,11 +1014,20 @@ def _display_langmuir(Ce, qe, C0, results):
             height=450,
         )
         st.plotly_chart(fig, use_container_width=True, key="langmuir_plot")
+
+        # Diagnostics
         qe_pred_exp = langmuir_model(Ce, params["qm"], params["KL"])
-        fig_parity = create_parity_plot(
-            qe, qe_pred_exp, model_name="Langmuir", r_squared=results["r_squared"]
-        )
-        st.plotly_chart(fig_parity, use_container_width=True, key="langmuir_parity")
+        with st.expander("Langmuir diagnostics", expanded=False):
+            fig_parity = create_parity_plot(
+                y_obs=np.asarray(qe, dtype=float),
+                y_pred=np.asarray(qe_pred_exp, dtype=float),
+                model_name="Langmuir",
+                r_squared=results.get("r_squared"),
+                rmse=results.get("rmse"),
+                height=420,
+            )
+            st.plotly_chart(fig_parity, use_container_width=True, key="langmuir_parity")
+            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"Langmuir model did not converge: {error_msg}")
@@ -1087,6 +1096,20 @@ def _display_freundlich(Ce, qe, results):
             height=450,
         )
         st.plotly_chart(fig, use_container_width=True, key="freundlich_plot")
+
+        # Diagnostics
+        qe_pred_exp = freundlich_model(Ce, params["KF"], params["n_inv"])
+        with st.expander("Freundlich diagnostics", expanded=False):
+            fig_parity = create_parity_plot(
+                y_obs=np.asarray(qe, dtype=float),
+                y_pred=np.asarray(qe_pred_exp, dtype=float),
+                model_name="Freundlich",
+                r_squared=results.get("r_squared"),
+                rmse=results.get("rmse"),
+                height=420,
+            )
+            st.plotly_chart(fig_parity, use_container_width=True, key="freundlich_parity")
+            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"Freundlich model did not converge: {error_msg}")
@@ -1143,6 +1166,20 @@ def _display_temkin(Ce, qe, results):
             height=450,
         )
         st.plotly_chart(fig, use_container_width=True, key="temkin_plot")
+
+        # Diagnostics
+        qe_pred_exp = temkin_model(Ce, params["B1"], params["KT"])
+        with st.expander("Temkin diagnostics", expanded=False):
+            fig_parity = create_parity_plot(
+                y_obs=np.asarray(qe, dtype=float),
+                y_pred=np.asarray(qe_pred_exp, dtype=float),
+                model_name="Temkin",
+                r_squared=results.get("r_squared"),
+                rmse=results.get("rmse"),
+                height=420,
+            )
+            st.plotly_chart(fig_parity, use_container_width=True, key="temkin_parity")
+            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"Temkin model did not converge: {error_msg}")
@@ -1199,6 +1236,20 @@ def _display_sips(Ce, qe, results):
             Ce, qe, Ce_line, qe_pred, model_name="Sips", r_squared=results["r_squared"], height=450
         )
         st.plotly_chart(fig, use_container_width=True, key="sips_plot")
+
+        # Diagnostics
+        qe_pred_exp = sips_model(Ce, params["qm"], params["Ks"], params["ns"])
+        with st.expander("Sips diagnostics", expanded=False):
+            fig_parity = create_parity_plot(
+                y_obs=np.asarray(qe, dtype=float),
+                y_pred=np.asarray(qe_pred_exp, dtype=float),
+                model_name="Sips",
+                r_squared=results.get("r_squared"),
+                rmse=results.get("rmse"),
+                height=420,
+            )
+            st.plotly_chart(fig_parity, use_container_width=True, key="sips_parity")
+            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"Sips model did not converge: {error_msg}")

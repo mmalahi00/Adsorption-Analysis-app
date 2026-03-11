@@ -882,7 +882,8 @@ def create_parity_plot(
     # Add 1:1 line
     min_val = min(min(y_obs), min(y_pred))
     max_val = max(max(y_obs), max(y_pred))
-    margin = (max_val - min_val) * 0.05
+    span = max_val - min_val
+    margin = max(span * 0.05, 1e-9)
 
     fig.add_trace(
         go.Scatter(

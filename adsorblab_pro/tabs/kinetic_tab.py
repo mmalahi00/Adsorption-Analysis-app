@@ -1001,12 +1001,20 @@ def _display_pfo(t, qt, results):
             t, qt, t_line, qt_pred, model_name="PFO", r_squared=results["r_squared"]
         )
         st.plotly_chart(fig, use_container_width=True, key="pfo_plot")
-        # Parity plot
+
+        # Diagnostics
         qt_pred_exp = pfo_model(t, params["qe"], params["k1"])
-        fig_parity = create_parity_plot(
-            qt, qt_pred_exp, model_name="PFO", r_squared=results["r_squared"]
-        )
-        st.plotly_chart(fig_parity, use_container_width=True, key="pfo_parity")
+        with st.expander("PFO diagnostics", expanded=False):
+            fig_parity = create_parity_plot(
+                y_obs=np.asarray(qt, dtype=float),
+                y_pred=np.asarray(qt_pred_exp, dtype=float),
+                model_name="PFO",
+                r_squared=results.get("r_squared"),
+                rmse=results.get("rmse"),
+                height=420,
+            )
+            st.plotly_chart(fig_parity, use_container_width=True, key="pfo_parity")
+            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"PFO model did not converge: {error_msg}")
@@ -1082,6 +1090,20 @@ statistical artifact, not mechanistic evidence.
             t, qt, t_line, qt_pred, model_name="PSO", r_squared=results["r_squared"]
         )
         st.plotly_chart(fig, use_container_width=True, key="pso_plot")
+
+        # Diagnostics
+        qt_pred_exp = pso_model(t, params["qe"], params["k2"])
+        with st.expander("PSO diagnostics", expanded=False):
+            fig_parity = create_parity_plot(
+                y_obs=np.asarray(qt, dtype=float),
+                y_pred=np.asarray(qt_pred_exp, dtype=float),
+                model_name="PSO",
+                r_squared=results.get("r_squared"),
+                rmse=results.get("rmse"),
+                height=420,
+            )
+            st.plotly_chart(fig_parity, use_container_width=True, key="pso_parity")
+            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"PSO model did not converge: {error_msg}")
@@ -1137,6 +1159,20 @@ energy values and complementary characterization data for mechanistic conclusion
             t_pos, qt_pos, t_line, qt_pred, model_name="Elovich", r_squared=results["r_squared"]
         )
         st.plotly_chart(fig, use_container_width=True, key="elovich_plot")
+
+        # Diagnostics
+        qt_pred_exp = elovich_model(t_pos, params["alpha"], params["beta"])
+        with st.expander("Elovich diagnostics", expanded=False):
+            fig_parity = create_parity_plot(
+                y_obs=np.asarray(qt_pos, dtype=float),
+                y_pred=np.asarray(qt_pred_exp, dtype=float),
+                model_name="Elovich",
+                r_squared=results.get("r_squared"),
+                rmse=results.get("rmse"),
+                height=420,
+            )
+            st.plotly_chart(fig_parity, use_container_width=True, key="elovich_parity")
+            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"Elovich model did not converge: {error_msg}")
@@ -1207,6 +1243,20 @@ def _display_ipd(t, qt, results):
         fig.update_yaxes(rangemode="tozero")
 
         st.plotly_chart(fig, use_container_width=True, key="ipd_plot")
+
+        # Diagnostics
+        qt_pred_exp = params["kid"] * np.sqrt(t) + params["C"]
+        with st.expander("IPD diagnostics", expanded=False):
+            fig_parity = create_parity_plot(
+                y_obs=np.asarray(qt, dtype=float),
+                y_pred=np.asarray(qt_pred_exp, dtype=float),
+                model_name="IPD",
+                r_squared=results.get("r_squared"),
+                rmse=results.get("rmse"),
+                height=420,
+            )
+            st.plotly_chart(fig_parity, use_container_width=True, key="ipd_parity")
+            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"IPD model did not converge: {error_msg}")
@@ -1283,6 +1333,20 @@ def _display_rpso(t, qt, results):
             t, qt, t_line, qt_pred, model_name="rPSO", r_squared=results["r_squared"]
         )
         st.plotly_chart(fig, use_container_width=True, key="rpso_plot")
+
+        # Diagnostics
+        qt_pred_exp = pso_model(t, params["qe"], params["k2"])
+        with st.expander("rPSO diagnostics", expanded=False):
+            fig_parity = create_parity_plot(
+                y_obs=np.asarray(qt, dtype=float),
+                y_pred=np.asarray(qt_pred_exp, dtype=float),
+                model_name="rPSO",
+                r_squared=results.get("r_squared"),
+                rmse=results.get("rmse"),
+                height=420,
+            )
+            st.plotly_chart(fig_parity, use_container_width=True, key="rpso_parity")
+            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
     else:
         if results:
             error_msg = results.get("error", "Unknown error")
