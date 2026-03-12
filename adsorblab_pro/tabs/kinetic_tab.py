@@ -1014,7 +1014,9 @@ def _display_pfo(t, qt, results):
                 height=420,
             )
             st.plotly_chart(fig_parity, use_container_width=True, key="pfo_parity")
-            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
+            st.caption(
+                "Points close to the 1:1 line indicate good agreement between observed and predicted values."
+            )
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"PFO model did not converge: {error_msg}")
@@ -1103,7 +1105,9 @@ statistical artifact, not mechanistic evidence.
                 height=420,
             )
             st.plotly_chart(fig_parity, use_container_width=True, key="pso_parity")
-            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
+            st.caption(
+                "Points close to the 1:1 line indicate good agreement between observed and predicted values."
+            )
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"PSO model did not converge: {error_msg}")
@@ -1172,7 +1176,9 @@ energy values and complementary characterization data for mechanistic conclusion
                 height=420,
             )
             st.plotly_chart(fig_parity, use_container_width=True, key="elovich_parity")
-            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
+            st.caption(
+                "Points close to the 1:1 line indicate good agreement between observed and predicted values."
+            )
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"Elovich model did not converge: {error_msg}")
@@ -1256,7 +1262,9 @@ def _display_ipd(t, qt, results):
                 height=420,
             )
             st.plotly_chart(fig_parity, use_container_width=True, key="ipd_parity")
-            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
+            st.caption(
+                "Points close to the 1:1 line indicate good agreement between observed and predicted values."
+            )
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"IPD model did not converge: {error_msg}")
@@ -1346,7 +1354,9 @@ def _display_rpso(t, qt, results):
                 height=420,
             )
             st.plotly_chart(fig_parity, use_container_width=True, key="rpso_parity")
-            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
+            st.caption(
+                "Points close to the 1:1 line indicate good agreement between observed and predicted values."
+            )
     else:
         if results:
             error_msg = results.get("error", "Unknown error")

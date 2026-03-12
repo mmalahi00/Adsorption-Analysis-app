@@ -1027,7 +1027,9 @@ def _display_langmuir(Ce, qe, C0, results):
                 height=420,
             )
             st.plotly_chart(fig_parity, use_container_width=True, key="langmuir_parity")
-            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
+            st.caption(
+                "Points close to the 1:1 line indicate good agreement between observed and predicted values."
+            )
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"Langmuir model did not converge: {error_msg}")
@@ -1109,7 +1111,9 @@ def _display_freundlich(Ce, qe, results):
                 height=420,
             )
             st.plotly_chart(fig_parity, use_container_width=True, key="freundlich_parity")
-            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
+            st.caption(
+                "Points close to the 1:1 line indicate good agreement between observed and predicted values."
+            )
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"Freundlich model did not converge: {error_msg}")
@@ -1179,7 +1183,9 @@ def _display_temkin(Ce, qe, results):
                 height=420,
             )
             st.plotly_chart(fig_parity, use_container_width=True, key="temkin_parity")
-            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
+            st.caption(
+                "Points close to the 1:1 line indicate good agreement between observed and predicted values."
+            )
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"Temkin model did not converge: {error_msg}")
@@ -1249,7 +1255,9 @@ def _display_sips(Ce, qe, results):
                 height=420,
             )
             st.plotly_chart(fig_parity, use_container_width=True, key="sips_parity")
-            st.caption("Points close to the 1:1 line indicate good agreement between observed and predicted values.")
+            st.caption(
+                "Points close to the 1:1 line indicate good agreement between observed and predicted values."
+            )
     else:
         error_msg = results.get("error", "Unknown error") if results else "Fitting failed"
         st.warning(f"Sips model did not converge: {error_msg}")
