@@ -49,7 +49,7 @@ from scipy.stats import t as t_dist
 # =============================================================================
 from .config import EPSILON_LOG, MAX_FIT_ITERATIONS, PI_SQUARED, R_GAS_CONSTANT
 
-# Aliases for backward compatibility
+# Aliases for backward compatibility (prefer canonical names from config.py)
 EPSILON = EPSILON_LOG  # Use most conservative epsilon for model calculations
 R_GAS = R_GAS_CONSTANT
 MAX_ITER = MAX_FIT_ITERATIONS
@@ -1210,7 +1210,9 @@ def langmuir_3d_surface(
     # VECTORIZED computation (Performance Optimization)
     # Calculate KL_adj for all temperatures at once using broadcasting
     # temp_vals_K shape: (n_points,), need it as column vector for broadcasting
-    KL_adj_all = KL * np.exp(-delta_H / R_GAS * (1 / temp_vals_K - 1 / T_ref))  # Shape: (n_points,)
+    KL_adj_all = KL * np.exp(
+        -delta_H / R_GAS_CONSTANT * (1 / temp_vals_K - 1 / T_ref)
+    )  # Shape: (n_points,)
 
     # Apply Langmuir model using broadcasting
     # Ce_grid shape: (n_points, n_points), KL_adj_all[:, np.newaxis] shape: (n_points, 1)

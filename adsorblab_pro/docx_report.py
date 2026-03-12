@@ -93,7 +93,7 @@ class DocxReportConfig:
 # - Font scaling (_pt_to_px)
 # - Annotation removal (_strip_user_headings_plotly)
 # - Axis overlap fixing (_fix_axis_gradient_overlaps_plotly)
-# - Export styling (style_figure_for_export)
+# - Export styling (apply_zip_export_style)
 #
 # ⚠️ WARNING: These functions are INTERNAL and MUST NOT be imported by
 # external users or external packages. They may change without notice
@@ -379,7 +379,7 @@ def _fix_axis_gradient_overlaps_plotly(
         pass
 
 
-def style_figure_for_export(
+def apply_zip_export_style(
     fig: Any,
     *,
     width_px: int = 1600,
@@ -387,7 +387,7 @@ def style_figure_for_export(
     tick_px: int = 12,
 ) -> None:
     """
-    Style a Plotly figure for export in ZIP and other formats.
+    Apply ZIP/static export styling to a Plotly figure.
 
     This is a convenience wrapper around export utilities that applies
     common export fixes in a single call:
@@ -423,6 +423,17 @@ def style_figure_for_export(
         font_family="Arial, sans-serif",
     )
     _strip_user_headings_plotly(fig, fig_id=None)
+
+
+def style_figure_for_export(
+    fig: Any,
+    *,
+    width_px: int = 1600,
+    height_px: int = 1000,
+    tick_px: int = 12,
+) -> None:
+    """Backward-compatible alias for `apply_zip_export_style`."""
+    apply_zip_export_style(fig, width_px=width_px, height_px=height_px, tick_px=tick_px)
 
 
 def _style_plotly_for_docx_export(fig_obj: Any, cfg: DocxReportConfig) -> Any:

@@ -335,10 +335,10 @@ class TestGenerateFigure:
         fig = generate_figure("kin_comparison", kinetic_state)
         assert fig is not None
 
-    def test_thermo_vanthoff(self, thermo_state):
+    def test_thermo_vant_hoff(self, thermo_state):
         from adsorblab_pro.tabs.report_tab import generate_figure
 
-        fig = generate_figure("thermo_vanthoff", thermo_state)
+        fig = generate_figure("thermo_vant_hoff", thermo_state)
         assert fig is not None
 
     def test_thermo_gibbs(self, thermo_state):
@@ -471,17 +471,17 @@ class TestKineticFigures:
 class TestThermoFigures:
     """Test thermodynamic figure generators."""
 
-    def test_vanthoff_missing_data(self):
-        from adsorblab_pro.tabs.report_tab import _gen_vanthoff_plot
+    def test_vant_hoff_missing_data(self):
+        from adsorblab_pro.tabs.report_tab import _gen_vant_hoff_plot
 
-        assert _gen_vanthoff_plot({}) is None
-        assert _gen_vanthoff_plot({"thermo_params": None}) is None
+        assert _gen_vant_hoff_plot({}) is None
+        assert _gen_vant_hoff_plot({"thermo_params": None}) is None
 
-    def test_vanthoff_insufficient_points(self):
-        from adsorblab_pro.tabs.report_tab import _gen_vanthoff_plot
+    def test_vant_hoff_insufficient_points(self):
+        from adsorblab_pro.tabs.report_tab import _gen_vant_hoff_plot
 
         state = {"thermo_params": {"temperatures": [300], "Kd_values": [5.0]}}
-        assert _gen_vanthoff_plot(state) is None
+        assert _gen_vant_hoff_plot(state) is None
 
     def test_gibbs_missing_data(self):
         from adsorblab_pro.tabs.report_tab import _gen_gibbs_plot

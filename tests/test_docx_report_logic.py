@@ -3,7 +3,7 @@
 Tests for docx_report.py pure-logic functions.
 
 Covers: DocxReportConfig, _pt_to_px, _strip_user_headings_plotly,
-_fix_axis_gradient_overlaps_plotly, style_figure_for_export,
+_fix_axis_gradient_overlaps_plotly, apply_zip_export_style,
 _style_plotly_for_docx_export, _add_dataframe_table, _add_figure,
 _best_model_line, _recommended_docx_figure_width_in, _ensure_caption_style,
 create_docx_report edge cases.
@@ -27,6 +27,7 @@ from adsorblab_pro.docx_report import (
     _pt_to_px,
     _strip_user_headings_plotly,
     _fix_axis_gradient_overlaps_plotly,
+    apply_zip_export_style,
     style_figure_for_export,
     _style_plotly_for_docx_export,
     _best_model_line,
@@ -258,7 +259,7 @@ class TestFixAxisGradientOverlaps:
 
 
 # =============================================================================
-# style_figure_for_export
+# apply_zip_export_style
 # =============================================================================
 
 
@@ -266,13 +267,17 @@ class TestStyleFigureForExport:
     def test_basic_call(self):
         fig = go.Figure(data=[go.Scatter(x=[1, 2], y=[3, 4])])
         fig.update_layout(title_text="Export me")
-        style_figure_for_export(fig)
+        apply_zip_export_style(fig)
         # Title should be stripped
         assert fig.layout.title.text == ""
 
     def test_custom_dimensions(self):
         fig = go.Figure(data=[go.Scatter(x=[1], y=[1])])
-        style_figure_for_export(fig, width_px=800, height_px=600, tick_px=10)
+        apply_zip_export_style(fig, width_px=800, height_px=600, tick_px=10)
+
+    def test_backward_compatible_alias(self):
+        fig = go.Figure(data=[go.Scatter(x=[1], y=[1])])
+        style_figure_for_export(fig, width_px=900, height_px=500, tick_px=11)
 
 
 # =============================================================================

@@ -20,6 +20,7 @@ import plotly.graph_objects as go
 
 from adsorblab_pro.streamlit_compat import st
 
+from ..config import R_GAS_CONSTANT
 from ..plot_style import COLORS, apply_professional_3d_style
 from ..models import (
     freundlich_model,
@@ -1568,7 +1569,6 @@ def _render_residuals_surface(fitted_params, exp_data):
             KL_ref = langmuir_params.get("KL")
             delta_H = thermo_params.get("delta_H") * 1000  # kJ to J
 
-            R_GAS_CONSTANT = 8.314
             T_ref = 298.15
 
             # Calculate residuals

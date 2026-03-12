@@ -349,7 +349,7 @@ FIGURE_CATEGORIES = {
         "name": "Thermodynamic Analysis",
         "icon": "🌡️",
         "items": [
-            ("thermo_vanthoff", "Van't Hoff Plot", "ln(Kd) vs 1/T"),
+            ("thermo_vant_hoff", "Van't Hoff Plot", "ln(Kd) vs 1/T"),
             ("thermo_gibbs", "Gibbs Energy Plot", "Delta G vs Temperature"),
         ],
     },
@@ -507,7 +507,8 @@ def generate_figure(fig_id: str, study_state: dict) -> go.Figure | None:
         "kin_elovich": lambda s: _gen_kinetic_model(s, "Elovich"),
         "kin_ipd": lambda s: _gen_kinetic_model(s, "IPD"),
         "kin_comparison": _gen_kinetic_comparison,
-        "thermo_vanthoff": _gen_vanthoff_plot,
+        "thermo_vant_hoff": _gen_vant_hoff_plot,
+        "thermo_vanthoff": _gen_vant_hoff_plot,  # Backward-compatible legacy ID
         "thermo_gibbs": _gen_gibbs_plot,
         "effect_ph": _gen_ph_effect,
         "effect_temp": _gen_temperature_effect,
@@ -878,7 +879,7 @@ def _gen_kinetic_comparison(study_state: dict) -> go.Figure | None:
     return fig
 
 
-def _gen_vanthoff_plot(study_state: dict) -> go.Figure | None:
+def _gen_vant_hoff_plot(study_state: dict) -> go.Figure | None:
     """Generate Van't Hoff plot."""
     thermo_params = study_state.get("thermo_params")
 
@@ -951,6 +952,9 @@ def _gen_vanthoff_plot(study_state: dict) -> go.Figure | None:
         )
     )
     return fig
+
+
+_gen_vanthoff_plot = _gen_vant_hoff_plot  # Backward-compatible legacy alias
 
 
 def _gen_gibbs_plot(study_state: dict) -> go.Figure | None:
