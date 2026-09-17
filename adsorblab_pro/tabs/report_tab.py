@@ -433,7 +433,11 @@ TABLE_CATEGORIES = {
             ("tbl_multi_thermo", "Thermodynamic Comparison", "All studies ΔH°, ΔS°, ΔG°"),
             ("tbl_multi_ranking", "Overall Study Ranking", "Combined performance scores"),
             ("tbl_multi_pub_summary", "Summary Table", "All key parameters in one table"),
-            ("tbl_multi_mechanism", "Mechanism Interpretation", "Adsorption mechanism analysis"),
+            (
+                "tbl_multi_mechanism",
+                "Descriptor Summary",
+                "Empirical descriptors with explicit mechanism limitation",
+            ),
         ],
     },
 }
@@ -1718,10 +1722,12 @@ def _gen_tbl_multi_thermo(s: dict) -> pd.DataFrame | None:
                     "Study": name,
                     "ΔH° (kJ/mol)": thermo.get("delta_H", np.nan),
                     "ΔS° (J/mol·K)": thermo.get("delta_S", np.nan),
-                    "ΔG° (kJ/mol)": delta_G_val,
+                    "Apparent ΔG (kJ/mol)": delta_G_val,
                     "R²": thermo.get("r_squared", np.nan),
-                    "Spontaneity": "Yes" if delta_G_val < 0 else "No",
-                    "Mechanism": "Endothermic" if thermo.get("delta_H", 0) > 0 else "Exothermic",
+                    "ΔG sign": "Negative" if delta_G_val < 0 else "Positive",
+                    "Enthalpy sign": "Endothermic"
+                    if thermo.get("delta_H", 0) > 0
+                    else "Exothermic",
                 }
             )
 
@@ -1849,7 +1855,7 @@ def _gen_tbl_multi_pub_summary(s: dict) -> pd.DataFrame | None:
 
 
 def _gen_tbl_multi_mechanism(s: dict) -> pd.DataFrame | None:
-    """Generate mechanism interpretation table."""
+    """Generate a non-mechanistic descriptor summary table."""
     studies, study_names = _get_all_studies()
 
     if len(study_names) < 2:
@@ -1883,16 +1889,10 @@ def _gen_tbl_multi_mechanism(s: dict) -> pd.DataFrame | None:
             else:
                 row["Process"] = "Exothermic"
 
-            abs_H = abs(delta_H)
-            if abs_H < 40:
-                row["Bonding"] = "Physical"
-            elif abs_H < 80:
-                row["Bonding"] = "Mixed"
-            else:
-                row["Bonding"] = "Chemical"
+            row["Mechanism"] = "Not determined from ΔH or model fit"
         else:
             row["Process"] = "—"
-            row["Bonding"] = "—"
+            row["Mechanism"] = "Not determined"
 
         rows.append(row)
 

@@ -620,16 +620,14 @@ class TestCalculateKd:
         with pytest.raises(ValueError, match="Unknown Kd method"):
             _calculate_kd("bogus", 50.0, np.array([10.0]), np.array([20.0]), 0.1, 0.05)
 
-    def test_zero_ce_handled(self):
+    def test_zero_ce_rejected(self):
         from adsorblab_pro.tabs.thermodynamics_tab import _calculate_kd
 
         Ce = np.array([0.0, 10.0])
         qe = np.array([25.0, 20.0])
 
-        # Should not raise; Ce=0 is clamped to EPSILON_DIV
-        Kd = _calculate_kd("dimensionless", 50.0, Ce, qe, 0.1, 0.05)
-        assert np.isfinite(Kd).all()
-        assert (Kd > 0).all()
+        with pytest.raises(ValueError, match="greater than zero"):
+            _calculate_kd("dimensionless", 50.0, Ce, qe, 0.1, 0.05)
 
     def test_result_always_positive(self):
         from adsorblab_pro.tabs.thermodynamics_tab import _calculate_kd

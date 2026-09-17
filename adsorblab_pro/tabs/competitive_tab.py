@@ -7,7 +7,7 @@ Analyzes competitive adsorption in multi-component systems.
 
 Features:
 - Extended Langmuir model for competitive adsorption
-- Extended Freundlich model (SRS equation)
+- Experimental Extended Freundlich/SRS API (disabled in the stable UI)
 - Selectivity coefficient calculation
 - Multi-component equilibrium prediction
 - Study-linked parameter selection
@@ -29,6 +29,8 @@ from ..models import (
 from ..plot_style import COLORS, apply_professional_style, get_axis_style
 from ..utils import get_current_study_state
 
+ENABLE_EXPERIMENTAL_SRS = False
+
 
 def render():
     """Render the Multi-Component Competitive Adsorption tab."""
@@ -36,8 +38,13 @@ def render():
 
     st.markdown("""
     Analyze competitive adsorption in multi-component systems using extended isotherm models.
-    These models predict how adsorbates compete for surface sites when multiple species are present.
+    These calculations are screening estimates and must be validated with mixture experiments.
     """)
+    st.info(
+        "The Extended Freundlich/SRS calculation is temporarily disabled in the stable UI. "
+        "Publication-grade SRS analysis requires independently determined competition "
+        "coefficients (aᵢⱼ). Extended Langmuir remains available for exploratory screening."
+    )
 
     # Get all studies
     all_studies = st.session_state.get("studies", {})
@@ -131,7 +138,7 @@ def _render_study_linked_mode(studies_with_isotherms: dict):
 
     st.info(
         "Important: Ce values must be the equilibrium concentrations in the *mixture* (Ceᵢ), not single-component Ce curves. "
-        "This module estimates qeᵢ at the specified mixture Ceᵢ using extended Langmuir / extended Freundlich."
+        "This module estimates qeᵢ at the specified mixture Ceᵢ using Extended Langmuir."
     )
 
     # ---- Number of competing adsorbates (guard against invalid slider ranges) ----
@@ -255,7 +262,9 @@ def _render_study_linked_mode(studies_with_isotherms: dict):
     if st.button("🧮 Calculate Competitive Adsorption", type="primary", key="calc_study"):
         # Check if all components have required parameters
         can_calculate_langmuir = all(c["has_langmuir"] for c in components)
-        can_calculate_freundlich = all(c["has_freundlich"] for c in components)
+        can_calculate_freundlich = ENABLE_EXPERIMENTAL_SRS and all(
+            c["has_freundlich"] for c in components
+        )
 
         if not can_calculate_langmuir and not can_calculate_freundlich:
             st.error(
@@ -399,7 +408,9 @@ def _render_manual_entry_mode(studies_with_isotherms: dict):
     if st.button("🧮 Calculate Competitive Adsorption", type="primary", key="calc_manual"):
         # Validate
         valid_langmuir = all(c["qm"] > 0 and c["KL"] > 0 for c in components)
-        valid_freundlich = all(c["KF"] > 0 and c["n"] > 0 for c in components)
+        valid_freundlich = ENABLE_EXPERIMENTAL_SRS and all(
+            c["KF"] > 0 and c["n"] > 0 for c in components
+        )
         valid_Ce = all(c["Ce"] > 0 for c in components)
 
         if not valid_Ce:
@@ -407,9 +418,7 @@ def _render_manual_entry_mode(studies_with_isotherms: dict):
             return
 
         if not valid_langmuir and not valid_freundlich:
-            st.error(
-                "❌ Please enter valid Langmuir (qm, KL) or Freundlich (KF, n) parameters for all components"
-            )
+            st.error("❌ Please enter valid Langmuir (qm, KL) parameters for all components")
             return
 
         _calculate_and_display(components, valid_langmuir, valid_freundlich)
@@ -516,6 +525,10 @@ def _calculate_and_display(components, has_langmuir, has_freundlich):
 
     # Extended Freundlich
     if has_freundlich:
+        st.warning(
+            "Experimental SRS approximation: do not use these values for publication or "
+            "process design without independently determined competition coefficients."
+        )
         st.markdown(
             f"### Extended Freundlich ({MULTICOMPONENT_MODELS['Extended-Freundlich']['description']})"
         )
@@ -682,6 +695,10 @@ def _display_interpretation(results_data, names, has_langmuir):
     lang_results = [r for r in results_data if r["Model"] == "Extended Langmuir"]
 
     st.markdown("### 🔬 Interpretation")
+    st.warning(
+        "These are model-based screening estimates, not measured mixture capacities. "
+        "Validate selectivity and capacity reduction with multicomponent experiments before process design."
+    )
 
     # Find most/least affected
     max_reduction = max(lang_results, key=lambda x: x["Reduction (%)"])
@@ -710,23 +727,22 @@ def _display_interpretation(results_data, names, has_langmuir):
         st.warning(f"""
         **Strong competition effect** (avg. {avg_reduction:.0f}% reduction)
 
-        - Significantly more adsorbent needed for mixed waste treatment
-        - Consider pre-treatment to remove competing species
-        - May need selective adsorbents for target pollutant
+        - The model suggests that more adsorbent may be required
+        - Test pre-treatment and selective adsorbents experimentally
         """)
     elif avg_reduction > 10:
         st.info(f"""
         **Moderate competition effect** (avg. {avg_reduction:.0f}% reduction)
 
-        - Account for ~{avg_reduction:.0f}% capacity loss in process design
-        - Single-component isotherms provide reasonable estimates with correction factor
+        - Use the predicted ~{avg_reduction:.0f}% reduction only as an experimental planning value
+        - Do not apply a correction factor to process design without mixture validation
         """)
     else:
         st.success(f"""
         **Low competition effect** (avg. {avg_reduction:.0f}% reduction)
 
-        - Single-component isotherm parameters can be used with minor adjustment
-        - Competition effects are minimal for this system
+        - The model predicts a limited effect under the entered conditions
+        - Confirm this result with mixture data before using single-component parameters
         """)
 
 
@@ -738,7 +754,8 @@ def _display_theory():
         ## Overview
 
         In real wastewater systems, multiple pollutants compete for adsorption sites.
-        Extended isotherm models predict this competitive behavior using single-component parameters.
+        Extended isotherm models can provide screening estimates from single-component parameters,
+        but mixture experiments are required for validation.
 
         ---
         """)
@@ -765,7 +782,7 @@ def _display_theory():
 
         st.markdown("---")
 
-        # Extended Freundlich from config
+        # Experimental Extended Freundlich/SRS documentation
         freund_config = MULTICOMPONENT_MODELS["Extended-Freundlich"]
         st.markdown(f"### Extended Freundlich ({freund_config['description']})")
 
@@ -776,12 +793,11 @@ def _display_theory():
         st.markdown("**Equation:**")
         st.latex(freund_config["formula"])
 
-        st.markdown("""
-        **When to use:**
-        - Heterogeneous surfaces
-        - When single-component Freundlich fits well
-        - Industrial wastewater with multiple pollutants
-        """)
+        st.warning(
+            "Disabled in the stable UI: the competition coefficients must be determined "
+            "independently from multicomponent data. The current API approximation is retained "
+            "only for reproducibility and development."
+        )
 
         st.caption(f"*Reference: {freund_config['reference']}*")
 

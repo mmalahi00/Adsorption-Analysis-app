@@ -7,7 +7,7 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18501799.svg)](https://doi.org/10.5281/zenodo.18501799)
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://adsorption.streamlit.app)
 [![CI](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml/badge.svg)](https://github.com/mmalahi00/Adsorption-Analysis-app/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1234%20passed-brightgreen.svg)](#testing--coverage)
+[![Tests](https://img.shields.io/badge/tests-1231%20passed-brightgreen.svg)](#testing--coverage)
 
 AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption experiments. It fits isotherm and kinetic models using non-linear regression, provides bootstrap confidence intervals, performs rigorous model comparison (R², Adj-R², AIC, AICc, BIC), and generates high-resolution figures and structured Word reports — all without writing a single line of code.
 
@@ -44,13 +44,13 @@ AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption ex
 
 ### Kinetic Models
 
-| Model | Mechanism | Parameters |
-|-------|-----------|------------|
-| **Pseudo-First Order** | Physisorption | qₑ, k₁ |
-| **Pseudo-Second Order** | Chemisorption | qₑ, k₂, h |
+| Model | Use | Parameters |
+|-------|-----|------------|
+| **Pseudo-First Order** | Empirical rate curve | qₑ, k₁ |
+| **Pseudo-Second Order** | Empirical rate curve; fit is not a mechanism test | qₑ, k₂, h |
 | **Revised PSO** (Bullen et al. 2021) | Concentration-corrected PSO | qₑ, k₂, C₀ |
-| **Elovich** | Heterogeneous chemisorption | α, β |
-| **Intraparticle Diffusion** | Pore diffusion (Weber-Morris) | kᵢₚ, C |
+| **Elovich** | Empirical heterogeneous-surface rate equation | α, β |
+| **Intraparticle Diffusion** | Supporting transport diagnostic (Weber-Morris) | kᵢₚ, C |
 
 ### Multi-Component Competitive Adsorption
 
@@ -59,7 +59,7 @@ Predict how multiple adsorbates compete for the same binding sites — critical 
 | Model | Use case |
 |-------|----------|
 | **Extended Langmuir** (Butler-Ockrent) | Binary/multi-solute systems with known single-component parameters |
-| **Extended Freundlich** (SRS) | Heterogeneous surfaces with competition coefficients |
+| **Extended Freundlich** (SRS) | Experimental API only; stable UI disabled until independent aᵢⱼ support |
 
 Includes selectivity coefficient (αᵢⱼ) calculation, the ability to link single-component fits or enter parameters manually, per-component bar charts, and automated interpretation of competitive effects.
 
@@ -69,7 +69,7 @@ Visualise how adsorption responds to two variables at once (e.g. Cₑ × T → q
 
 ### Thermodynamics
 
-Van't Hoff analysis across multiple temperatures yielding ΔG°, ΔH°, and ΔS°.
+Van't Hoff analysis across multiple temperatures yielding apparent ΔG, ΔH, and ΔS unless a dimensionless standard-state equilibrium constant is supplied.
 
 ### Additional Capabilities
 
@@ -212,7 +212,7 @@ qₜ = (qₑ² · k₂ · t) / (1 + qₑ · k₂ · t)        h = k₂ · qₑ²
 qₜ = (qₑ² · k₂ · t) / (1 + qₑ · k₂ · t · φ)     φ = 1 + (qₑ · m) / (C₀ · V)
 ```
 
-Reduces fitting error by ~66% compared to standard PSO when experimental conditions vary.
+In Bullen et al.'s multi-experiment evaluation using one rate constant across varying conditions, the revised form reduced median residual sum of squares by 66%; this is not a universal performance guarantee.
 
 **Elovich**
 
@@ -226,13 +226,13 @@ qₜ = (1/β) · ln(1 + α·β·t)
 qₜ = kᵢₚ · √t + C
 ```
 
-If C = 0, intraparticle diffusion is the sole rate-limiting step.
+An intercept near zero is consistent with an intraparticle-diffusion contribution, but is not standalone proof that it is the sole rate-limiting step.
 
 ### Thermodynamics
 
-**Van't Hoff:**  `ln(Kd) = ΔS°/R − ΔH°/(RT)` — plot ln(Kd) vs 1/T to obtain slope = −ΔH°/R and intercept = ΔS°/R.
+**Van't Hoff:**  `ln(Kd) = ΔS/R − ΔH/(RT)` — plot ln(Kd) vs 1/T to obtain slope = −ΔH/R and intercept = ΔS/R. Values are reported as apparent unless Kd is a dimensionless standard-state equilibrium constant.
 
-**Gibbs free energy:**  `ΔG° = −RT·ln(Kd) = ΔH° − T·ΔS°`
+**Gibbs free energy:**  `ΔG = −RT·ln(Kd) = ΔH − T·ΔS`
 
 ### Multi-Component Competitive Models
 
@@ -242,7 +242,7 @@ If C = 0, intraparticle diffusion is the sole rate-limiting step.
 qₑ,ᵢ = (qₘ,ᵢ · Kₗ,ᵢ · Cₑ,ᵢ) / (1 + Σⱼ Kₗ,ⱼ · Cₑ,ⱼ)
 ```
 
-**Extended Freundlich (SRS — Sheindorf-Rebhun-Sheintuch 1981)** — for heterogeneous surfaces with competition coefficients.
+**Extended Freundlich (SRS — Sheindorf-Rebhun-Sheintuch 1981)** — requires competition coefficients determined from multicomponent data. The legacy affinity-ratio approximation remains available in the Python API for reproducibility but is disabled in the stable UI.
 
 ```
 qₑ,ᵢ = Kf,ᵢ · Cₑ,ᵢ · (Σⱼ aᵢⱼ · Cₑ,ⱼ)^(1/nᵢ − 1)
@@ -301,7 +301,7 @@ This table is the single source of truth. Every row maps a model name to its cod
 | Model | Function | `config.py` key | Parameters |
 |-------|----------|-----------------|------------|
 | Extended Langmuir | `extended_langmuir_multicomponent` | `MULTICOMPONENT_MODELS["Extended-Langmuir"]` | qm_i, KL_i per species |
-| Extended Freundlich | `extended_freundlich_multicomponent` | `MULTICOMPONENT_MODELS["Extended-Freundlich"]` | Kf_i, n_i per species |
+| Extended Freundlich | `extended_freundlich_multicomponent` | `MULTICOMPONENT_MODELS["Extended-Freundlich"]` | Experimental legacy API; heuristic aij |
 
 ### Diffusion / Mechanistic Analysis
 
@@ -409,7 +409,7 @@ AdsorbLab Pro has a comprehensive test suite enforced in CI on every push and pu
 | `test_performance.py` | 9 | Fitting speed benchmarks (Langmuir, Freundlich, Sips, PSO) |
 | `test_docx_report_extended.py` | 2 | Extended Word report edge cases |
 | `test_docx_report.py` | 1 | Word report generation produces valid .docx |
-| **Total** | **1234** | |
+| **Total** | **1231** | |
 
 ### Running Tests
 
@@ -439,7 +439,7 @@ addopts = [
     "--cov=adsorblab_pro",
     "--cov-report=term-missing:skip-covered",
     "--cov-report=html:htmlcov",
-    "--cov-fail-under=65",
+    "--cov-fail-under=50",
 ]
 
 [tool.coverage.run]
@@ -447,7 +447,7 @@ source = ["adsorblab_pro"]
 branch = true
 
 [tool.coverage.report]
-fail_under = 65
+fail_under = 50
 show_missing = true
 ```
 

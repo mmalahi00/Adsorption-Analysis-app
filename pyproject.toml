@@ -23,7 +23,7 @@ keywords = [
     "environmental"
 ]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Environment :: Web Environment",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",

@@ -12,7 +12,7 @@ A comprehensive Streamlit application for analyzing adsorption experiments with:
 - Dual-unit reporting (mg/g and % Removal)
 - Intelligent rule-based model recommendations
 - 3D visualization and parameter space exploration
-- Multi-study comparison with mechanism interpretation
+- Multi-study comparison with cautious scientific interpretation
 
 NEW IN v2.0.0:
 - Revised PSO (rPSO) model with concentration correction (Bullen et al., 2021)
@@ -602,7 +602,7 @@ st.markdown(
     <p><strong>AdsorbLab Pro v{_APP_VERSION_SAFE}</strong></p>
     <p>Advanced Adsorption Data Analysis Platform</p>
     <p style="font-size: 0.8em; margin-top: 10px;">
-        Features: Bootstrap CI • AIC/BIC Selection • Multi-Study Comparison • Mechanism Interpretation
+        Features: Bootstrap CI • AIC/BIC Selection • Multi-Study Comparison • Evidence-Aware Interpretation
     </p>
     <p style="font-size: 0.85em; margin-top: 8px;">
         <a href="https://doi.org/10.5281/zenodo.18501799" target="_blank" style="color: #2E86AB; text-decoration: none;">

@@ -29,7 +29,9 @@ try:
 
     __version__ = version("adsorblab-pro")
 except PackageNotFoundError:
-    __version__ = "dev"
+    # Source checkouts (including Streamlit Community Cloud) are not always
+    # installed as distributions, so expose the project version explicitly.
+    __version__ = "2.0.0"
 __author__ = "Mohamed EL MALLAHI"
 __license__ = "MIT"
 

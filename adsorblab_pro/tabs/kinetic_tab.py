@@ -1115,7 +1115,7 @@ statistical artifact, not mechanistic evidence.
 
 def _display_elovich(t, qt, results):
     """Display Elovich results."""
-    st.markdown("**Elovich Model (Chemisorption)**")
+    st.markdown("**Elovich Model (Empirical heterogeneous-surface rate equation)**")
     st.latex(r"q_t = \frac{1}{\beta} \ln(1 + \alpha \beta t)")
 
     if results and results.get("converged"):
@@ -1148,9 +1148,9 @@ def _display_elovich(t, qt, results):
             st.metric("AIC", f"{results.get('aicc', results['aic']):.2f}")
 
         st.info("""
-**Elovich model interpretation:** Originally derived for heterogeneous surface chemisorption.
-However, like PSO, a good fit alone is insufficient to confirm mechanism. Consider activation
-energy values and complementary characterization data for mechanistic conclusions.
+**Elovich model interpretation:** This empirical rate equation can describe heterogeneous-surface
+kinetics. A good fit does not identify the controlling molecular mechanism. Use independent
+transport, spectroscopic, and chemical evidence for mechanistic conclusions.
         """)
 
         # Plot
@@ -1215,7 +1215,10 @@ def _display_ipd(t, qt, results):
         # Interpretation
         C = params["C"]
         if abs(C) < 1:
-            st.success("**C ≈ 0:** Intraparticle diffusion is the sole rate-limiting step")
+            st.success(
+                "**C ≈ 0:** The fitted line passes near the origin. This is consistent with an "
+                "IPD contribution but does not prove that IPD is the sole rate-limiting step."
+            )
         else:
             st.info(
                 f"**C = {C:.2f}:** Boundary layer effect present. Multiple mechanisms involved."
@@ -1278,7 +1281,8 @@ def _display_rpso(t, qt, results):
     st.info("""
     **About rPSO:** The revised PSO model (Bullen et al., 2021) includes a concentration
     correction factor (φ) that accounts for the initial adsorbate concentration. This
-    reduces the residual sum of squares by ~66% compared to standard PSO in many cases.
+    reduced median residual sum of squares by 66% in the cited multi-experiment evaluation.
+    This is not a universal performance guarantee.
     """)
 
     if results and results.get("converged"):
@@ -1375,14 +1379,16 @@ def _display_rpso(t, qt, results):
 
 
 def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
-    """Display diffusion-based mechanism analysis."""
-    st.markdown("**🔬 Diffusion Mechanism Analysis**")
+    """Display diffusion screening diagnostics."""
+    st.markdown("**🔬 Diffusion Screening Diagnostics**")
 
     st.info("""
-    **Diffusion Models:** These models help identify the rate-limiting step in adsorption:
+    **Diffusion diagnostics:** These models screen for patterns consistent with transport limitations:
     - **Film diffusion**: External mass transfer through boundary layer
     - **Pore diffusion (HSDM)**: Intraparticle diffusion within pores
-    - **Biot number**: Indicates which mechanism dominates (Bi >> 1 = pore, Bi << 1 = film)
+    - **Biot number**: A model-dependent comparison of internal and external mass transfer
+
+    Treat these results as supporting evidence; they do not uniquely identify a rate-limiting step.
     """)
 
     # User inputs for diffusion analysis
@@ -1402,8 +1408,8 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
 
     with col2:
         run_diffusion = st.button(
-            "🔬 Analyze Diffusion Mechanism",
-            help="Run automated rate-limiting step identification",
+            "🔬 Run Diffusion Diagnostics",
+            help="Run model-based transport screening diagnostics",
             key="diffusion_analyze_btn",
         )
 
@@ -1443,8 +1449,10 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
         t_stored = stored["t"]
         qt_stored = stored["qt"]
 
-        st.success(f"**Mechanism Identified:** {results['mechanism_suggestion']}")
-        st.info(f"**Confidence:** {results['confidence']}")
+        st.info(f"**Model-based indication:** {results['mechanism_suggestion']}")
+        st.caption(
+            f"Heuristic confidence: {results['confidence']}. This is not a validated mechanism probability."
+        )
 
         # Display Weber-Morris analysis
         st.markdown("#### Weber-Morris (IPD) Analysis")
@@ -1459,7 +1467,10 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
             st.metric("R²", f"{wm['r_squared']:.4f}")
 
         if wm["passes_through_origin"]:
-            st.success("✅ Line passes through origin → IPD is sole rate-controlling step")
+            st.success(
+                "✅ Fitted line passes near the origin; this is consistent with an IPD contribution, "
+                "but does not prove that IPD is the sole rate-controlling step."
+            )
         else:
             st.warning("⚠️ Line does NOT pass through origin → Boundary layer effect present")
 
@@ -1645,7 +1656,7 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
 
             | Diagnostic | Result | Indicates |
             |------------|--------|-----------|
-            | Weber-Morris | C ≈ 0 | IPD sole rate-limiter |
+            | Weber-Morris | C ≈ 0 | Pattern consistent with an IPD contribution |
             | Weber-Morris | C > 0 | Boundary layer effect |
             | Boyd plot | Linear through origin | Pore diffusion |
             | Boyd plot | Non-zero intercept | Film diffusion |
@@ -1789,14 +1800,14 @@ def _display_guidelines():
 
         **To support mechanistic claims, you need:**
         - Boyd plot analysis (film vs. pore diffusion)
-        - Activation energy from temperature studies (Ea < 40 kJ/mol = physisorption)
+        - Activation-energy trends, without assigning mechanism from a fixed threshold alone
         - Particle size variation experiments
         - Spectroscopic evidence (FTIR, XPS before/after)
 
         **Diffusion Analysis (Programmatic API):**
 
         For mechanistic analysis, use `models.py` functions:
-        - `identify_rate_limiting_step()` - Automated mechanism ID
+        - `identify_rate_limiting_step()` - Heuristic transport-screening summary
 
         *References: Hubbe et al. (2019) BioResources 14(3):7582; Azizian (2004) JCIS 276:47*
         """)

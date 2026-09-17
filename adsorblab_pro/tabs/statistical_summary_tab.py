@@ -262,7 +262,7 @@ def render():
                 "Parameter": [
                     "ΔH° (kJ/mol)",
                     "ΔS° (J/(mol·K))",
-                    "ΔG° at 298K (kJ/mol)",
+                    "Apparent ΔG at 298K (kJ/mol)",
                     "R² (Van't Hoff)",
                 ],
                 "Value": [
@@ -284,28 +284,22 @@ def render():
                 "Interpretation": [
                     "Exothermic" if delta_H < 0 else "Endothermic",
                     "Increased disorder" if delta_S > 0 else "Decreased disorder",
-                    "Spontaneous" if delta_G < 0 else "Non-spontaneous",
+                    "Negative apparent ΔG" if delta_G < 0 else "Positive apparent ΔG",
                     "Excellent" if thermo_params["r_squared"] > 0.99 else "Good",
                 ],
             }
         )
         display_results_table(thermo_df)
 
-        # Mechanism
-        abs_H = abs(delta_H)
-        if abs_H < 40:
-            mechanism = "Physical Adsorption"
-        elif abs_H < 80:
-            mechanism = "Mixed Mechanism"
-        else:
-            mechanism = "Chemical Adsorption"
-
-        st.info(f"**Adsorption Mechanism:** {mechanism} (|ΔH°| = {abs_H:.2f} kJ/mol)")
+        st.warning(
+            "ΔH, ΔG, or model fit alone cannot identify an adsorption mechanism. "
+            "Support mechanism claims with independent spectroscopic, chemical, and transport evidence."
+        )
     else:
         st.caption("🌡️ Thermodynamics: not yet completed.")
 
     # ==========================================================================
-    # Section 5: MECHANISM CONSISTENCY CHECK (NEW)
+    # Section 5: ANALYSIS CONSISTENCY CHECK
     # ==========================================================================
     st.markdown("---")
     _render_consistency_check(current_study_state)
@@ -392,24 +386,23 @@ def render():
 
 
 # =============================================================================
-# MECHANISM CONSISTENCY CHECK UI
+# ANALYSIS CONSISTENCY CHECK UI
 # =============================================================================
 def _render_consistency_check(study_state: dict):
     """
-    Render the mechanism consistency check panel.
+    Render the analysis consistency check panel.
 
-    Shows conflicts between different analysis methods:
-    - Kinetic model vs isotherm model
-    - Temperature effect vs ΔH° sign
-    - Separation factor vs Freundlich 1/n
+    Shows internal data/reporting checks:
+    - Temperature trend vs apparent ΔH sign (review prompt only)
+    - High-fit results without confidence intervals
 
     Parameters
     ----------
     study_state : dict
         Current study state containing all analysis results
     """
-    st.markdown("### 🔍 Mechanism Consistency Check")
-    st.markdown("*Cross-validation of your analysis results*")
+    st.markdown("### 🔍 Analysis Consistency Check")
+    st.markdown("*Internal cross-checks; this does not determine adsorption mechanism*")
 
     # Check if we have enough data to run checks
     iso_models = study_state.get("isotherm_models_fitted", {})
@@ -425,9 +418,8 @@ def _render_consistency_check(study_state: dict):
         Complete isotherm, kinetic, or thermodynamic analyses to enable consistency checking.
 
         The checker validates:
-        - Kinetic model vs. isotherm model agreement
-        - Temperature effect vs. ΔH° sign
-        - Separation factor vs. Freundlich behavior
+        - Whether a temperature trend warrants checking against apparent ΔH sign
+        - High R² values accompanied by confidence intervals
         """)
         return
 
@@ -528,26 +520,18 @@ def _render_consistency_check(study_state: dict):
     # Educational information
     with st.expander("ℹ️ What does this check?"):
         st.markdown("""
-        The **Mechanism Consistency Check** cross-validates your results to ensure
-        different analyses tell a consistent story about the adsorption mechanism.
+        The **Analysis Consistency Check** flags review prompts and incomplete
+        uncertainty reporting. It does not infer an adsorption mechanism from fitted models.
 
         | Check | What It Validates |
         |-------|------------------|
-        | **Kinetic-Isotherm** | Best-fit kinetic model should be consistent with isotherm type |
-        | **Temperature-ΔH°** | If ΔH° > 0 (endothermic), capacity should increase with temperature |
-        | **RL vs 1/n** | Langmuir separation factor should agree with Freundlich exponent |
+        | **Temperature trend** | Flags an unexpected direction for review under comparable conditions |
         | **R² Reporting** | High R² values should be accompanied by confidence intervals |
 
         ---
 
-        **Interpretation of ΔH°:**
-        | |ΔH°| Range | Mechanism |
-        |-------------|-----------|
-        | < 40 kJ/mol | Physical adsorption |
-        | 40-80 kJ/mol | Mixed mechanism |
-        | > 80 kJ/mol | Chemical adsorption |
-
-        ---
+        **Important:** empirical kinetic/isotherm fit and ΔH magnitude are not standalone
+        mechanism tests. Mechanistic claims require independent experimental evidence.
         """)
 
 

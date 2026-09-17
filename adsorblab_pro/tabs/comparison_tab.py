@@ -223,8 +223,8 @@ def _render_key_insights(studies_data: dict, study_names: list):
                 )
 
     # --- Thermodynamic Comparison ---
-    spontaneous = []
-    non_spontaneous = []
+    negative_delta_g = []
+    positive_delta_g = []
     endothermic = []
     exothermic = []
 
@@ -237,24 +237,26 @@ def _render_key_insights(studies_data: dict, study_names: list):
             delta_G = delta_H - 298.15 * delta_S / 1000  # At 25°C
 
             if delta_G < 0:
-                spontaneous.append(name)
+                negative_delta_g.append(name)
             else:
-                non_spontaneous.append(name)
+                positive_delta_g.append(name)
 
             if delta_H > 0:
                 endothermic.append(name)
             else:
                 exothermic.append(name)
 
-    if spontaneous:
-        if len(spontaneous) == len(study_names):
-            insights.append("✅ All studies show **spontaneous adsorption** (ΔG° < 0)")
+    if negative_delta_g:
+        if len(negative_delta_g) == len(study_names):
+            insights.append(
+                "All studies have **negative apparent ΔG** under the reported Kd convention"
+            )
         else:
-            insights.append(f"✅ Spontaneous adsorption: {', '.join(spontaneous)}")
+            insights.append(f"Negative apparent ΔG: {', '.join(negative_delta_g)}")
 
     if endothermic and exothermic:
         insights.append(
-            f"🌡️ Mechanism differs: {', '.join(endothermic)} (endothermic) vs {', '.join(exothermic)} (exothermic)"
+            f"🌡️ Enthalpy sign differs: {', '.join(endothermic)} (endothermic) vs {', '.join(exothermic)} (exothermic)"
         )
     elif endothermic:
         insights.append(
@@ -764,13 +766,13 @@ def _render_thermodynamic_comparison(studies_data: dict, study_names: list):
                     "Study": name,
                     "ΔH° (kJ/mol)": thermo.get("delta_H", np.nan),
                     "ΔS° (J/mol·K)": thermo.get("delta_S", np.nan),
-                    "ΔG° at 298K (kJ/mol)": thermo.get("delta_H", 0)
+                    "Apparent ΔG at 298K (kJ/mol)": thermo.get("delta_H", 0)
                     - 298.15 * thermo.get("delta_S", 0) / 1000,
                     "R² (Van't Hoff)": thermo.get("r_squared", np.nan),
                     "Process": "Exothermic" if thermo.get("delta_H", 0) < 0 else "Endothermic",
-                    "Spontaneity": "Spontaneous"
+                    "ΔG sign": "Negative"
                     if (thermo.get("delta_H", 0) - 298.15 * thermo.get("delta_S", 0) / 1000) < 0
-                    else "Non-spontaneous",
+                    else "Positive",
                 }
             )
 
@@ -789,7 +791,7 @@ def _render_thermodynamic_comparison(studies_data: dict, study_names: list):
             {
                 "ΔH° (kJ/mol)": "{:.2f}",
                 "ΔS° (J/mol·K)": "{:.2f}",
-                "ΔG° at 298K (kJ/mol)": "{:.2f}",
+                "Apparent ΔG at 298K (kJ/mol)": "{:.2f}",
                 "R² (Van't Hoff)": "{:.4f}",
             }
         ),
@@ -850,16 +852,16 @@ def _render_thermodynamic_comparison(studies_data: dict, study_names: list):
         fig_dg = go.Figure(
             go.Bar(
                 x=thermo_df["Study"],
-                y=thermo_df["ΔG° at 298K (kJ/mol)"],
+                y=thermo_df["Apparent ΔG at 298K (kJ/mol)"],
                 marker_color=colors,
-                text=thermo_df["ΔG° at 298K (kJ/mol)"].round(2),
+                text=thermo_df["Apparent ΔG at 298K (kJ/mol)"].round(2),
                 textposition="outside",
             )
         )
         fig_dg.add_hline(y=0, line_dash="dash", line_color="gray")
         fig_dg = apply_professional_style(
             fig_dg,
-            title="ΔG° at 298K (kJ/mol)",
+            title="Apparent ΔG at 298K (kJ/mol)",
             x_title="Study",
             y_title="ΔG° (kJ/mol)",
             height=350,
@@ -867,28 +869,19 @@ def _render_thermodynamic_comparison(studies_data: dict, study_names: list):
         )
         st.plotly_chart(fig_dg, use_container_width=True)
 
-    # --- Mechanism Interpretation ---
-    st.markdown("#### 3. Mechanism Interpretation")
+    # --- Thermodynamic interpretation ---
+    st.markdown("#### 3. Thermodynamic Trend Summary")
 
     for _, row in thermo_df.iterrows():
-        abs_H = abs(row["ΔH° (kJ/mol)"])
-        if abs_H < 40:
-            mechanism = "Physical Adsorption"
-            color = "blue"
-        elif abs_H < 80:
-            mechanism = "Mixed Mechanism"
-            color = "orange"
-        else:
-            mechanism = "Chemical Adsorption"
-            color = "red"
-
         study_label = html.escape(str(row["Study"]))
         process_label = html.escape(str(row["Process"]))
-        spont_label = html.escape(str(row["Spontaneity"]))
-        st.markdown(
-            f"**{study_label}:** <span style='color:{color}'>{mechanism}</span> (|ΔH°| = {abs_H:.2f} kJ/mol) - {process_label}, {spont_label}",
-            unsafe_allow_html=True,
-        )
+        dg_label = html.escape(str(row["ΔG sign"]))
+        st.markdown(f"**{study_label}:** {process_label}; {dg_label.lower()} apparent ΔG")
+
+    st.warning(
+        "ΔH magnitude, apparent ΔG, and fitted isotherms do not identify physical versus "
+        "chemical adsorption. Mechanism claims require independent experimental evidence."
+    )
 
 
 # =============================================================================
@@ -1092,15 +1085,15 @@ def _render_overall_ranking(studies_data: dict, study_names: list):
         scores["Isotherm R²"] = langmuir.get("r_squared", 0) if langmuir.get("converged") else 0
         scores["Kinetic R²"] = pso.get("r_squared", 0) if pso.get("converged") else 0
 
-        # Thermodynamic favorability (negative ΔG is better)
+        # Apparent ΔG sign (reported, but excluded from radar ranking)
         thermo = data.get("thermo_params")
         if thermo:
             delta_G = thermo.get("delta_H", 0) - 298.15 * thermo.get("delta_S", 0) / 1000
             scores["ΔG° (kJ/mol)"] = delta_G
-            scores["Spontaneous"] = 1 if delta_G < 0 else 0
+            scores["Negative apparent ΔG"] = 1 if delta_G < 0 else 0
         else:
             scores["ΔG° (kJ/mol)"] = 0
-            scores["Spontaneous"] = 0
+            scores["Negative apparent ΔG"] = 0
 
         ranking_data.append(scores)
 
@@ -1251,8 +1244,8 @@ def _render_overall_ranking(studies_data: dict, study_names: list):
         hide_index=True,
     )
 
-    # --- Mechanism Interpretation ---
-    st.markdown("#### 4. Mechanism Interpretation")
+    # --- Descriptor summary ---
+    st.markdown("#### 4. Descriptor Summary")
 
     mechanism_data = []
     for name in study_names:
@@ -1292,23 +1285,13 @@ def _render_overall_ranking(studies_data: dict, study_names: list):
                 row["Process"] = "Exothermic"
                 interpretations.append("ΔH° < 0 → exothermic")
 
-            # Enthalpy magnitude for mechanism
-            abs_H = abs(delta_H)
-            if abs_H < 40:
-                row["Bonding"] = "Physical"
-                interpretations.append("|ΔH°| < 40 kJ/mol → physical bonding")
-            elif abs_H < 80:
-                row["Bonding"] = "Mixed"
-                interpretations.append("40 < |ΔH°| < 80 kJ/mol → mixed mechanism")
-            else:
-                row["Bonding"] = "Chemical"
-                interpretations.append("|ΔH°| > 80 kJ/mol → chemical bonding")
+            row["Mechanism"] = "Not determined"
 
             if delta_S > 0:
                 interpretations.append("ΔS° > 0 → increased randomness at interface")
         else:
             row["Process"] = "—"
-            row["Bonding"] = "—"
+            row["Mechanism"] = "Not determined"
 
         row["Interpretation"] = "; ".join(interpretations) if interpretations else "—"
         mechanism_data.append(row)
@@ -1316,12 +1299,12 @@ def _render_overall_ranking(studies_data: dict, study_names: list):
     mech_df = pd.DataFrame(mechanism_data)
 
     # Display mechanism table
-    display_cols = ["Study", "n (Freundlich)", "Favorability", "Process", "Bonding"]
+    display_cols = ["Study", "n (Freundlich)", "Favorability", "Process", "Mechanism"]
     if all(col in mech_df.columns for col in display_cols):
         display_results_table(mech_df[display_cols])
 
     # Show detailed interpretations in expander
-    with st.expander("📖 Detailed Mechanism Interpretations", expanded=False):
+    with st.expander("📖 Detailed Descriptor Interpretations", expanded=False):
         for row in mechanism_data:
             if row.get("Interpretation") and row["Interpretation"] != "—":
                 st.markdown(f"**{row['Study']}:** {row['Interpretation']}")
@@ -1329,12 +1312,9 @@ def _render_overall_ranking(studies_data: dict, study_names: list):
     # Mechanistic interpretation guidance
     st.caption("""
     **⚠️ Note on Mechanistic Interpretation:**
-    The mechanisms above are inferred from thermodynamic parameters (ΔH°) and isotherm parameters (n from Freundlich).
-    These provide supporting evidence but are **not definitive proof** of mechanism.
-
-    **Do NOT infer mechanism solely from kinetic model fit** (e.g., claiming chemisorption because PSO fits best).
-    For robust mechanistic evidence, use: Boyd/Weber-Morris plots, activation energy studies,
-    particle size variation, and spectroscopic analysis (FTIR, XPS).
+    Thermodynamic signs and empirical isotherm/kinetic fits are descriptive, not mechanism tests.
+    For robust mechanistic evidence, combine controlled transport experiments, particle-size and
+    hydrodynamic variation, and appropriate spectroscopic/chemical characterization.
 
     *Reference: Hubbe et al. (2019). BioResources, 14(3), 7582-7626.*
     """)

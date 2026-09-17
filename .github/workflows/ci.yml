@@ -62,7 +62,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install mypy types-requests pandas-stubs
+          pip install -r requirements-dev.txt
           pip install -r requirements.txt
 
       - name: Run mypy
@@ -162,14 +162,7 @@ jobs:
         run: pip install pip-audit
 
       - name: Check for known vulnerabilities
-        run: |
-          if [ -f requirements-lock.txt ]; then
-            pip install -r requirements-lock.txt
-          else
-            pip install -r requirements.txt
-          fi
-          pip-audit --strict --progress-spinner=off
-        continue-on-error: true  # Advisory for now
+        run: pip-audit -r requirements-lock.txt --strict --progress-spinner=off
 
   # ==========================================================================
   # Docker - Verify Docker build works
@@ -197,7 +190,7 @@ jobs:
   # ==========================================================================
   ci-success:
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test, coverage]
+    needs: [lint, typecheck, test, coverage, security]
     if: always()
     steps:
       - name: Check all jobs passed
@@ -216,6 +209,10 @@ jobs:
           fi
           if [[ "${{ needs.coverage.result }}" != "success" ]]; then
             echo "❌ Coverage check failed"
+            exit 1
+          fi
+          if [[ "${{ needs.security.result }}" != "success" ]]; then
+            echo "❌ Dependency security audit failed"
             exit 1
           fi
           echo "✅ All CI checks passed!"

@@ -33,7 +33,7 @@ def render():
             Advanced Adsorption Data Analysis Platform
         </p>
         <p style="color: rgba(255,255,255,0.8); font-size: 0.95em; margin-top: 5px;">
-            Statistical analysis • Confidence intervals • Multi-model comparison • Mechanism interpretation
+            Statistical analysis • Confidence intervals • Multi-model comparison • Evidence-aware interpretation
         </p>
     </div>
     """,
@@ -311,7 +311,7 @@ def _render_capabilities():
         | AIC | Model selection |
         | BIC | Model selection |
         | 95% CI | Uncertainty |
-        | Akaike Weights | Model probability |
+        | Akaike Weights | Relative support within the candidate set |
         """)
 
 
@@ -339,9 +339,9 @@ def _render_tips_section():
         - Report **qm with 95% CI** from the best-fit model
         - Calculate and report the **separation factor (RL)** for Langmuir
         - For **multi-component systems** (real wastewaters):
-          - Use Extended Langmuir for competitive adsorption
+          - Use Extended Langmuir for exploratory competitive screening
           - Calculate selectivity coefficients (α > 1 = preferred)
-          - Single-component params needed first for prediction
+          - Validate predictions with multicomponent experiments
         """)
 
     with st.expander("⏱️ Kinetic Analysis Tips", expanded=False):
@@ -350,10 +350,9 @@ def _render_tips_section():
         - Continue until **plateau** is clearly reached
         - ⚠️ **PSO "best fit" does NOT prove chemisorption** — it's a statistical artifact observed in ~90% of studies
         - Use **rPSO** (revised PSO) for concentration-corrected kinetics
-        - For mechanism identification, use **diffusion models**:
-          - Boyd plot (Bt vs t): Linear through origin = film diffusion
-          - Weber-Morris (qt vs √t): Linear through origin = pore diffusion
-          - Biot number: Bi >> 1 = pore control, Bi << 1 = film control
+        - Use **diffusion diagnostics** as supporting evidence, not standalone proof:
+          - Boyd plot, Weber-Morris segments, and Biot-number estimates
+          - Check sensitivity to particle size, hydrodynamics, and model assumptions
         - Report both **qe and k** values with uncertainties
         - Consider **double-exponential model** for two-site kinetics
         """)
@@ -364,7 +363,7 @@ def _render_tips_section():
         - Ensure equilibrium at **each temperature**
         - Choose the appropriate **Kd calculation method**
         - Report ΔH°, ΔS°, and ΔG° with **confidence intervals**
-        - Interpret mechanism based on |ΔH°| values
+        - Do not infer mechanism from |ΔH°| thresholds alone
         """)
 
     with st.expander("📄 Analysis Checklist", expanded=False):

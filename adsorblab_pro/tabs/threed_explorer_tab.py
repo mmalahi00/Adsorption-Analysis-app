@@ -27,7 +27,6 @@ from ..models import (
     langmuir_3d_surface,
     langmuir_model,
     parameter_space_visualization,
-    pso_model,
     temkin_model,
 )
 from ..utils import display_results_table, get_current_study_state
@@ -372,10 +371,6 @@ def render():
         available_viz.append("Model Comparison 3D")
         viz_requirements["Model Comparison 3D"] = "Requires 2+ fitted isotherm models"
 
-    if has_kinetic_data and "pso" in fitted_params:
-        available_viz.append("Kinetic Multi-Concentration")
-        viz_requirements["Kinetic Multi-Concentration"] = "Requires kinetic data with PSO fit"
-
     if has_isotherm_data or has_kinetic_data or has_temp_data:
         available_viz.append("Experimental Data 3D")
         viz_requirements["Experimental Data 3D"] = "Requires any experimental data"
@@ -410,8 +405,6 @@ def render():
         _render_ph_temp_response(fitted_params, exp_data)
     elif viz_type == "Model Comparison 3D":
         _render_model_comparison(fitted_params, exp_data)
-    elif viz_type == "Kinetic Multi-Concentration":
-        _render_kinetic_3d(fitted_params, exp_data)
     elif viz_type == "Experimental Data 3D":
         _render_experimental_3d(exp_data)
 
@@ -1371,151 +1364,6 @@ def _render_ph_temp_response(fitted_params, exp_data):
 
     except Exception as e:
         st.error(f"Error generating response surface: {str(e)}")
-
-
-def _render_kinetic_3d(fitted_params, exp_data):
-    """3D kinetic visualization with multi-concentration."""
-    st.markdown("### ⏱️ Kinetic Multi-Concentration 3D")
-
-    if "kinetic" not in exp_data or "pso" not in fitted_params:
-        st.warning("Need kinetic data and PSO fit for this visualization.")
-        return
-
-    pso_params = fitted_params["pso"]
-    qe_fit = pso_params.get("qe", 50)
-    k2_fit = pso_params.get("k2", 0.01)
-
-    st.info(f"Using fitted PSO: qe={qe_fit:.2f} mg/g, k2={k2_fit:.4f} g/(mg·min)")
-
-    # Configuration
-    col1, col2 = st.columns(2)
-
-    with col1:
-        t_max = st.slider(
-            "Max Time (min)",
-            60,
-            1440,
-            int(exp_data["kinetic"]["t"].max() * 1.2),
-            30,
-            key="kin_t_max",
-        )
-
-    with col2:
-        C0_range = st.slider(
-            "Initial Concentration Range (mg/L)",
-            10.0,
-            500.0,
-            (50.0, 200.0),
-            10.0,
-            key="kin_C0_range",
-        )
-
-    # Generate button
-    st.markdown("---")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        generate_clicked = st.button(
-            "🚀 Generate Kinetic 3D", type="primary", use_container_width=True, key="gen_kinetic_3d"
-        )
-
-    if not generate_clicked and "kinetic_3d_fig" not in st.session_state:
-        st.caption("Click **Generate** to create the 3D kinetic visualization.")
-        return
-
-    try:
-        with st.spinner("Generating kinetic 3D surface..."):
-            t_line = np.linspace(0.1, t_max, 50)
-            C0_line = np.linspace(C0_range[0], C0_range[1], 20)
-            T_grid, C0_grid = np.meshgrid(t_line, C0_line)
-
-            # Simple PSO model (not concentration-dependent, but scaled)
-            # For visualization, scale qe with C0
-            qe_scaled = qe_fit * (C0_grid / 100)  # Rough scaling
-            qt_grid = np.zeros_like(T_grid)
-
-            for i in range(qt_grid.shape[0]):
-                for j in range(qt_grid.shape[1]):
-                    qe_local = qe_scaled[i, j]
-                    t_val = T_grid[i, j]
-                    qt_grid[i, j] = pso_model(t_val, qe_local, k2_fit)
-
-            fig = go.Figure(
-                data=[
-                    go.Surface(
-                        z=qt_grid,
-                        x=T_grid,
-                        y=C0_grid,
-                        colorscale="Viridis",
-                        opacity=0.85,
-                        name="PSO Model",
-                        contours={"z": {"show": True, "usecolormap": True, "project": {"z": True}}},
-                    )
-                ]
-            )
-
-            # Add experimental points
-            kin_data = exp_data["kinetic"]
-            fig.add_trace(
-                go.Scatter3d(
-                    x=kin_data["t"],
-                    y=[100] * len(kin_data["t"]),  # Assume C0=100 for exp data
-                    z=kin_data["qt"],
-                    mode="markers",
-                    marker={
-                        "size": 6,
-                        "color": COLORS["experimental"],
-                        "symbol": "diamond",
-                        "line": {"width": 1.0, "color": "#000000"},
-                    },
-                    name="Experimental Data",
-                )
-            )
-
-            title = f"PSO Kinetics: qe={qe_fit:.1f}, k2={k2_fit:.4f}"
-            fig.update_layout(
-                scene={
-                    "xaxis_title": "Time (min)",
-                    "yaxis_title": "C₀ (mg/L)",
-                    "zaxis_title": "qt (mg/g)",
-                }
-            )
-            fig = apply_professional_3d_style(
-                fig,
-                title=title,
-                height=700,
-                camera_eye={"x": 1.8, "y": 1.8, "z": 1.2},
-            )
-
-            st.session_state["kinetic_3d_fig"] = fig
-            st.session_state["kinetic_3d_params"] = {
-                "qe": qe_fit,
-                "k2": k2_fit,
-                "t_max": t_max,
-                "C0_range": f"{C0_range[0]}-{C0_range[1]}",
-            }
-            st.session_state["kinetic_3d_title"] = title
-
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Save button
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button(
-                "💾 Save to Export Collection",
-                type="secondary",
-                use_container_width=True,
-                key="save_kinetic_3d",
-            ):
-                if _save_figure(
-                    "kinetic_multi_c", fig, title, st.session_state["kinetic_3d_params"]
-                ):
-                    st.success("✅ Figure saved to export collection!")
-                    st.rerun()
-                else:
-                    st.error("Failed to save figure")
-
-    except Exception as e:
-        st.error(f"Error generating kinetic 3D: {str(e)}")
 
 
 def _render_residuals_surface(fitted_params, exp_data):

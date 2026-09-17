@@ -9,8 +9,8 @@ Features:
 - Van't Hoff equation analysis
 - ΔH°, ΔS°, ΔG° calculation with 95% CI
 - Multiple Kd calculation methods
-- Mechanistic interpretation
-- professional outputs
+- Thermodynamic trend summaries with explicit limitations
+- Professional outputs
 """
 
 import numpy as np
@@ -20,11 +20,9 @@ from adsorblab_pro.streamlit_compat import st
 
 from ..plot_style import create_vant_hoff_plot
 from ..utils import (
-    EPSILON_DIV,
     calculate_temperature_results,
     calculate_temperature_results_direct,
     calculate_thermodynamic_parameters,
-    determine_adsorption_mechanism,
     display_results_table,
     get_current_study_state,
     interpret_thermodynamics,
@@ -41,7 +39,10 @@ KD_METHODS = {
         "id": "dimensionless",
         "formula": r"K_d = \frac{C_0 - C_e}{C_e}",
         "units": "dimensionless",
-        "description": "Thermodynamically rigorous. Recommended approach.",
+        "description": (
+            "Operational dimensionless concentration ratio. Report the definition explicitly; "
+            "it is not automatically a standard-state thermodynamic equilibrium constant."
+        ),
         "reference": "Liu, Y. (2009). J. Chem. Eng. Data, 54, 1981-1985.",
     },
     "Mass-based: qₑ/Cₑ (L/g)": {
@@ -55,7 +56,10 @@ KD_METHODS = {
         "id": "volume_corrected",
         "formula": r"K_d = \frac{q_e \times m}{C_e \times V}",
         "units": "dimensionless",
-        "description": "Dimensionless form using experimental parameters.",
+        "description": (
+            "Operational dimensionless ratio using experimental parameters; not automatically "
+            "a standard-state equilibrium constant."
+        ),
         "reference": "Milonjić, S.K. (2007). J. Serb. Chem. Soc., 72, 1363-1367.",
     },
 }
@@ -87,27 +91,38 @@ def _calculate_kd(
     np.ndarray
         Distribution coefficient values
     """
-    # Prevent division by zero
-    Ce_safe = np.maximum(Ce, EPSILON_DIV)
+    Ce = np.asarray(Ce, dtype=float)
+    qe = np.asarray(qe, dtype=float)
+
+    if not np.all(np.isfinite(Ce)) or not np.all(np.isfinite(qe)):
+        raise ValueError("Ce and qe must contain only finite values.")
+    if np.any(Ce <= 0):
+        raise ValueError("All Ce values must be greater than zero to calculate ln(Kd).")
+    if method_id == "dimensionless" and np.any(Ce >= C0):
+        raise ValueError("Dimensionless Kd requires 0 < Ce < C0 for every observation.")
+    if method_id in {"mass_based", "volume_corrected"} and np.any(qe <= 0):
+        raise ValueError(f"{method_id} Kd requires positive qe values.")
+    if method_id == "volume_corrected" and (m <= 0 or V <= 0):
+        raise ValueError("Mass and volume must be positive for volume-corrected Kd.")
 
     if method_id == "dimensionless":
         # Kd = (C0 - Ce) / Ce  [dimensionless]
-        Kd = (C0 - Ce_safe) / Ce_safe
+        Kd = (C0 - Ce) / Ce
 
     elif method_id == "mass_based":
         # Kd = qe / Ce  [L/g]
-        Kd = qe / Ce_safe
+        Kd = qe / Ce
 
     elif method_id == "volume_corrected":
         # Kd = (qe × m) / (Ce × V)  [dimensionless]
         # This equals (C0 - Ce) × V / Ce × V = (C0 - Ce) / Ce when qe = (C0-Ce)×V/m
-        Kd = (qe * m) / (Ce_safe * V)
+        Kd = (qe * m) / (Ce * V)
 
     else:
         raise ValueError(f"Unknown Kd method: {method_id}")
 
-    # Ensure positive values for ln(Kd)
-    Kd = np.maximum(Kd, EPSILON_DIV)
+    if not np.all(np.isfinite(Kd)) or np.any(Kd <= 0):
+        raise ValueError("Kd must be finite and greater than zero for Van't Hoff analysis.")
 
     return Kd
 
@@ -115,7 +130,7 @@ def _calculate_kd(
 def render():
     """Render thermodynamic analysis with professional statistics."""
     st.subheader("🌡️ Thermodynamic Analysis")
-    st.markdown("*Van't Hoff equation with confidence intervals and mechanistic interpretation*")
+    st.markdown("*Van't Hoff analysis with confidence intervals and explicit Kd limitations*")
 
     current_study_state = get_current_study_state()
     if not current_study_state:
@@ -200,12 +215,14 @@ def render():
 
                 | Method | Units | Best For |
                 |--------|-------|----------|
-                | **Dimensionless** | - | Thermodynamic rigor, theoretical work |
+                | **Dimensionless ratio** | - | Operational comparison when the definition is reported |
                 | **Mass-based (qₑ/Cₑ)** | L/g | Comparing with most published papers |
-                | **Volume-corrected** | - | Alternative dimensionless form |
+                | **Volume-corrected ratio** | - | Mass-balance-equivalent operational ratio |
 
-                **Recommendation:** Use **Dimensionless** for new publications, or **Mass-based**
-                if comparing with older literature that used qₑ/Cₑ.
+                None of these concentration-ratio definitions is automatically a standard-state
+                thermodynamic equilibrium constant. Report the exact definition and treat derived
+                values as **apparent thermodynamic parameters** unless a justified activity/standard-state
+                conversion is provided.
                 """)
 
             # User selects method
@@ -234,7 +251,12 @@ def render():
             Ce = temp_results["Ce_mgL"].values
             qe = temp_results["qe_mg_g"].values
 
-            Kd = _calculate_kd(method_id, C0, Ce, qe, m, V)
+            try:
+                Kd = _calculate_kd(method_id, C0, Ce, qe, m, V)
+            except ValueError as exc:
+                st.error(f"❌ Cannot calculate Kd: {exc}")
+                st.info("Check that every observation satisfies 0 < Ce < C₀ and qe > 0.")
+                return
 
             # ----- Propagate uncertainty to Kd (Phase 1.3) -----
             Kd_se_arr = None
@@ -273,11 +295,10 @@ def render():
                 st.warning("""
                 ⚠️ **Note:** You selected the mass-based method (qₑ/Cₑ) which has units of L/g.
 
-                This is common in literature but technically incorrect for thermodynamics.
-                Your ΔH° will be correct, but ΔS° will be an "apparent" value that includes
-                a contribution from the unit conversion factor.
-
-                **For rigorous thermodynamics, consider using the Dimensionless method.**
+                This is common in the adsorption literature, but Kd has units of L/g. The resulting
+                intercept-dependent ΔS° and ΔG° values are therefore apparent and depend on the
+                unit convention. The fitted slope may also be affected if the conversion factor is
+                temperature-dependent. Report the definition and units explicitly.
                 """)
 
             # Van't Hoff Analysis
@@ -505,134 +526,30 @@ def render():
                 with col4:
                     st.metric("R²", f"{thermo_params['r_squared']:.4f}")
 
-                # Interpretation
+                # Thermodynamic trend summary (not a mechanism classifier)
                 st.markdown("---")
-                st.markdown("### 5. 🎯 Mechanistic Interpretation")
+                st.markdown("### 5. 📋 Thermodynamic Trend Summary")
 
                 interpretation = interpret_thermodynamics(delta_H, delta_S, delta_G)
 
                 # Map keys to labels and display appropriately
                 key_labels = {
                     "enthalpy": "Enthalpy",
-                    "mechanism_H": "Mechanism (from ΔH°)",
                     "entropy": "Entropy",
-                    "spontaneity": "Spontaneity",
-                    "feasibility": "Feasibility",
+                    "delta_g_sign": "Apparent ΔG° sign",
+                    "caveat": "Interpretation limit",
                 }
 
                 for key, description in interpretation.items():
                     label = key_labels.get(key, key.replace("_", " ").title())
-                    # Determine status based on content
-                    if (
-                        "spontaneous" in description.lower()
-                        and "non-spontaneous" not in description.lower()
-                    ):
-                        st.success(f"**{label}:** {description}")
-                    elif (
-                        "favorable" in description.lower()
-                        and "unfavorable" not in description.lower()
-                    ):
-                        st.success(f"**{label}:** {description}")
-                    elif (
-                        "unfavorable" in description.lower()
-                        or "non-spontaneous" in description.lower()
-                    ):
-                        st.warning(f"**{label}:** {description}")
-                    else:
-                        st.info(f"**{label}:** {description}")
+                    st.info(f"**{label}:** {description}")
 
-                # =============================================================
-                # NEW: Comprehensive Mechanism Determination Panel
-                # =============================================================
-                st.markdown("---")
-                st.markdown("### 5.1 🔬 Adsorption Mechanism Analysis")
-
-                # Pull fitted isotherm results (if any) for mechanism cross-referencing
-                iso_models = current_study_state.get("isotherm_models_fitted") or {}
-
-                # Get Freundlich n if available
-                n_freundlich = None
-                if iso_models and "Freundlich" in iso_models:
-                    freu_result = iso_models["Freundlich"]
-                    if freu_result and freu_result.get("converged"):
-                        n_freundlich = freu_result.get("params", {}).get("n")
-
-                # Get Langmuir RL if available
-                RL = None
-                if iso_models and "Langmuir" in iso_models:
-                    lang_result = iso_models["Langmuir"]
-                    if lang_result and lang_result.get("converged"):
-                        RL = lang_result.get("params", {}).get("RL")
-
-                # Call mechanism determination
-                mechanism_result = determine_adsorption_mechanism(
-                    delta_H=delta_H, delta_G=delta_G, n_freundlich=n_freundlich, RL=RL
+                st.warning(
+                    "Model fit, ΔH° magnitude, ΔG°, Freundlich n, and Rₗ do not by themselves "
+                    "identify physisorption, chemisorption, or ion exchange. Support mechanism claims "
+                    "with independent evidence such as spectroscopy, desorption/regeneration, ionic-strength "
+                    "tests, or appropriately designed kinetic experiments."
                 )
-
-                # Display mechanism result
-                col1, col2 = st.columns([2, 1])
-
-                with col1:
-                    mechanism = mechanism_result["mechanism"]
-                    confidence = mechanism_result["confidence"]
-
-                    if "Physical" in mechanism:
-                        st.success(f"**🧲 {mechanism}**")
-                    elif "Chemical" in mechanism:
-                        st.error(f"**⚗️ {mechanism}**")
-                    elif "Ion Exchange" in mechanism:
-                        st.warning(f"**🔄 {mechanism}**")
-                    else:
-                        st.info(f"**🔀 {mechanism}**")
-
-                    st.caption(f"Confidence: {confidence:.1f}%")
-
-                with col2:
-                    # Display score breakdown as mini chart
-                    scores = mechanism_result.get("scores", {})
-                    if scores:
-                        score_df = pd.DataFrame(
-                            {"Mechanism": list(scores.keys()), "Score (%)": list(scores.values())}
-                        )
-                        st.dataframe(
-                            score_df.style.format({"Score (%)": "{:.1f}"}),
-                            hide_index=True,
-                            use_container_width=True,
-                        )
-
-                # Evidence list
-                evidence = mechanism_result.get("evidence", [])
-                if evidence:
-                    with st.expander("📋 Evidence Details", expanded=False):
-                        for e in evidence:
-                            st.markdown(f"• {e}")
-
-                # Indicator table
-                indicators = mechanism_result.get("indicators", {})
-                if indicators:
-                    with st.expander("📊 Indicator Analysis", expanded=False):
-                        ind_data = []
-                        for name, info in indicators.items():
-                            ind_data.append(
-                                {
-                                    "Indicator": name,
-                                    "Value": f"{info['value']:.2f}"
-                                    if isinstance(info["value"], float)
-                                    else str(info["value"]),
-                                    "Classification": info["classification"],
-                                    "Criterion": info["criterion"],
-                                    "Confidence": info["confidence"],
-                                }
-                            )
-                        if ind_data:
-                            ind_df = pd.DataFrame(ind_data)
-                            display_results_table(ind_df)
-
-                        st.caption("""
-                        **Reference Criteria:**
-                        - Enthalpy (|ΔH°|): < 40 kJ/mol (Physical), 40-80 (Mixed), > 80 (Chemical)
-                        - Gibbs (ΔG°): > -20 kJ/mol (Physical), -20 to -40 (Mixed), < -40 (Chemical)
-                        """)
 
                 # Results summary
                 st.markdown("---")
@@ -652,10 +569,10 @@ def render():
                         "Interpretation": [
                             f"Units: {method_info['units']}",
                             "Exothermic" if delta_H < 0 else "Endothermic",
-                            "Increased disorder" if delta_S > 0 else "Decreased disorder",
-                            "Spontaneous"
+                            "Positive apparent ΔS°" if delta_S > 0 else "Negative apparent ΔS°",
+                            "Negative apparent ΔG°"
                             if (delta_H - 298.15 * delta_S / 1000) < 0
-                            else "Non-spontaneous",
+                            else "Positive apparent ΔG°",
                             "Excellent fit" if thermo_params["r_squared"] > 0.99 else "Good fit",
                         ],
                     }
@@ -676,9 +593,11 @@ Kd = (C₀ - Cₑ) / Cₑ
 
 where C₀ and Cₑ are the initial and equilibrium concentrations (mg/L), respectively.
 
-The standard enthalpy change (ΔH° = {delta_H:.2f} kJ/mol) and entropy change
+The apparent enthalpy change (ΔH° = {delta_H:.2f} kJ/mol) and entropy change
 (ΔS° = {delta_S:.2f} J/(mol·K)) were obtained from the slope and intercept of
 the Van't Hoff plot (ln Kd vs 1/T, R² = {thermo_params["r_squared"]:.4f}).
+The Kd definition is an operational concentration ratio and was not treated as a
+standard-state thermodynamic equilibrium constant.
 """
                     else:
                         methods_text = f"""
@@ -742,9 +661,9 @@ def _display_guidelines():
 
         | Method | Formula | When to Use |
         |--------|---------|-------------|
-        | Dimensionless | (C₀-Cₑ)/Cₑ | New publications, thermodynamic rigor |
+        | Dimensionless ratio | (C₀-Cₑ)/Cₑ | Operational comparison; define explicitly |
         | Mass-based | qₑ/Cₑ | Comparing with older literature |
-        | Volume-corrected | (qₑ×m)/(Cₑ×V) | Alternative dimensionless form |
+        | Volume-corrected ratio | (qₑ×m)/(Cₑ×V) | Mass-balance-equivalent operational ratio |
 
         **Interpretation Guidelines:**
 
@@ -752,9 +671,9 @@ def _display_guidelines():
         |-----------|-------|----------------|
         | ΔH° | < 0 | Exothermic |
         | ΔH° | > 0 | Endothermic |
-        | |ΔH°| | < 40 kJ/mol | Physical adsorption |
-        | |ΔH°| | 40-80 kJ/mol | Mixed mechanism |
-        | |ΔH°| | > 80 kJ/mol | Chemical adsorption |
-        | ΔG° | < 0 | Spontaneous |
+        | ΔG° | < 0 | Negative apparent free-energy change for the stated Kd convention |
         | ΔS° | > 0 | Increased randomness |
+
+        Do not infer adsorption mechanism from ΔH° magnitude, kinetic-model fit,
+        Freundlich n, or Rₗ alone. Mechanism claims require independent experimental evidence.
         """)

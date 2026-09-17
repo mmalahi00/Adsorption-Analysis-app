@@ -18,7 +18,7 @@ Isotherm Models (Single-Component):
 
 Multi-Component Competitive Models:
 - Extended Langmuir (Butler-Ockrent)
-- Extended Freundlich (Sheindorf-Rebhun-Sheintuch)
+- Experimental Extended Freundlich/SRS affinity-ratio approximation
 - Selectivity coefficient calculation
 
 Kinetic Models (Pseudo-Models):
@@ -339,15 +339,17 @@ def extended_freundlich_multicomponent(
     n_all: list[float],
 ) -> NDArray[np.floating[Any]]:
     """
-    Extended Freundlich model for competitive multi-component adsorption.
+    Experimental Extended Freundlich affinity-ratio approximation.
 
-    Sheindorf-Rebuhn-Sheintuch (SRS) modification of Freundlich for
-    multi-component systems.
+    This historical API infers competition coefficients from single-component
+    Freundlich parameters. It is not a replacement for fitting independent SRS
+    competition coefficients to multicomponent data and is disabled in the
+    stable user interface.
 
     Model equation:
         qe_i = Kf_i × Ce_i × (Σ(aij × Ce_j))^(1/n_i - 1)
 
-    Where aij are competition coefficients (aij = 1 for i=j assumed here).
+    Where aij are approximated affinity ratios (aij = 1 for i=j).
 
     Parameters
     ----------
@@ -371,10 +373,10 @@ def extended_freundlich_multicomponent(
 
     Notes
     -----
-    - Less thermodynamically rigorous than Extended Langmuir
-    - Useful for heterogeneous surfaces with competitive adsorption
-    - Competition coefficients calculated as: aij = (Kf_i/Kf_j)^(n_j/n_i)
-    - Higher aij indicates component i outcompetes component j
+    - Competition coefficients are approximated as aij = (Kf_i/Kf_j)^(n_j/n_i).
+    - Do not use the returned values for publication-grade prediction or process
+      design without independent mixture experiments and fitted coefficients.
+    - The stable UI does not expose this approximation.
 
     Reference
     ---------
@@ -659,7 +661,8 @@ def elovich_model(
     Elovich kinetic model:
     qt = (1/β) × ln(1 + αβt)
 
-    Suitable for chemisorption on heterogeneous surfaces.
+    Empirical rate equation often used for heterogeneous surfaces. A good fit
+    does not establish a chemisorption mechanism.
 
     Parameters
     ----------
@@ -1369,12 +1372,12 @@ def get_model_info() -> dict[str, dict]:
                 "params": ["qe (mg/g)", "k2 (g/(mg·min))"],
                 "conditions": ["C0 (mg/L)", "m (g)", "V (L)"],
                 "description": "Revised PSO with concentration correction (Bullen et al., 2021)",
-                "note": "φ = 1 + (qe·m)/(C0·V); reduces ~66% fitting error vs standard PSO",
+                "note": "φ = 1 + (qe·m)/(C0·V); Bullen et al. reported 66% lower median SSR in their multi-experiment evaluation",
             },
             "Elovich": {
                 "equation": r"q_t = \frac{1}{\beta} \ln(1 + \alpha \beta t)",
                 "params": ["α (mg/(g·min))", "β (g/mg)"],
-                "description": "Chemisorption on heterogeneous surfaces",
+                "description": "Empirical heterogeneous-surface rate equation",
             },
             "IPD": {
                 "equation": r"q_t = k_{id} t^{0.5} + C",
