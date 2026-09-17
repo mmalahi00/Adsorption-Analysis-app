@@ -28,7 +28,7 @@ from collections.abc import Callable
 # PIL import deferred to _convert_png_to_tiff_bytes() for faster startup
 from dataclasses import dataclass
 from difflib import get_close_matches
-from typing import Any, TypeVar
+from typing import Any, cast, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -2727,7 +2727,10 @@ def detect_replicates(data: pd.DataFrame, x_col: str, tolerance: float = 0.01) -
 
     # Group and aggregate
     agg_dict = {col: ["mean", "std", "count"] for col in numeric_cols}
-    grouped = data.groupby("_x_group").agg(agg_dict)
+    # pandas-stubs versions that still support Python 3.10 cannot express this
+    # valid multi-aggregation mapping precisely, so retain pandas runtime
+    # validation and isolate the compatibility cast at the API boundary.
+    grouped = data.groupby("_x_group").agg(cast(Any, agg_dict))
 
     # Flatten column names
     grouped.columns = ["_".join(col).strip() for col in grouped.columns.values]
