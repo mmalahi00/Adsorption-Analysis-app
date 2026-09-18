@@ -49,7 +49,6 @@ from adsorblab_pro.utils import (
     convert_df_to_csv,
     convert_df_to_excel,
     detect_common_errors,
-    determine_adsorption_mechanism,
     interpret_separation_factor,
     interpret_thermodynamics,
     recommend_best_models,
@@ -198,26 +197,6 @@ class TestIsothermWorkflowIntegration:
             assert "r_squared" in metrics
             assert "rmse" in metrics
 
-    def test_fitting_to_mechanism_integration(self, complete_isotherm_dataset):
-        """Test model fitting flows into mechanism determination."""
-        Ce = complete_isotherm_dataset["Ce"]
-        qe = complete_isotherm_dataset["qe"]
-
-        # Fit Langmuir and get KL
-        lang_result = fit_model_with_ci(
-            langmuir_model, Ce, qe, p0=[80, 0.05], bounds=([0, 0], [200, 1])
-        )
-
-        if lang_result["converged"]:
-            # Calculate RL
-            KL = lang_result["popt"][1]
-            RL = calculate_separation_factor(KL, 100)
-
-            # Determine mechanism (need delta_H, simulate with a value)
-            mechanism = determine_adsorption_mechanism(delta_H=-25, RL=RL)
-            assert isinstance(mechanism, dict)
-            assert "evidence" in mechanism
-
 
 class TestKineticWorkflowIntegration:
     """Integration tests for complete kinetic analysis workflow."""
@@ -258,7 +237,7 @@ class TestThermodynamicWorkflowIntegration:
     """Integration tests for thermodynamic analysis workflow."""
 
     def test_complete_thermodynamic_workflow(self, temperature_series_data):
-        """Test full thermodynamic workflow."""
+        """Van't Hoff fit flows into interpretation without a mechanism step."""
         T = temperature_series_data["temperatures"]
         Kd = temperature_series_data["Kd_values"]
 
@@ -275,10 +254,10 @@ class TestThermodynamicWorkflowIntegration:
             else thermo["delta_G"],
         )
         assert isinstance(interpretation, dict)
-
-        # Step 3: Mechanism determination
-        mechanism = determine_adsorption_mechanism(delta_H=thermo["delta_H"])
-        assert isinstance(mechanism, dict)
+        # The workflow ends at interpretation. There is deliberately no
+        # mechanism-determination step: ΔH sign and magnitude do not identify
+        # physisorption or chemisorption.
+        assert "caveat" in interpretation
 
     def test_arrhenius_integration(self):
         """Test Arrhenius analysis in workflow."""
@@ -557,21 +536,6 @@ class TestLogicConsistency:
         weights = calculate_akaike_weights(aic_values)
         total = np.sum(weights)
         assert total == pytest.approx(1.0, rel=1e-10)
-
-    def test_mechanism_scores_consistent(self):
-        """Test mechanism determination scores are consistent."""
-        # Physical adsorption indicators
-        result_physical = determine_adsorption_mechanism(
-            delta_H=-15,  # Low
-        )
-
-        # Chemical adsorption indicators
-        result_chemical = determine_adsorption_mechanism(
-            delta_H=-90,  # High
-        )
-
-        assert "scores" in result_physical
-        assert "scores" in result_chemical
 
 
 # =============================================================================

@@ -7,7 +7,7 @@ Advanced utility module providing:
 - Advanced statistical analysis with confidence intervals
 - Bootstrap resampling for robust error estimation
 - PRESS/Q² cross-validation statistics
-- Mechanism consistency checking
+- Internal analysis consistency checking
 - Methodological error detection
 - Parameter uncertainty propagation
 - Model selection criteria (R², Adj-R², AIC, AICc, BIC)
@@ -28,7 +28,7 @@ from collections.abc import Callable
 # PIL import deferred to _convert_png_to_tiff_bytes() for faster startup
 from dataclasses import dataclass
 from difflib import get_close_matches
-from typing import Any, TypeVar
+from typing import Any, cast, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -107,7 +107,7 @@ __all__ = [
     "bootstrap_confidence_intervals",
     "analyze_residuals",
     # Mechanism analysis
-    "determine_adsorption_mechanism",
+    "sign_label",
     "check_mechanism_consistency",
     "detect_common_errors",
     # Thermodynamic calculations
@@ -330,7 +330,7 @@ def validate_data_editor(df: pd.DataFrame | None, required_cols: list[str]) -> p
             str_col = df_subset[col].astype(str)
             # Only replace if the value looks like a decimal number with comma
             # (contains comma but not multiple commas which would indicate thousands separator)
-            df_subset[col] = str_col.str.replace(",", ".", regex=False)
+            df_subset[col] = str_col.map(lambda value: value.replace(",", "."))
 
         # Convert to numeric
         df_subset[col] = pd.to_numeric(df_subset[col], errors="coerce")
@@ -608,17 +608,15 @@ def calculate_q2(press: float, y_data: np.ndarray) -> float:
 
 
 # =============================================================================
-# MECHANISM CONSISTENCY CHECKER
+# ANALYSIS CONSISTENCY CHECKER
 # =============================================================================
 def check_mechanism_consistency(study_state: dict[str, Any]) -> dict[str, Any]:
     """
-    Check consistency between different analysis components.
+    Check internal consistency and reporting completeness.
 
-    Detects conflicts such as:
-    1. Kinetic model vs isotherm model inconsistency
-    2. Temperature effect vs ΔH° sign mismatch
-    3. IPD stages vs expected diffusion behavior
-    4. Separation factor vs isotherm shape
+    This function intentionally does not map a best-fitting kinetic or isotherm
+    equation to an adsorption mechanism.  Such mappings are not mechanistically
+    diagnostic.  The historical function name is retained for API compatibility.
 
     Parameters
     ----------
@@ -642,51 +640,9 @@ def check_mechanism_consistency(study_state: dict[str, Any]) -> dict[str, Any]:
     kin_models = study_state.get("kinetic_models_fitted", {})
     thermo_params = study_state.get("thermo_params", {})
 
-    # Check 2: PSO/PFO dominance vs isotherm type
-    pso_result = kin_models.get("PSO", {})
-    pfo_result = kin_models.get("PFO", {})
-    langmuir_result = iso_models.get("Langmuir", {})
-    freundlich_result = iso_models.get("Freundlich", {})
-
-    if pso_result.get("converged") and pfo_result.get("converged"):
-        pso_r2 = pso_result.get("adj_r_squared", pso_result.get("r_squared", 0))
-        pfo_r2 = pfo_result.get("adj_r_squared", pfo_result.get("r_squared", 0))
-        kinetic_dominant = "PSO" if pso_r2 > pfo_r2 else "PFO"
-
-        if langmuir_result.get("converged") and freundlich_result.get("converged"):
-            lang_r2 = langmuir_result.get("adj_r_squared", langmuir_result.get("r_squared", 0))
-            freund_r2 = freundlich_result.get(
-                "adj_r_squared", freundlich_result.get("r_squared", 0)
-            )
-            iso_dominant = "Langmuir" if lang_r2 > freund_r2 else "Freundlich"
-
-            # Note: PSO-Langmuir association is commonly reported but NOT mechanistically valid
-            # This check flags potential inconsistency for user awareness, not mechanism confirmation
-            if (
-                kinetic_dominant == "PSO"
-                and iso_dominant == "Freundlich"
-                and (freund_r2 - lang_r2) > 0.05
-            ):
-                checks.append(
-                    {
-                        "name": "Kinetic-Isotherm Consistency",
-                        "status": "minor",
-                        "message": "PSO dominance with Freundlich preference is unusual (not a mechanistic concern)",
-                        "severity": "medium",
-                    }
-                )
-                minor_issues += 1
-            else:
-                checks.append(
-                    {
-                        "name": "Kinetic-Isotherm Consistency",
-                        "status": "consistent",
-                        "message": f"Kinetic ({kinetic_dominant}) and isotherm ({iso_dominant}) models are consistent",
-                        "severity": "none",
-                    }
-                )
-
-    # Check 3: Temperature effect vs ΔH° sign
+    # Directional temperature check. A mismatch is a prompt to verify that the
+    # compared experiments used equivalent conditions, not a thermodynamic proof
+    # or a mechanism conflict.
     if thermo_params:
         delta_H = thermo_params.get("delta_H", 0)
         temp_effect = study_state.get(
@@ -697,63 +653,40 @@ def check_mechanism_consistency(study_state: dict[str, Any]) -> dict[str, Any]:
             if delta_H > 0 and temp_effect == "decreases":
                 checks.append(
                     {
-                        "name": "Temperature-ΔH° Consistency",
-                        "status": "conflict",
-                        "message": "Endothermic (ΔH° > 0) should increase with temperature, but capacity decreases",
-                        "severity": "high",
+                        "name": "Temperature Trend Review",
+                        "status": "minor",
+                        "message": (
+                            "Capacity decreases while apparent ΔH is positive. Verify that all "
+                            "temperature experiments used comparable concentrations, equilibrium "
+                            "conditions, and the same Kd definition."
+                        ),
+                        "severity": "medium",
                     }
                 )
-                conflicts += 1
+                minor_issues += 1
             elif delta_H < 0 and temp_effect == "increases":
                 checks.append(
                     {
-                        "name": "Temperature-ΔH° Consistency",
-                        "status": "conflict",
-                        "message": "Exothermic (ΔH° < 0) should decrease with temperature, but capacity increases",
-                        "severity": "high",
+                        "name": "Temperature Trend Review",
+                        "status": "minor",
+                        "message": (
+                            "Capacity increases while apparent ΔH is negative. Verify that all "
+                            "temperature experiments used comparable concentrations, equilibrium "
+                            "conditions, and the same Kd definition."
+                        ),
+                        "severity": "medium",
                     }
                 )
-                conflicts += 1
+                minor_issues += 1
             else:
                 checks.append(
                     {
-                        "name": "Temperature-ΔH° Consistency",
+                        "name": "Temperature Trend Review",
                         "status": "consistent",
-                        "message": "Temperature effect matches thermodynamic prediction",
+                        "message": "No obvious directional mismatch under the reported conditions",
                         "severity": "none",
                     }
                 )
-
-    # Check 4: Separation factor (RL) vs isotherm shape
-    if langmuir_result.get("converged"):
-        RL = langmuir_result.get("RL")
-        if RL is not None:
-            RL_mean = np.mean(RL) if hasattr(RL, "__len__") else RL
-
-            # Check if Freundlich 1/n is consistent
-            if freundlich_result.get("converged"):
-                n_inv = freundlich_result.get("params", {}).get("n_inv", 0.5)
-
-                # RL < 1 (favorable) should correspond to 0 < 1/n < 1
-                if RL_mean < 1 and n_inv > 1:
-                    checks.append(
-                        {
-                            "name": "RL vs Freundlich Consistency",
-                            "status": "minor",
-                            "message": f"RL={RL_mean:.3f} suggests favorable adsorption, but 1/n={n_inv:.2f} > 1 is unusual",
-                            "severity": "medium",
-                        }
-                    )
-                    minor_issues += 1
-                else:
-                    checks.append(
-                        {
-                            "name": "RL vs Freundlich Consistency",
-                            "status": "consistent",
-                            "message": f"Separation factor (RL={RL_mean:.3f}) consistent with Freundlich behavior",
-                            "severity": "none",
-                        }
-                    )
 
     # Check 5: High R² without confidence intervals
     for model_name, result in {**iso_models, **kin_models}.items():
@@ -772,8 +705,29 @@ def check_mechanism_consistency(study_state: dict[str, Any]) -> dict[str, Any]:
                 )
                 minor_issues += 1
 
-    # Determine overall status
-    if conflicts > 0:
+    # Determine overall status.
+    #
+    # "no_checks" is distinct from "consistent".  When no check applies — a
+    # study with, say, only a converged isotherm fit and no thermodynamics —
+    # zero checks run, and reporting that as "consistent" states a clean bill
+    # of health that nothing was actually examined to support.  Callers must
+    # render this state differently from a passing one.
+    #
+    # Note on the "conflicts" tier: no check currently raises it.  The
+    # temperature-direction check emits a review prompt rather than a conflict,
+    # because a directional mismatch between capacity and apparent ΔH is a
+    # reason to re-examine experimental comparability, not proof of an error.
+    # The tier and its counter are retained so a future check with genuine
+    # conflict semantics has somewhere to report, and so the returned shape
+    # stays stable for existing callers.
+    if not checks:
+        status = "no_checks"
+        color = "gray"
+        interpretation = (
+            "No consistency checks applied to this study — nothing here supports "
+            "or contradicts your results"
+        )
+    elif conflicts > 0:
         status = "conflicts"
         color = "red"
         interpretation = f"{conflicts} conflict(s) detected - results may be unreliable"
@@ -784,10 +738,17 @@ def check_mechanism_consistency(study_state: dict[str, Any]) -> dict[str, Any]:
     else:
         status = "consistent"
         color = "green"
-        interpretation = "All mechanism indicators are internally consistent"
+        interpretation = (
+            f"All {len(checks)} applicable check(s) passed; no internal inconsistencies found"
+        )
 
     # Generate suggestions
     suggestions = []
+    if status == "no_checks":
+        suggestions.append(
+            "Complete a thermodynamic analysis, or fit models with confidence intervals, "
+            "to enable consistency checking"
+        )
     if conflicts > 0:
         suggestions.append("Review experimental conditions and data quality")
         suggestions.append("Consider alternative models that may better explain the data")
@@ -795,12 +756,15 @@ def check_mechanism_consistency(study_state: dict[str, Any]) -> dict[str, Any]:
         suggestions.append("Document any inconsistencies in your report")
         suggestions.append("Consider additional experiments to resolve ambiguities")
     if status == "consistent":
-        suggestions.append("Results are ready for reporting")
+        suggestions.append(
+            "No internal inconsistencies detected; scientific interpretation still requires domain evidence"
+        )
 
     return {
         "status": status,
         "color": color,
         "checks": checks,
+        "n_checks": len(checks),
         "conflicts": conflicts,
         "minor_issues": minor_issues,
         "interpretation": interpretation,
@@ -1366,7 +1330,9 @@ def calculate_error_metrics(
     -------
     Dict[str, float]
         Dictionary containing: r_squared, adj_r_squared, rmse, mae,
-        chi_squared, chi_squared_reduced, aic, aicc, bic, sse, sst, residuals
+        normalized_sse, normalized_sse_reduced, aic, aicc, bic, sse, sst,
+        residuals. ``chi_squared`` keys are retained as backward-compatible
+        aliases; no inferential chi-square claim is made without known variances.
     """
     n = len(y_obs)
     residuals = y_obs - y_pred
@@ -1385,29 +1351,26 @@ def calculate_error_metrics(
     rmse = np.sqrt(ss_res / n)
     mae = np.mean(np.abs(residuals))
 
-    # Chi-squared (reduced)
+    # Relative/normalized SSE.  This historical adsorption error function is
+    # not an inferential chi-square statistic unless observation variances are
+    # independently known.
     y_pred_safe = np.where(np.abs(y_pred) < EPSILON_DIV, EPSILON_DIV, y_pred)
-    chi_sq = np.sum(residuals**2 / np.abs(y_pred_safe))
-    chi_sq_reduced = chi_sq / (n - n_params) if n > n_params else chi_sq
+    normalized_sse = np.sum(residuals**2 / np.abs(y_pred_safe))
+    normalized_sse_reduced = normalized_sse / (n - n_params) if n > n_params else normalized_sse
 
-    # AIC, AICc, BIC
-    if ss_res > 0 and n > n_params:
-        log_lik = -n / 2 * (np.log(2 * np.pi) + np.log(ss_res / n) + 1)
-        aic = -2 * log_lik + 2 * n_params
-        aicc = (
-            aic + (2 * n_params * (n_params + 1)) / (n - n_params - 1) if n > n_params + 1 else aic
-        )
-        bic = -2 * log_lik + n_params * np.log(n)
-    else:
-        aic = aicc = bic = np.inf
+    from .statistical_criteria import information_criteria
+
+    aic, aicc, bic = information_criteria(float(ss_res), n, n_params)
 
     return {
         "r_squared": r_squared,
         "adj_r_squared": adj_r_squared,
         "rmse": rmse,
         "mae": mae,
-        "chi_squared": chi_sq,
-        "chi_squared_reduced": chi_sq_reduced,
+        "normalized_sse": normalized_sse,
+        "normalized_sse_reduced": normalized_sse_reduced,
+        "chi_squared": normalized_sse,  # Backward-compatible alias
+        "chi_squared_reduced": normalized_sse_reduced,  # Backward-compatible alias
         "aic": aic,
         "aicc": aicc,
         "bic": bic,
@@ -1739,7 +1702,7 @@ def assess_data_quality(data: pd.DataFrame, data_type: str = "isotherm") -> dict
 
     # Check for duplicates
     if data.duplicated().any():
-        n_dups = data.duplicated().sum()
+        n_dups = int(data.duplicated().sum())
         quality_score -= n_dups * 5
         issues.append(f"{n_dups} duplicate rows detected")
 
@@ -1810,10 +1773,7 @@ def _score_isotherm_params(name: str, params: dict[str, Any]) -> tuple[float, li
         B1 = params.get("B1", 0)
         if B1 > 0:
             score += 5
-        if B1 < 20:  # Low heat of adsorption - physical
-            reasons.append("B1 suggests physical adsorption")
-        else:
-            reasons.append("B1 suggests chemical interaction")
+            reasons.append("B1 is positive")
 
     elif name == "Sips":
         qm = params.get("qm", 0)
@@ -1842,7 +1802,7 @@ def _score_kinetic_params(name: str, params: dict[str, Any]) -> tuple[float, lis
             score += 5
         if 0.001 < k1 < 1:  # Typical range (1/min)
             score += 5
-            reasons.append("Suggests physisorption mechanism")
+            reasons.append("Positive fitted rate parameter in the configured range")
 
     elif name == "Pseudo-second order" or name == "PSO":
         qe = params.get("qe", 0)
@@ -1851,14 +1811,14 @@ def _score_kinetic_params(name: str, params: dict[str, Any]) -> tuple[float, lis
             score += 5
         if k2 > 0:
             score += 5
-            reasons.append("Suggests chemisorption mechanism")
+            reasons.append("Positive fitted rate parameter")
 
     elif name == "Elovich":
         alpha = params.get("alpha", 0)
         beta = params.get("beta", 0)
         if alpha > 0 and beta > 0:
             score += 10
-            reasons.append("Supports chemisorption on heterogeneous surface")
+            reasons.append("Positive fitted Elovich parameters")
 
     elif name == "Weber-Morris" or name == "Intraparticle diffusion":
         kid = params.get("kid", 0)
@@ -1869,7 +1829,9 @@ def _score_kinetic_params(name: str, params: dict[str, Any]) -> tuple[float, lis
             score += 5
             reasons.append("C > 0: Boundary layer effect present")
         else:
-            reasons.append("C ≈ 0: Intraparticle diffusion is rate-limiting")
+            reasons.append(
+                "C ≈ 0: fitted line passes near the origin; inspect diffusion diagnostics"
+            )
 
     return score, reasons
 
@@ -2228,6 +2190,60 @@ def calculate_thermodynamic_parameters(
         return {"success": False, "error": str(e)}
 
 
+def sign_label(
+    value: Any,
+    negative: str,
+    positive: str,
+    unavailable: str = "—",
+    zero: str = "Zero",
+) -> str:
+    """
+    Label the sign of a quantity, or report that it is unavailable.
+
+    A plain ``"neg" if x < 0 else "pos"`` silently converts *missing* into
+    *positive*, because ``nan < 0`` and ``None < 0`` are both falsy.  In a
+    generated results table that turns "this study has no ΔG" into the
+    affirmative claim "this study has a positive ΔG".  Reporting tables must
+    distinguish a measured sign from an absent value, so non-finite and missing
+    inputs return ``unavailable`` rather than falling through to ``positive``.
+
+    Parameters
+    ----------
+    value : Any
+        The quantity whose sign is being described. May be ``None``, ``nan``,
+        ``inf``, or anything not coercible to float.
+    negative : str
+        Label to use when ``value < 0``.
+    positive : str
+        Label to use when ``value > 0``. Exact zero is labelled separately.
+    unavailable : str
+        Label to use when ``value`` is missing or non-finite (default ``"—"``).
+
+    Returns
+    -------
+    str
+        One of ``negative``, ``positive`` or ``unavailable``.
+
+    Examples
+    --------
+    >>> sign_label(-12.4, "Exothermic", "Endothermic")
+    'Exothermic'
+    >>> sign_label(float("nan"), "Exothermic", "Endothermic")
+    '—'
+    >>> sign_label(None, "Negative", "Positive")
+    '—'
+    """
+    if value is None:
+        return unavailable
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return unavailable
+    if not np.isfinite(numeric):
+        return unavailable
+    return negative if numeric < 0 else positive if numeric > 0 else zero
+
+
 def interpret_thermodynamics(delta_H: float, delta_S: float, delta_G: Any) -> dict[str, str]:
     """
     Interpret thermodynamic parameters.
@@ -2248,28 +2264,20 @@ def interpret_thermodynamics(delta_H: float, delta_S: float, delta_G: Any) -> di
     """
     interpretations: dict[str, str] = {}
 
-    # Enthalpy interpretation
+    # Report thermodynamic trends without assigning an adsorption mechanism.
     if delta_H < 0:
         interpretations["enthalpy"] = f"Exothermic (ΔH° = {delta_H:.2f} kJ/mol < 0)"
-        if abs(delta_H) < 40:
-            interpretations["mechanism_H"] = "Physical adsorption (|ΔH°| < 40 kJ/mol)"
-        else:
-            interpretations["mechanism_H"] = "Chemical adsorption (|ΔH°| > 40 kJ/mol)"
     else:
         interpretations["enthalpy"] = f"Endothermic (ΔH° = {delta_H:.2f} kJ/mol > 0)"
-        if abs(delta_H) < 40:
-            interpretations["mechanism_H"] = "Physical adsorption (|ΔH°| < 40 kJ/mol)"
-        else:
-            interpretations["mechanism_H"] = "Chemical adsorption (|ΔH°| > 40 kJ/mol)"
 
     # Entropy interpretation
     if delta_S > 0:
         interpretations["entropy"] = (
-            f"Increased disorder at interface (ΔS° = {delta_S:.2f} J/(mol·K) > 0)"
+            f"Positive apparent ΔS° ({delta_S:.2f} J/(mol·K)) for the selected Kd convention"
         )
     else:
         interpretations["entropy"] = (
-            f"Decreased disorder at interface (ΔS° = {delta_S:.2f} J/(mol·K) < 0)"
+            f"Negative apparent ΔS° ({delta_S:.2f} J/(mol·K)) for the selected Kd convention"
         )
 
     # Gibbs free energy interpretation
@@ -2284,211 +2292,22 @@ def interpret_thermodynamics(delta_H: float, delta_S: float, delta_G: Any) -> di
 
         if len(G_values) > 0:
             if all(g < 0 for g in G_values):
-                interpretations["spontaneity"] = "Spontaneous at all temperatures (ΔG° < 0)"
+                interpretations["delta_g_sign"] = (
+                    "Negative at all temperatures for the selected Kd convention"
+                )
             elif all(g > 0 for g in G_values):
-                interpretations["spontaneity"] = "Non-spontaneous at all temperatures (ΔG° > 0)"
+                interpretations["delta_g_sign"] = (
+                    "Positive at all temperatures for the selected Kd convention"
+                )
             else:
-                interpretations["spontaneity"] = "Temperature-dependent spontaneity"
+                interpretations["delta_g_sign"] = "Changes sign across the measured temperatures"
 
-            # Feasibility
-            min_G = min(G_values)
-            if min_G < -20:
-                interpretations["feasibility"] = "Highly favorable adsorption"
-            elif min_G < 0:
-                interpretations["feasibility"] = "Favorable adsorption"
-            else:
-                interpretations["feasibility"] = "Unfavorable adsorption"
+    interpretations["caveat"] = (
+        "These values are apparent unless Kd is converted to a justified standard-state "
+        "thermodynamic equilibrium constant. They do not identify adsorption mechanism."
+    )
 
     return interpretations
-
-
-def determine_adsorption_mechanism(
-    delta_H: float,
-    delta_G: Any = None,
-    n_freundlich: float | None = None,
-    RL: float | None = None,
-) -> dict[str, Any]:
-    """
-    Determine adsorption mechanism from thermodynamic and isotherm data.
-
-    Parameters
-    ----------
-    delta_H : float
-        Enthalpy change (kJ/mol)
-    delta_G : array-like, optional
-        Gibbs free energy values (kJ/mol)
-    n_freundlich : float, optional
-        Freundlich exponent (1/n)
-    RL : float, optional
-        Langmuir separation factor
-
-    Returns
-    -------
-    dict
-        Mechanism determination with confidence, scores, evidence, and indicators
-    """
-    # Initialize scores for different mechanisms
-    scores = {"Physical": 0.0, "Ion Exchange": 0.0, "Chemical": 0.0}
-
-    evidence = []
-    indicators = {}
-    total_weight = 0
-
-    # 1. Enthalpy-based determination (weight: 30%)
-    abs_H = abs(delta_H)
-    h_weight = 30
-    total_weight += h_weight
-
-    if abs_H < 20:
-        scores["Physical"] += h_weight
-        evidence.append(
-            f"ΔH° indicates physical adsorption: |ΔH°| = {abs_H:.1f} < 20 kJ/mol (van der Waals forces)"
-        )
-        h_class = "Physical"
-    elif abs_H < 40:
-        scores["Physical"] += h_weight * 0.5
-        scores["Chemical"] += h_weight * 0.5
-        evidence.append(f"ΔH° indicates weak chemisorption: 20 < |ΔH°| = {abs_H:.1f} < 40 kJ/mol")
-        h_class = "Weak Chemical"
-    elif abs_H < 80:
-        scores["Chemical"] += h_weight * 0.7
-        scores["Physical"] += h_weight * 0.3
-        evidence.append(f"ΔH° indicates hydrogen bonding: 40 < |ΔH°| = {abs_H:.1f} < 80 kJ/mol")
-        h_class = "H-bonding"
-    else:
-        scores["Chemical"] += h_weight
-        evidence.append(f"ΔH° indicates strong chemisorption: |ΔH°| = {abs_H:.1f} > 80 kJ/mol")
-        h_class = "Chemical"
-
-    indicators["ΔH° (kJ/mol)"] = {
-        "value": delta_H,
-        "classification": h_class,
-        "criterion": "< 20: Physical, 20-40: Weak chem., 40-80: H-bond, > 80: Chemical",
-        "confidence": "High" if abs_H < 20 or abs_H > 80 else "Medium",
-    }
-
-    # 3. Gibbs free energy (weight: 20%)
-    if delta_G is not None:
-        g_weight = 20
-        total_weight += g_weight
-
-        # Handle array or single value
-        g_values = np.asarray(delta_G).flatten()
-        avg_G = np.mean(g_values)
-
-        if avg_G < -40:
-            scores["Chemical"] += g_weight
-            evidence.append(f"ΔG° indicates chemisorption: avg ΔG° = {avg_G:.1f} < -40 kJ/mol")
-            g_class = "Chemical"
-        elif avg_G < -20:
-            scores["Physical"] += g_weight * 0.6
-            scores["Chemical"] += g_weight * 0.4
-            evidence.append(
-                f"ΔG° indicates strong physisorption: -40 < avg ΔG° = {avg_G:.1f} < -20 kJ/mol"
-            )
-            g_class = "Strong Physical"
-        elif avg_G < 0:
-            scores["Physical"] += g_weight
-            evidence.append(
-                f"ΔG° indicates spontaneous physical adsorption: avg ΔG° = {avg_G:.1f} kJ/mol"
-            )
-            g_class = "Physical"
-        else:
-            evidence.append(
-                f"ΔG° indicates non-spontaneous process: avg ΔG° = {avg_G:.1f} > 0 kJ/mol"
-            )
-            g_class = "Non-spontaneous"
-
-        indicators["ΔG° (kJ/mol)"] = {
-            "value": avg_G,
-            "classification": g_class,
-            "criterion": "0 to -20: Physical, -20 to -40: Strong phys., < -40: Chemical",
-            "confidence": "Medium",
-        }
-
-    # 4. Freundlich n (weight: 15%)
-    if n_freundlich is not None and n_freundlich > 0:
-        n_weight = 15
-        total_weight += n_weight
-
-        # n > 1 indicates favorable adsorption (n_inv = 1/n, so 1/n < 1 means n > 1)
-        if n_freundlich < 0.5:
-            scores["Chemical"] += n_weight * 0.7
-            scores["Physical"] += n_weight * 0.3
-            evidence.append(
-                f"Freundlich 1/n = {n_freundlich:.2f} < 0.5: Highly favorable, may indicate chemisorption"
-            )
-            n_class = "Highly favorable"
-        elif n_freundlich < 1:
-            scores["Physical"] += n_weight
-            evidence.append(f"Freundlich 1/n = {n_freundlich:.2f} < 1: Favorable adsorption")
-            n_class = "Favorable"
-        else:
-            scores["Physical"] += n_weight * 0.5
-            evidence.append(f"Freundlich 1/n = {n_freundlich:.2f} ≥ 1: Linear or unfavorable")
-            n_class = "Unfavorable"
-
-        indicators["1/n (Freundlich)"] = {
-            "value": n_freundlich,
-            "classification": n_class,
-            "criterion": "< 0.5: Highly favorable, 0.5-1: Favorable, > 1: Unfavorable",
-            "confidence": "Medium",
-        }
-
-    # 5. Langmuir RL (weight: 10%)
-    if RL is not None and 0 < RL < 1:
-        rl_weight = 10
-        total_weight += rl_weight
-
-        if RL < 0.1:
-            scores["Chemical"] += rl_weight * 0.6
-            scores["Physical"] += rl_weight * 0.4
-            evidence.append(f"RL = {RL:.3f} < 0.1: Highly favorable (near irreversible)")
-            rl_class = "Highly favorable"
-        else:
-            scores["Physical"] += rl_weight
-            evidence.append(f"RL = {RL:.3f}: Favorable adsorption")
-            rl_class = "Favorable"
-
-        indicators["RL (Langmuir)"] = {
-            "value": RL,
-            "classification": rl_class,
-            "criterion": "0 < RL < 1: Favorable, RL < 0.1: Near irreversible",
-            "confidence": "Medium",
-        }
-
-    # Normalize scores to percentages
-    if total_weight > 0:
-        for key in scores:
-            scores[key] = (scores[key] / total_weight) * 100
-
-    # Determine final mechanism
-    max_score = max(scores.values())
-    mechanism = max(scores, key=lambda k: scores.get(k, 0.0))
-
-    # Format mechanism name
-    if mechanism == "Physical":
-        mechanism_name = "Physical adsorption"
-    elif mechanism == "Chemical":
-        mechanism_name = "Chemical adsorption"
-    else:
-        mechanism_name = "Ion exchange"
-
-    # If scores are close, indicate mixed mechanism
-    sorted_scores = sorted(scores.values(), reverse=True)
-    if len(sorted_scores) >= 2 and sorted_scores[0] - sorted_scores[1] < 15:
-        mechanism_name = "Mixed mechanism"
-
-    # Calculate confidence based on score margin and number of indicators
-    confidence = min(95, max_score + len(indicators) * 5)
-
-    return {
-        "mechanism": mechanism_name,
-        "confidence": confidence,
-        "scores": scores,
-        "evidence": evidence,
-        "indicators": indicators,
-    }
 
 
 def calculate_arrhenius_parameters(T_K: np.ndarray, k: np.ndarray) -> dict[str, Any]:
@@ -2533,13 +2352,10 @@ def calculate_arrhenius_parameters(T_K: np.ndarray, k: np.ndarray) -> dict[str, 
         Ea = -slope * R_GAS_CONSTANT / 1000  # kJ/mol
         A = np.exp(intercept)  # Pre-exponential factor
 
-        # Interpretation
-        if Ea < 5:
-            interpretation = f"Diffusion-controlled (Ea = {Ea:.2f} kJ/mol < 5 kJ/mol)"
-        elif Ea < 40:
-            interpretation = f"Physical adsorption (5 < Ea = {Ea:.2f} < 40 kJ/mol)"
-        else:
-            interpretation = f"Chemical adsorption (Ea = {Ea:.2f} kJ/mol > 40 kJ/mol)"
+        interpretation = (
+            f"Apparent activation energy Ea = {Ea:.2f} kJ/mol. "
+            "Ea alone does not identify the adsorption mechanism."
+        )
 
         return {
             "success": True,
@@ -2910,7 +2726,10 @@ def detect_replicates(data: pd.DataFrame, x_col: str, tolerance: float = 0.01) -
 
     # Group and aggregate
     agg_dict = {col: ["mean", "std", "count"] for col in numeric_cols}
-    grouped = data.groupby("_x_group").agg(agg_dict)
+    # pandas-stubs versions that still support Python 3.10 cannot express this
+    # valid multi-aggregation mapping precisely, so retain pandas runtime
+    # validation and isolate the compatibility cast at the API boundary.
+    grouped = data.groupby("_x_group").agg(cast(Any, agg_dict))
 
     # Flatten column names
     grouped.columns = ["_".join(col).strip() for col in grouped.columns.values]
@@ -2963,8 +2782,12 @@ def get_study_metrics() -> dict:
 
     current_study_state = st.session_state.studies[active_study_name]
     active_data_count = sum(1 for key in data_keys if current_study_state.get(key) is not None)
-    calib_params = current_study_state.get("calibration_params")
-    calib_quality = calib_params.get("quality_score", 0) if calib_params else 0
+    calib_df = current_study_state.get("calib_df_input")
+    calib_quality = (
+        assess_data_quality(calib_df, "calibration").get("quality_score", 0)
+        if calib_df is not None
+        else 0
+    )
 
     return {
         "study_count": study_count,

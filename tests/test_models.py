@@ -756,6 +756,14 @@ class TestBiotNumber:
         Bi = calculate_biot_number(kf=1e-2, Dp=1e-12, r=0.001)
         assert Bi > 100
 
+    @pytest.mark.parametrize(
+        ("kf", "dp", "radius"),
+        [(0.0, 1e-8, 0.001), (1e-6, 0.0, 0.001), (1e-6, 1e-8, 0.0)],
+    )
+    def test_biot_number_rejects_nonpositive_inputs(self, kf, dp, radius):
+        with pytest.raises(ValueError, match="must all be positive"):
+            calculate_biot_number(kf=kf, Dp=dp, r=radius)
+
 
 class TestRateLimitingStep:
     """Tests for rate-limiting step identification."""
@@ -779,6 +787,29 @@ class TestRateLimitingStep:
         result = identify_rate_limiting_step(t, qt, qe=65, particle_radius=0.0005)
 
         assert result is not None
+        assert "D_eff_cm2_s" in result["boyd_plot"]
+        assert "D_eff_cm2_s" not in result["weber_morris"]
+
+    def test_boyd_uses_reichenberg_piecewise_approximations(self):
+        """The low- and high-F branches must not be reversed or truncated."""
+        qe = 100.0
+        fractions = np.array([0.10, 0.30, 0.60, 0.80, 0.90, 0.95])
+        t = np.arange(1, len(fractions) + 1, dtype=float)
+
+        result = identify_rate_limiting_step(t, fractions * qe, qe)
+        bt = result["boyd_plot"]["Bt"]
+
+        expected_low = (
+            2 * np.pi
+            - np.pi**2 * fractions[:4] / 3
+            - 2 * np.pi * np.sqrt(1 - np.pi * fractions[:4] / 3)
+        )
+        expected_high = -0.4977 - np.log(1 - fractions[4:])
+
+        assert np.allclose(bt[:4], expected_low)
+        assert np.allclose(bt[4:], expected_high)
+        assert "transport_indication" in result
+        assert "confidence" not in result
 
     def test_identify_rate_limiting_returns_dict(self):
         """Test returns dictionary structure."""

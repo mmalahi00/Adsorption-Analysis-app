@@ -444,13 +444,13 @@ class TestCalculateKdExtended:
         expected = (20.0 * 0.1) / (10.0 * 0.05)
         np.testing.assert_allclose(Kd, [expected])
 
-    def test_zero_Ce_clamped(self):
+    def test_zero_Ce_rejected(self):
         from adsorblab_pro.tabs.thermodynamics_tab import _calculate_kd
 
         Ce = np.array([0.0])
         qe = np.array([20.0])
-        Kd = _calculate_kd("dimensionless", C0=50.0, Ce=Ce, qe=qe, m=0.1, V=0.05)
-        assert Kd[0] > 0  # Should not be inf
+        with pytest.raises(ValueError, match="greater than zero"):
+            _calculate_kd("dimensionless", C0=50.0, Ce=Ce, qe=qe, m=0.1, V=0.05)
 
     def test_unknown_method(self):
         from adsorblab_pro.tabs.thermodynamics_tab import _calculate_kd
@@ -458,13 +458,13 @@ class TestCalculateKdExtended:
         with pytest.raises(ValueError, match="Unknown Kd method"):
             _calculate_kd("fake_method", 50.0, np.array([10.0]), np.array([20.0]), 0.1, 0.05)
 
-    def test_negative_qe_clamped(self):
+    def test_negative_qe_rejected(self):
         from adsorblab_pro.tabs.thermodynamics_tab import _calculate_kd
 
         Ce = np.array([10.0])
         qe = np.array([-5.0])
-        Kd = _calculate_kd("mass_based", C0=50.0, Ce=Ce, qe=qe, m=0.1, V=0.05)
-        assert Kd[0] > 0  # Clamped to epsilon
+        with pytest.raises(ValueError, match="positive qe"):
+            _calculate_kd("mass_based", C0=50.0, Ce=Ce, qe=qe, m=0.1, V=0.05)
 
     def test_array_of_ones(self):
         from adsorblab_pro.tabs.thermodynamics_tab import _calculate_kd

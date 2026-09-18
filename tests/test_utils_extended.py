@@ -46,7 +46,6 @@ from adsorblab_pro.utils import (
     convert_df_to_excel,
     detect_common_errors,
     detect_replicates,
-    determine_adsorption_mechanism,
     interpret_separation_factor,
     interpret_thermodynamics,
     propagate_calibration_uncertainty,
@@ -201,12 +200,16 @@ class TestTemperatureResultsDirectExtended:
 # CHECK MECHANISM CONSISTENCY
 # =============================================================================
 class TestCheckMechanismConsistencyExtended:
-    def test_empty_state(self):
+    def test_empty_state_reports_no_checks_not_a_pass(self):
+        """A study with nothing to check must not be reported as 'consistent'."""
         result = check_mechanism_consistency({})
-        assert result["status"] == "consistent"
-        assert result["color"] == "green"
+        assert result["status"] == "no_checks"
+        assert result["color"] == "gray"
+        assert result["n_checks"] == 0
+        # The wording must not imply the results were examined and passed.
+        assert "No consistency checks applied" in result["interpretation"]
 
-    def test_pso_freundlich_mismatch(self):
+    def test_fits_without_high_r2_produce_no_applicable_checks(self):
         state = {
             "isotherm_models_fitted": {
                 "Langmuir": {"converged": True, "r_squared": 0.90, "adj_r_squared": 0.89},
@@ -218,9 +221,13 @@ class TestCheckMechanismConsistencyExtended:
             },
         }
         result = check_mechanism_consistency(state)
-        assert result["status"] in ("minor_issues", "consistent")
+        # No cross-model kinetic/isotherm rule is applied, and none of these
+        # fits has R² high enough to trigger the CI-reporting check, so nothing
+        # applies. That is reported as "no_checks", never as a clean bill.
+        assert result["status"] == "no_checks"
+        assert result["n_checks"] == 0
 
-    def test_temperature_dh_conflict_endothermic_decreasing(self):
+    def test_temperature_dh_mismatch_endothermic_decreasing_is_review_prompt(self):
         state = {
             "isotherm_models_fitted": {},
             "kinetic_models_fitted": {},
@@ -228,10 +235,11 @@ class TestCheckMechanismConsistencyExtended:
             "temperature_effect": "decreases",
         }
         result = check_mechanism_consistency(state)
-        assert result["status"] == "conflicts"
-        assert result["conflicts"] >= 1
+        assert result["status"] == "minor_issues"
+        assert result["conflicts"] == 0
+        assert result["minor_issues"] >= 1
 
-    def test_temperature_dh_conflict_exothermic_increasing(self):
+    def test_temperature_dh_mismatch_exothermic_increasing_is_review_prompt(self):
         state = {
             "isotherm_models_fitted": {},
             "kinetic_models_fitted": {},
@@ -239,7 +247,7 @@ class TestCheckMechanismConsistencyExtended:
             "temperature_effect": "increases",
         }
         result = check_mechanism_consistency(state)
-        assert result["status"] == "conflicts"
+        assert result["status"] == "minor_issues"
 
     def test_consistent_temperature_effect(self):
         state = {
@@ -251,7 +259,7 @@ class TestCheckMechanismConsistencyExtended:
         result = check_mechanism_consistency(state)
         assert result["status"] == "consistent"
 
-    def test_rl_freundlich_inconsistency(self):
+    def test_rl_and_freundlich_are_not_forced_into_cross_model_rule(self):
         state = {
             "isotherm_models_fitted": {
                 "Langmuir": {"converged": True, "r_squared": 0.95, "RL": 0.3},
@@ -264,7 +272,7 @@ class TestCheckMechanismConsistencyExtended:
             "kinetic_models_fitted": {},
         }
         result = check_mechanism_consistency(state)
-        assert any(c["name"] == "RL vs Freundlich Consistency" for c in result["checks"])
+        assert not any(c["name"] == "RL vs Freundlich Consistency" for c in result["checks"])
 
     def test_high_r2_without_ci(self):
         state = {
@@ -398,99 +406,6 @@ class TestAnalyzeResidualsExtended:
 # =============================================================================
 # DETERMINE ADSORPTION MECHANISM
 # =============================================================================
-class TestDetermineAdsorptionMechanismExtended:
-    def test_physical_adsorption(self):
-        result = determine_adsorption_mechanism(delta_H=-10.0)
-        assert "Physical" in result["mechanism"]
-
-    def test_chemical_adsorption(self):
-        result = determine_adsorption_mechanism(delta_H=-100.0)
-        assert "Chemical" in result["mechanism"]
-
-    def test_weak_chemisorption(self):
-        result = determine_adsorption_mechanism(delta_H=-30.0)
-        # 20-40 range → weak chemical or mixed
-        assert result["mechanism"] in (
-            "Mixed mechanism",
-            "Physical adsorption",
-            "Chemical adsorption",
-        )
-
-    def test_hydrogen_bonding(self):
-        result = determine_adsorption_mechanism(delta_H=-60.0)
-        assert "Chemical" in result["mechanism"] or "Mixed" in result["mechanism"]
-
-    def test_with_delta_g_physical(self):
-        result = determine_adsorption_mechanism(
-            delta_H=-10.0,
-            delta_G=[-5.0, -8.0, -10.0],
-        )
-        assert "Physical" in result["mechanism"]
-        assert "ΔG° (kJ/mol)" in result["indicators"]
-
-    def test_with_delta_g_chemical(self):
-        result = determine_adsorption_mechanism(
-            delta_H=-100.0,
-            delta_G=[-50.0, -55.0],
-        )
-        assert "Chemical" in result["mechanism"]
-
-    def test_with_delta_g_strong_physical(self):
-        result = determine_adsorption_mechanism(
-            delta_H=-10.0,
-            delta_G=[-25.0, -30.0],
-        )
-        assert "indicators" in result
-        g_indicator = result["indicators"].get("ΔG° (kJ/mol)", {})
-        assert g_indicator.get("classification") == "Strong Physical"
-
-    def test_with_delta_g_non_spontaneous(self):
-        result = determine_adsorption_mechanism(delta_H=-10.0, delta_G=[5.0])
-        g_ind = result["indicators"].get("ΔG° (kJ/mol)", {})
-        assert g_ind.get("classification") == "Non-spontaneous"
-
-    def test_with_freundlich_n_favorable(self):
-        result = determine_adsorption_mechanism(
-            delta_H=-10.0,
-            n_freundlich=0.7,
-        )
-        assert "1/n (Freundlich)" in result["indicators"]
-
-    def test_with_freundlich_n_highly_favorable(self):
-        result = determine_adsorption_mechanism(
-            delta_H=-100.0,
-            n_freundlich=0.3,
-        )
-        n_ind = result["indicators"]["1/n (Freundlich)"]
-        assert n_ind["classification"] == "Highly favorable"
-
-    def test_with_freundlich_n_unfavorable(self):
-        result = determine_adsorption_mechanism(
-            delta_H=-10.0,
-            n_freundlich=1.5,
-        )
-        n_ind = result["indicators"]["1/n (Freundlich)"]
-        assert n_ind["classification"] == "Unfavorable"
-
-    def test_with_rl_favorable(self):
-        result = determine_adsorption_mechanism(delta_H=-10.0, RL=0.5)
-        assert "RL (Langmuir)" in result["indicators"]
-
-    def test_with_rl_highly_favorable(self):
-        result = determine_adsorption_mechanism(delta_H=-100.0, RL=0.05)
-        rl_ind = result["indicators"]["RL (Langmuir)"]
-        assert rl_ind["classification"] == "Highly favorable"
-
-    def test_all_indicators(self):
-        result = determine_adsorption_mechanism(
-            delta_H=-15.0,
-            delta_G=[-10.0, -12.0],
-            n_freundlich=0.6,
-            RL=0.3,
-        )
-        assert result["confidence"] > 0
-        assert len(result["evidence"]) >= 4
-        assert len(result["indicators"]) == 4
 
 
 # =============================================================================
@@ -868,14 +783,15 @@ class TestThermodynamicParametersExtended:
 # INTERPRET THERMODYNAMICS
 # =============================================================================
 class TestInterpretThermodynamicsExtended:
-    def test_exothermic_spontaneous(self):
+    def test_exothermic_negative_apparent_delta_g(self):
         result = interpret_thermodynamics(
             delta_H=-30.0,
             delta_S=10.0,
             delta_G=[-5.0, -6.0],
         )
         assert "exothermic" in result.get("enthalpy", "").lower()
-        assert "spontaneous" in result.get("spontaneity", "").lower()
+        assert "negative" in result.get("delta_g_sign", "").lower()
+        assert "standard-state" in result.get("caveat", "").lower()
 
     def test_endothermic(self):
         result = interpret_thermodynamics(
@@ -885,13 +801,13 @@ class TestInterpretThermodynamicsExtended:
         )
         assert "endothermic" in result.get("enthalpy", "").lower()
 
-    def test_positive_delta_g(self):
+    def test_positive_apparent_delta_g(self):
         result = interpret_thermodynamics(
             delta_H=30.0,
             delta_S=-10.0,
             delta_G=[5.0, 6.0],
         )
-        assert "non-spontaneous" in result.get("spontaneity", "").lower()
+        assert "positive" in result.get("delta_g_sign", "").lower()
 
 
 # =============================================================================

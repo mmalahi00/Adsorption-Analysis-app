@@ -933,7 +933,10 @@ class TestThermodynamicsWithRealData:
         qe = data["qe_mg_g"].values
 
         for method in ["dimensionless", "mass_based", "volume_corrected"]:
-            Kd = _calculate_kd(method, C0=100.0, Ce=Ce, qe=qe, m=0.1, V=0.05)
+            # Both mass-balance ratio methods require the per-point C0; only the
+            # mass-based (qe/Ce) form is independent of it.
+            C0 = 100.0 if method == "mass_based" else data["C0_mgL"].values
+            Kd = _calculate_kd(method, C0=C0, Ce=Ce, qe=qe, m=0.1, V=0.05)
             assert len(Kd) == len(Ce)
             assert all(np.isfinite(Kd))
             assert all(Kd > 0)

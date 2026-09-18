@@ -112,7 +112,9 @@ def render():
                     "R²": results.get("r_squared", 0),
                     "Adj-R²": results.get("adj_r_squared", 0),
                     "RMSE": results.get("rmse", np.inf),
-                    "χ²": results.get("chi_squared", np.inf),
+                    "Relative SSE": results.get(
+                        "normalized_sse", results.get("chi_squared", np.inf)
+                    ),
                     "AIC": results.get("aicc", results.get("aic", np.inf)),
                     "BIC": results.get("bic", np.inf),
                 }
@@ -149,13 +151,13 @@ def render():
                         "R²": "{:.4f}",
                         "Adj-R²": "{:.4f}",
                         "RMSE": "{:.4f}",
-                        "χ²": "{:.2f}",
+                        "Relative SSE": "{:.2f}",
                         "AIC": "{:.2f}",
                         "BIC": "{:.2f}",
                     }
                 )
                 .highlight_max(subset=["R²", "Adj-R²"], color="lightgreen")
-                .highlight_min(subset=["RMSE", "AIC", "BIC", "χ²"], color="lightblue"),
+                .highlight_min(subset=["RMSE", "AIC", "BIC", "Relative SSE"], color="lightblue"),
                 use_container_width=True,
             )
 
@@ -241,7 +243,9 @@ def render():
                         f"**Best Kinetic Model:** {best_model} (Adj-R² = {kin_df.loc[best_idx, 'Adj-R²']:.4f})"
                     )
                     st.caption(
-                        "⚠️ Note: Best statistical fit ≠ mechanistic evidence. Use Boyd/Weber-Morris plots and activation energy for mechanism identification."
+                        "⚠️ Note: Best statistical fit ≠ mechanistic evidence. Use controlled "
+                        "particle-size/agitation experiments, supported by Boyd/Weber-Morris "
+                        "diagnostics and independent characterization."
                     )
             except (KeyError, ValueError):
                 st.caption("⚠️ Could not determine best kinetic model (missing Adj-R² values).")
@@ -262,7 +266,7 @@ def render():
                 "Parameter": [
                     "ΔH° (kJ/mol)",
                     "ΔS° (J/(mol·K))",
-                    "ΔG° at 298K (kJ/mol)",
+                    "Apparent ΔG at 298K (kJ/mol)",
                     "R² (Van't Hoff)",
                 ],
                 "Value": [
@@ -284,28 +288,22 @@ def render():
                 "Interpretation": [
                     "Exothermic" if delta_H < 0 else "Endothermic",
                     "Increased disorder" if delta_S > 0 else "Decreased disorder",
-                    "Spontaneous" if delta_G < 0 else "Non-spontaneous",
+                    "Negative apparent ΔG" if delta_G < 0 else "Positive apparent ΔG",
                     "Excellent" if thermo_params["r_squared"] > 0.99 else "Good",
                 ],
             }
         )
         display_results_table(thermo_df)
 
-        # Mechanism
-        abs_H = abs(delta_H)
-        if abs_H < 40:
-            mechanism = "Physical Adsorption"
-        elif abs_H < 80:
-            mechanism = "Mixed Mechanism"
-        else:
-            mechanism = "Chemical Adsorption"
-
-        st.info(f"**Adsorption Mechanism:** {mechanism} (|ΔH°| = {abs_H:.2f} kJ/mol)")
+        st.warning(
+            "ΔH, ΔG, or model fit alone cannot identify an adsorption mechanism. "
+            "Support mechanism claims with independent spectroscopic, chemical, and transport evidence."
+        )
     else:
         st.caption("🌡️ Thermodynamics: not yet completed.")
 
     # ==========================================================================
-    # Section 5: MECHANISM CONSISTENCY CHECK (NEW)
+    # Section 5: ANALYSIS CONSISTENCY CHECK
     # ==========================================================================
     st.markdown("---")
     _render_consistency_check(current_study_state)
@@ -392,24 +390,23 @@ def render():
 
 
 # =============================================================================
-# MECHANISM CONSISTENCY CHECK UI
+# ANALYSIS CONSISTENCY CHECK UI
 # =============================================================================
 def _render_consistency_check(study_state: dict):
     """
-    Render the mechanism consistency check panel.
+    Render the analysis consistency check panel.
 
-    Shows conflicts between different analysis methods:
-    - Kinetic model vs isotherm model
-    - Temperature effect vs ΔH° sign
-    - Separation factor vs Freundlich 1/n
+    Shows internal data/reporting checks:
+    - Temperature trend vs apparent ΔH sign (review prompt only)
+    - High-fit results without confidence intervals
 
     Parameters
     ----------
     study_state : dict
         Current study state containing all analysis results
     """
-    st.markdown("### 🔍 Mechanism Consistency Check")
-    st.markdown("*Cross-validation of your analysis results*")
+    st.markdown("### 🔍 Analysis Consistency Check")
+    st.markdown("*Internal cross-checks; this does not determine adsorption mechanism*")
 
     # Check if we have enough data to run checks
     iso_models = study_state.get("isotherm_models_fitted", {})
@@ -425,9 +422,8 @@ def _render_consistency_check(study_state: dict):
         Complete isotherm, kinetic, or thermodynamic analyses to enable consistency checking.
 
         The checker validates:
-        - Kinetic model vs. isotherm model agreement
-        - Temperature effect vs. ΔH° sign
-        - Separation factor vs. Freundlich behavior
+        - Whether a temperature trend warrants checking against apparent ΔH sign
+        - High R² values accompanied by confidence intervals
         """)
         return
 
@@ -461,12 +457,28 @@ def _render_consistency_check(study_state: dict):
             "text": "#721c24",
             "title": "Conflicts Detected",
         },
+        # A study to which no check applies is NOT "All Clear".  Rendering an
+        # empty check set in the green banner presents "0/0 checks passed" as a
+        # positive result, which is an affirmative claim about work that was
+        # never done.  Neutral styling, and a caption that says so.
+        "no_checks": {
+            "icon": "ℹ️",
+            "bg": "linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%)",
+            "border": "#6c757d",
+            "text": "#343a40",
+            "title": "Nothing Checked",
+        },
     }
 
-    config = status_configs.get(result["status"], status_configs["consistent"])
+    config = status_configs.get(result["status"], status_configs["no_checks"])
 
     # Overall status banner
     safe_interpretation = html.escape(str(result["interpretation"]))
+    subtitle = (
+        "No applicable checks — this is not a pass"
+        if n_checks == 0
+        else f"{n_passed}/{n_checks} checks passed"
+    )
     st.markdown(
         f"""
     <div style="background: {config["bg"]}; padding: 20px; border-radius: 10px;
@@ -479,7 +491,7 @@ def _render_consistency_check(study_state: dict):
                     {safe_interpretation}
                 </h4>
                 <p style="color: {config["text"]}; margin: 5px 0 0 0; font-size: 0.9em; opacity: 0.8;">
-                    {n_passed}/{n_checks} checks passed
+                    {html.escape(subtitle)}
                 </p>
             </div>
         </div>
@@ -528,26 +540,18 @@ def _render_consistency_check(study_state: dict):
     # Educational information
     with st.expander("ℹ️ What does this check?"):
         st.markdown("""
-        The **Mechanism Consistency Check** cross-validates your results to ensure
-        different analyses tell a consistent story about the adsorption mechanism.
+        The **Analysis Consistency Check** flags review prompts and incomplete
+        uncertainty reporting. It does not infer an adsorption mechanism from fitted models.
 
         | Check | What It Validates |
         |-------|------------------|
-        | **Kinetic-Isotherm** | Best-fit kinetic model should be consistent with isotherm type |
-        | **Temperature-ΔH°** | If ΔH° > 0 (endothermic), capacity should increase with temperature |
-        | **RL vs 1/n** | Langmuir separation factor should agree with Freundlich exponent |
+        | **Temperature trend** | Flags an unexpected direction for review under comparable conditions |
         | **R² Reporting** | High R² values should be accompanied by confidence intervals |
 
         ---
 
-        **Interpretation of ΔH°:**
-        | |ΔH°| Range | Mechanism |
-        |-------------|-----------|
-        | < 40 kJ/mol | Physical adsorption |
-        | 40-80 kJ/mol | Mixed mechanism |
-        | > 80 kJ/mol | Chemical adsorption |
-
-        ---
+        **Important:** empirical kinetic/isotherm fit and ΔH magnitude are not standalone
+        mechanism tests. Mechanistic claims require independent experimental evidence.
         """)
 
 

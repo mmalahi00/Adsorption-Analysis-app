@@ -1873,4 +1873,8 @@ def apply_matplotlib_style() -> None:
     """Apply the professional style to matplotlib."""
     import matplotlib.pyplot as plt
 
-    plt.rcParams.update(MATPLOTLIB_STYLE)
+    # Matplotlib's generated stubs enumerate every accepted rcParam key as a
+    # Literal.  Our centralized style mapping is intentionally keyed by plain
+    # strings, so keep the runtime validation provided by RcParams while
+    # avoiding a false positive when newer stub versions tighten the key type.
+    plt.rcParams.update(cast(Any, MATPLOTLIB_STYLE))

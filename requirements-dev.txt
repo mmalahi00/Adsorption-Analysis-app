@@ -9,20 +9,20 @@
 
 
 # Testing
-pytest>=7.4.0
-pytest-cov>=4.1.0
-pytest-timeout>=2.2.0
+pytest==9.1.1
+pytest-cov==7.1.0
+pytest-timeout==2.4.0
 
 # Coverage
-coverage>=7.6.1
+coverage==7.16.1
 
 # Linting — pinned for CI reproducibility (pyproject.toml uses >=0.1.0 as a floor)
 ruff==0.8.6
 
 # Type checking
-mypy>=1.5.0
-types-requests>=2.31.0
-pandas-stubs>=2.0.0
+mypy==2.3.1
+types-requests==2.33.0.20260906
+pandas-stubs==2.2.3.250527
 
 # Security scanning
-pip-audit==2.7.3
+pip-audit==2.10.1

@@ -24,12 +24,43 @@ Example:
     >>> from adsorblab_pro.utils import calculate_adsorption_capacity, bootstrap_confidence_intervals
 """
 
-try:
-    from importlib.metadata import PackageNotFoundError, version
 
-    __version__ = version("adsorblab-pro")
-except PackageNotFoundError:
-    __version__ = "dev"
+def _read_version() -> str:
+    """
+    Resolve the package version, preferring installed distribution metadata.
+
+    Source checkouts — including Streamlit Community Cloud, which runs the repo
+    directly rather than installing it — have no distribution metadata, so the
+    version is read from ``pyproject.toml`` instead of being hardcoded here.
+    Hardcoding it created a second copy that silently went stale after a release
+    bump, and a stale version in the app footer is worse than an obviously
+    unreleased one, because it is indistinguishable from a correct one.
+    """
+    import re
+    from importlib.metadata import PackageNotFoundError, version
+    from pathlib import Path
+
+    try:
+        return version("adsorblab-pro")
+    except PackageNotFoundError:
+        pass
+
+    # Read the [project] version line directly rather than pulling in a TOML
+    # parser: tomllib is 3.11+, and adding a tomli dependency for one fallback
+    # path is not worth it.
+    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    try:
+        text = pyproject.read_text(encoding="utf-8")
+    except OSError:
+        return "unknown"
+
+    match = re.search(r'^\s*version\s*=\s*["\']([^"\']+)["\']', text, re.MULTILINE)
+    # Neither installed nor next to a readable pyproject.toml: say so rather
+    # than assert a version number that may be wrong.
+    return match.group(1) if match else "unknown"
+
+
+__version__ = _read_version()
 __author__ = "Mohamed EL MALLAHI"
 __license__ = "MIT"
 

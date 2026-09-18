@@ -155,12 +155,13 @@ MULTICOMPONENT_MODELS = {
     },
     "Extended-Freundlich": {
         "params": ["Kf_i", "n_i", "Kf_all", "n_all"],
-        "description": "Sheindorf-Rebhun-Sheintuch (SRS) model",
-        "formula": r"q_{e,i} = K_{F,i} C_{e,i} \left(\sum_j C_{e,j}\right)^{1/n_i - 1}",
+        "description": "Experimental SRS affinity-ratio approximation (stable UI disabled)",
+        "formula": r"q_{e,i} = K_{F,i} C_{e,i} \left(\sum_j a_{ij} C_{e,j}\right)^{1/n_i - 1}",
         "assumptions": [
             "Heterogeneous surface",
             "Exponential distribution of adsorption energies",
-            "Competition coefficients assumed equal (simplified)",
+            "Competition coefficients require independent multicomponent determination",
+            "The retained API infers aij heuristically and is not publication-grade SRS fitting",
         ],
         "reference": "Sheindorf et al. (1981). J. Colloid Interface Sci., 79, 136-142",
     },
@@ -210,14 +211,14 @@ KINETIC_MODELS = {
         "formula_detail": r"\varphi = 1 + \frac{q_e \cdot m}{C_0 \cdot V}",
         "description": "Revised PSO with concentration correction (Bullen et al., 2021)",
         "reference": "Bullen et al. (2021). Langmuir, 37(10), 3189-3201. DOI: 10.1021/acs.langmuir.1c00142",
-        "advantage": "Reduces fitting errors by ~66% across varying experimental conditions",
+        "advantage": "Reduced median SSR by 66% in the cited multi-experiment evaluation",
         "requires_conditions": True,  # Indicates C0, m, V must be provided
     },
     "Elovich": {
         "params": ["alpha", "beta"],
         "n_params": 2,
         "formula": r"q_t = \frac{1}{\beta} \ln(1 + \alpha \beta t)",
-        "description": "Chemisorption on heterogeneous surfaces",
+        "description": "Empirical heterogeneous-surface rate equation",
     },
     "IPD": {
         "params": ["kid", "C"],

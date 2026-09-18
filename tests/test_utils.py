@@ -73,7 +73,6 @@ from adsorblab_pro.utils import (
     # Data detection
     detect_replicates,
     # Mechanism determination
-    determine_adsorption_mechanism,
     interpret_separation_factor,
     interpret_thermodynamics,
     # Uncertainty propagation
@@ -189,6 +188,9 @@ class TestErrorMetrics:
         metrics = calculate_error_metrics(y_obs, y_pred, n_params=2)
 
         assert metrics["r_squared"] == pytest.approx(1.0, abs=1e-10)
+        assert np.isfinite(metrics["aic"])
+        assert metrics["normalized_sse"] == pytest.approx(0.0)
+        assert metrics["chi_squared"] == metrics["normalized_sse"]
 
     def test_adj_r_squared(self, sample_fit_data):
         """Test adjusted R² is calculated."""
@@ -1180,34 +1182,6 @@ class TestSeparationFactorExtended:
 # =============================================================================
 
 
-class TestMechanismDetermination:
-    """Tests for adsorption mechanism determination."""
-
-    def test_determine_mechanism_physical(self):
-        """Test physical adsorption determination."""
-        # Low delta_H magnitude, E < 8
-        result = determine_adsorption_mechanism(
-            delta_H=-10,  # Low magnitude
-        )
-
-        assert isinstance(result, dict)
-
-    def test_determine_mechanism_chemical(self):
-        """Test chemical adsorption determination."""
-        # High delta_H magnitude, E > 16
-        result = determine_adsorption_mechanism(
-            delta_H=-80,  # High magnitude
-        )
-
-        assert isinstance(result, dict)
-
-    def test_determine_mechanism_with_delta_G(self):
-        """Test mechanism determination with delta_G."""
-        result = determine_adsorption_mechanism(delta_H=-30, delta_G=-20)
-
-        assert isinstance(result, dict)
-
-
 # =============================================================================
 # DETECT REPLICATES TESTS
 # =============================================================================
@@ -1713,84 +1687,6 @@ class TestBootstrapCIExtended:
 # =============================================================================
 
 
-class TestDetermineAdsorptionMechanismComprehensive:
-    """Comprehensive tests for determine_adsorption_mechanism."""
-
-    def test_physical_adsorption_low_deltaH(self):
-        """Test physical adsorption from low ΔH."""
-        result = determine_adsorption_mechanism(delta_H=-15)
-
-        assert isinstance(result, dict)
-        assert "Physical" in result.get("scores", {}) or "mechanism" in result
-
-    def test_weak_chemisorption(self):
-        """Test weak chemisorption range (20-40 kJ/mol)."""
-        result = determine_adsorption_mechanism(delta_H=-30)
-
-        assert isinstance(result, dict)
-
-    def test_hydrogen_bonding_range(self):
-        """Test hydrogen bonding range (40-80 kJ/mol)."""
-        result = determine_adsorption_mechanism(delta_H=-60)
-
-        assert isinstance(result, dict)
-
-    def test_strong_chemisorption(self):
-        """Test strong chemisorption (>80 kJ/mol)."""
-        result = determine_adsorption_mechanism(delta_H=-100)
-
-        assert isinstance(result, dict)
-
-    def test_with_delta_G_chemical(self):
-        """Test with ΔG indicating chemisorption."""
-        result = determine_adsorption_mechanism(delta_H=-50, delta_G=np.array([-50, -55, -60]))
-
-        assert isinstance(result, dict)
-
-    def test_with_delta_G_physical(self):
-        """Test with ΔG indicating physisorption."""
-        result = determine_adsorption_mechanism(delta_H=-15, delta_G=np.array([-10, -12, -14]))
-
-        assert isinstance(result, dict)
-
-    def test_with_freundlich_n_favorable(self):
-        """Test with Freundlich n indicating favorable adsorption."""
-        result = determine_adsorption_mechanism(
-            delta_H=-25,
-            n_freundlich=2.5,  # n > 1 is favorable
-        )
-
-        assert isinstance(result, dict)
-
-    def test_with_freundlich_n_unfavorable(self):
-        """Test with Freundlich n indicating unfavorable adsorption."""
-        result = determine_adsorption_mechanism(
-            delta_H=-25,
-            n_freundlich=0.5,  # n < 1 is unfavorable
-        )
-
-        assert isinstance(result, dict)
-
-    def test_with_separation_factor(self):
-        """Test with separation factor."""
-        result = determine_adsorption_mechanism(
-            delta_H=-25,
-            RL=0.3,  # Favorable
-        )
-
-        assert isinstance(result, dict)
-
-    def test_all_parameters(self):
-        """Test with all parameters provided."""
-        result = determine_adsorption_mechanism(
-            delta_H=-40, delta_G=np.array([-25, -28, -30]), n_freundlich=2.0, RL=0.2
-        )
-
-        assert isinstance(result, dict)
-        assert "scores" in result or "mechanism" in result
-        assert "evidence" in result
-
-
 # =============================================================================
 # CALCULATE PRESS AND Q2 TESTS
 # =============================================================================
@@ -2260,42 +2156,6 @@ class TestDetectCommonErrorsDetailed:
         errors = detect_common_errors(state)
         # Should detect thermodynamic issue
         assert any(e.get("type") == "Thermodynamic" for e in errors)
-
-
-class TestDetermineAdsorptionMechanismAdditional:
-    """Additional tests for mechanism determination."""
-
-    def test_delta_G_physical_range(self):
-        """Test ΔG in physical adsorption range."""
-        result = determine_adsorption_mechanism(
-            delta_H=-15,
-            delta_G=np.array([-15, -18, -20]),  # Physical range: -20 to 0
-        )
-        assert "evidence" in result
-
-    def test_with_unfavorable_RL(self):
-        """Test with unfavorable separation factor."""
-        result = determine_adsorption_mechanism(
-            delta_H=-25,
-            RL=1.5,  # > 1 is unfavorable
-        )
-        assert isinstance(result, dict)
-
-    def test_with_irreversible_RL(self):
-        """Test with irreversible separation factor."""
-        result = determine_adsorption_mechanism(
-            delta_H=-50,
-            RL=0.0,  # = 0 is irreversible
-        )
-        assert isinstance(result, dict)
-
-    def test_with_linear_RL(self):
-        """Test with linear separation factor."""
-        result = determine_adsorption_mechanism(
-            delta_H=-25,
-            RL=1.0,  # = 1 is linear
-        )
-        assert isinstance(result, dict)
 
 
 class TestDataQualityInternals:

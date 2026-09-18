@@ -12,7 +12,7 @@ A comprehensive Streamlit application for analyzing adsorption experiments with:
 - Dual-unit reporting (mg/g and % Removal)
 - Intelligent rule-based model recommendations
 - 3D visualization and parameter space exploration
-- Multi-study comparison with mechanism interpretation
+- Multi-study comparison with cautious scientific interpretation
 
 NEW IN v2.0.0:
 - Revised PSO (rPSO) model with concentration correction (Bullen et al., 2021)
@@ -495,31 +495,30 @@ if input_mode_global == "absorbance":
         calib_params = st.session_state.studies[active_study_name]["calibration_params"]
         r2 = calib_params["r_squared"]
         with st.sidebar:
-            if r2 >= 0.999:
-                st.success(f"**R² = {r2:.6f}** ✓ Excellent")
-            elif r2 >= 0.99:
-                st.info(f"**R² = {r2:.5f}** — Good")
-            else:
-                st.warning(f"**R² = {r2:.4f}** — Needs improvement")
+            st.info(f"**Calibration R² = {r2:.6f}** — inspect residuals and replicate precision")
 
 # =============================================================================
-# MAIN TABS
+# MAIN NAVIGATION
 # =============================================================================
-main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs(
+main_section = st.radio(
+    "Main section",
     [
         "🏠 Home",
         "🧪 Analysis Workflow",
         "🔬 Parameter Effects",
         "📈 Visualization & Reports",
-    ]
+    ],
+    horizontal=True,
+    label_visibility="collapsed",
+    key="main_section_navigation",
 )
 
-# --- Home Tab ---
-with main_tab1:
+# Render only the selected section.  Streamlit tabs execute hidden content on
+# every rerun, which previously loaded every analysis and report page at once.
+if main_section == "🏠 Home":
     home_tab.render()
 
-# --- Analysis Workflow Tab (with sub-tabs) ---
-with main_tab2:
+elif main_section == "🧪 Analysis Workflow":
     st.header("🧪 Analysis Workflow")
 
     # Hide the Calibration workflow when the user is in Direct input mode
@@ -541,35 +540,47 @@ with main_tab2:
         ]
     )
 
-    workflow_tabs = st.tabs([label for label, _ in tab_specs])
-    for tab, (_, module_name) in zip(workflow_tabs, tab_specs):
-        with tab:
-            _lazy_render(module_name)
-
-# --- Parameter Effects Tab (with sub-tabs) ---
-with main_tab3:
-    st.header("🔬 Parameter Effects")
-    sub_tab_ph, sub_tab_temp, sub_tab_dosage = st.tabs(
-        ["🧪 pH Effect", "🔥 Temperature", "⚖️ Dosage"]
+    workflow_labels = [label for label, _ in tab_specs]
+    if st.session_state.get("workflow_section_navigation") not in workflow_labels:
+        st.session_state.pop("workflow_section_navigation", None)
+    workflow_section = st.radio(
+        "Analysis page",
+        workflow_labels,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="workflow_section_navigation",
     )
-    with sub_tab_ph:
+    workflow_module = dict(tab_specs)[workflow_section]
+    _lazy_render(workflow_module)
+
+elif main_section == "🔬 Parameter Effects":
+    st.header("🔬 Parameter Effects")
+    effect_section = st.radio(
+        "Effect page",
+        ["🧪 pH Effect", "🔥 Temperature", "⚖️ Dosage"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="effect_section_navigation",
+    )
+    if effect_section == "🧪 pH Effect":
         _lazy_render("ph_effect_tab")
-    with sub_tab_temp:
+    elif effect_section == "🔥 Temperature":
         _lazy_render("temperature_tab")
-    with sub_tab_dosage:
+    else:
         _lazy_render("dosage_tab")
 
-# --- Visualization & Reports Tab (with sub-tabs) ---
-with main_tab4:
+else:
     st.header("📈 Visualization & Reports")
-    sub_tab_report, sub_tab_3d, sub_tab_export = st.tabs(
-        ["📊 Study Overview", "🔮 3D Explorer", "📦 Export All"]
+    report_section = st.radio(
+        "Report page",
+        ["📊 Study Overview", "📦 Export All"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="report_section_navigation",
     )
-    with sub_tab_report:
+    if report_section == "📊 Study Overview":
         _lazy_render("statistical_summary_tab")
-    with sub_tab_3d:
-        _lazy_render("threed_explorer_tab")
-    with sub_tab_export:
+    else:
         _lazy_render("report_tab")
 
 
@@ -590,7 +601,7 @@ with col2:
         "Data Entered", f"{_metrics['active_data_count']}/{_metrics.get('active_data_total', 6)}"
     )
 with col3:
-    st.metric("Calib. Quality", f"{_metrics['calib_quality']}/100")
+    st.metric("Calib. Checks", f"{_metrics['calib_quality']}/100")
 
 # =============================================================================
 # FOOTER
@@ -602,7 +613,7 @@ st.markdown(
     <p><strong>AdsorbLab Pro v{_APP_VERSION_SAFE}</strong></p>
     <p>Advanced Adsorption Data Analysis Platform</p>
     <p style="font-size: 0.8em; margin-top: 10px;">
-        Features: Bootstrap CI • AIC/BIC Selection • Multi-Study Comparison • Mechanism Interpretation
+        Features: Bootstrap CI • AIC/BIC Selection • Multi-Study Comparison • Evidence-Aware Interpretation
     </p>
     <p style="font-size: 0.85em; margin-top: 8px;">
         <a href="https://doi.org/10.5281/zenodo.18501799" target="_blank" style="color: #2E86AB; text-decoration: none;">

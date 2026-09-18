@@ -283,6 +283,16 @@ class TestValidateKineticData:
         report = validate_kinetic_data(t, qt)
         assert not report.is_valid
 
+    def test_replicate_time_points_are_allowed_with_warning(self):
+        """Replicate measurements at the same time are valid research data."""
+        t = np.array([0, 5, 5, 10, 20, 30])
+        qt = np.array([0, 11.8, 12.2, 22, 35, 44])
+
+        report = validate_kinetic_data(t, qt)
+
+        assert report.is_valid
+        assert any("Replicate" in warning.message for warning in report.warnings)
+
     def test_missing_t0_warning(self):
         """Test missing t=0 generates warning."""
         t = np.array([5, 10, 20, 30, 60])
