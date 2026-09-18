@@ -703,7 +703,7 @@ class TestIdentifyRateLimitingStepExtended:
         qe = float(qt[-1])
         result = identify_rate_limiting_step(t, qt, qe=qe, particle_radius=0.5e-3)
         assert isinstance(result, dict)
-        assert "mechanism_suggestion" in result or "error" in result
+        assert "transport_indication" in result or "error" in result
 
     def test_with_ipd_stages(self):
         t = np.array([1, 4, 9, 16, 25, 36, 49, 64, 100, 144], dtype=float)

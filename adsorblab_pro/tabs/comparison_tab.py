@@ -10,7 +10,7 @@ Features:
 - Kinetic parameter comparison (all models)
 - Thermodynamic parameter comparison
 - Effect studies comparison (pH, temperature, dosage)
-- Radar charts for multi-dimensional comparison
+- Direct descriptor tables and matched-condition overlays
 """
 
 import html
@@ -27,7 +27,7 @@ from ..plot_style import (
     hex_to_rgba,
     style_study_trace,
 )
-from ..utils import display_results_table
+from ..utils import display_results_table, sign_label
 
 
 def style_dataframe(df, format_dict=None, highlight_max_cols=None, highlight_min_cols=None):
@@ -88,19 +88,22 @@ def render():
     # Summary metrics
     _render_summary_metrics(studies_data, study_names)
 
-    # Key insights (auto-generated)
-    _render_key_insights(studies_data, study_names)
+    st.warning(
+        "Compare capacities and rate constants only when sorbate identity, units, initial "
+        "concentration range, pH, temperature, dosage, particle size, and contact conditions "
+        "are matched. AdsorbLab does not yet validate this metadata, so it does not produce an "
+        "automatic material ranking."
+    )
 
     st.markdown("---")
 
     # Create tabs for different comparison categories
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    tab1, tab2, tab3, tab4 = st.tabs(
         [
             "📈 Isotherms",
             "⏱️ Kinetics",
             "🌡️ Thermodynamics",
             "🔬 Effect Studies",
-            "📊 Overall Ranking",
         ]
     )
 
@@ -115,9 +118,6 @@ def render():
 
     with tab4:
         _render_effect_studies_comparison(studies_data, study_names)
-
-    with tab5:
-        _render_overall_ranking(studies_data, study_names)
 
 
 # =============================================================================
@@ -224,7 +224,6 @@ def _render_key_insights(studies_data: dict, study_names: list):
 
     # --- Thermodynamic Comparison ---
     negative_delta_g = []
-    positive_delta_g = []
     endothermic = []
     exothermic = []
 
@@ -232,19 +231,19 @@ def _render_key_insights(studies_data: dict, study_names: list):
         data = studies_data[name]
         thermo = data.get("thermo_params")
         if thermo:
-            delta_H = thermo.get("delta_H", 0)
-            delta_S = thermo.get("delta_S", 0)
-            delta_G = delta_H - 298.15 * delta_S / 1000  # At 25°C
-
-            if delta_G < 0:
+            # A study with an incomplete thermodynamic fit contributes to no
+            # bucket at all.  Counting it as "positive ΔG" or "exothermic"
+            # would let a missing value become a stated insight below.
+            delta_G = _apparent_delta_g_298(thermo)
+            if np.isfinite(delta_G) and delta_G < 0:
                 negative_delta_g.append(name)
-            else:
-                positive_delta_g.append(name)
 
-            if delta_H > 0:
-                endothermic.append(name)
-            else:
-                exothermic.append(name)
+            delta_H = thermo.get("delta_H")
+            if delta_H is not None and np.isfinite(delta_H):
+                if delta_H > 0:
+                    endothermic.append(name)
+                else:
+                    exothermic.append(name)
 
     if negative_delta_g:
         if len(negative_delta_g) == len(study_names):
@@ -317,7 +316,9 @@ def _render_isotherm_comparison(studies_data: dict, study_names: list):
                         "RMSE": results.get("rmse", np.nan),
                         "AIC": results.get("aicc", results.get("aic", np.nan)),
                         "BIC": results.get("bic", np.nan),
-                        "χ²": results.get("chi_squared", np.nan),
+                        "Relative SSE": results.get(
+                            "normalized_sse", results.get("chi_squared", np.nan)
+                        ),
                     }
                     # Add model-specific parameters
                     params = results.get("params", {})
@@ -750,6 +751,30 @@ def _render_kinetic_comparison(studies_data: dict, study_names: list):
 # =============================================================================
 # THERMODYNAMIC COMPARISON
 # =============================================================================
+def _apparent_delta_g_298(thermo: dict) -> float:
+    """
+    Apparent ΔG at 298.15 K from the fitted ΔH and ΔS, in kJ/mol.
+
+    Returns ``nan`` when either input is missing or non-finite.  Defaulting an
+    absent ΔH or ΔS to zero, as the previous inline expression did, silently
+    manufactures a ΔG of 0.0 kJ/mol for a study that has no thermodynamic fit
+    at all, and that value then propagates into the comparison table, the bar
+    chart and the ranking.
+    """
+    delta_H = thermo.get("delta_H")
+    delta_S = thermo.get("delta_S")
+    if delta_H is None or delta_S is None:
+        return float("nan")
+    try:
+        delta_H = float(delta_H)
+        delta_S = float(delta_S)
+    except (TypeError, ValueError):
+        return float("nan")
+    if not (np.isfinite(delta_H) and np.isfinite(delta_S)):
+        return float("nan")
+    return delta_H - 298.15 * delta_S / 1000
+
+
 def _render_thermodynamic_comparison(studies_data: dict, study_names: list):
     """Render thermodynamic parameters comparison."""
     st.markdown("### 🌡️ Thermodynamic Parameters Comparison")
@@ -766,13 +791,10 @@ def _render_thermodynamic_comparison(studies_data: dict, study_names: list):
                     "Study": name,
                     "ΔH° (kJ/mol)": thermo.get("delta_H", np.nan),
                     "ΔS° (J/mol·K)": thermo.get("delta_S", np.nan),
-                    "Apparent ΔG at 298K (kJ/mol)": thermo.get("delta_H", 0)
-                    - 298.15 * thermo.get("delta_S", 0) / 1000,
+                    "Apparent ΔG at 298K (kJ/mol)": _apparent_delta_g_298(thermo),
                     "R² (Van't Hoff)": thermo.get("r_squared", np.nan),
-                    "Process": "Exothermic" if thermo.get("delta_H", 0) < 0 else "Endothermic",
-                    "ΔG sign": "Negative"
-                    if (thermo.get("delta_H", 0) - 298.15 * thermo.get("delta_S", 0) / 1000) < 0
-                    else "Positive",
+                    "Process": sign_label(thermo.get("delta_H"), "Exothermic", "Endothermic"),
+                    "ΔG sign": sign_label(_apparent_delta_g_298(thermo), "Negative", "Positive"),
                 }
             )
 
@@ -863,7 +885,7 @@ def _render_thermodynamic_comparison(studies_data: dict, study_names: list):
             fig_dg,
             title="Apparent ΔG at 298K (kJ/mol)",
             x_title="Study",
-            y_title="ΔG° (kJ/mol)",
+            y_title="Apparent ΔG (kJ/mol)",
             height=350,
             legend_horizontal=False,
         )
@@ -1085,15 +1107,13 @@ def _render_overall_ranking(studies_data: dict, study_names: list):
         scores["Isotherm R²"] = langmuir.get("r_squared", 0) if langmuir.get("converged") else 0
         scores["Kinetic R²"] = pso.get("r_squared", 0) if pso.get("converged") else 0
 
-        # Apparent ΔG sign (reported, but excluded from radar ranking)
+        # Apparent ΔG sign (reported, but excluded from radar ranking).
+        # A study without a thermodynamic fit gets nan, not 0.0 — a ΔG of zero
+        # is a meaningful result and must not stand in for "not measured".
         thermo = data.get("thermo_params")
-        if thermo:
-            delta_G = thermo.get("delta_H", 0) - 298.15 * thermo.get("delta_S", 0) / 1000
-            scores["ΔG° (kJ/mol)"] = delta_G
-            scores["Negative apparent ΔG"] = 1 if delta_G < 0 else 0
-        else:
-            scores["ΔG° (kJ/mol)"] = 0
-            scores["Negative apparent ΔG"] = 0
+        delta_G = _apparent_delta_g_298(thermo) if thermo else float("nan")
+        scores["Apparent ΔG (kJ/mol)"] = delta_G
+        scores["Negative apparent ΔG"] = sign_label(delta_G, "Yes", "No")
 
         ranking_data.append(scores)
 
@@ -1110,7 +1130,7 @@ def _render_overall_ranking(studies_data: dict, study_names: list):
                 "k2 (g/mg·min)": "{:.6f}",
                 "Isotherm R²": "{:.4f}",
                 "Kinetic R²": "{:.4f}",
-                "ΔG° (kJ/mol)": "{:.2f}",
+                "Apparent ΔG (kJ/mol)": "{:.2f}",
             },
             highlight_max_cols=["qm (mg/g)", "qe (mg/g)", "Isotherm R²", "Kinetic R²"],
         ),
@@ -1212,11 +1232,11 @@ def _render_overall_ranking(studies_data: dict, study_names: list):
             row["ΔH° (kJ/mol)"] = thermo.get("delta_H", np.nan)
             row["ΔS° (J/mol·K)"] = thermo.get("delta_S", np.nan)
             delta_G_vals = thermo.get("delta_G_values", [])
-            row["ΔG° (kJ/mol)"] = delta_G_vals[0] if delta_G_vals else np.nan
+            row["Apparent ΔG (kJ/mol)"] = delta_G_vals[0] if delta_G_vals else np.nan
         else:
             row["ΔH° (kJ/mol)"] = np.nan
             row["ΔS° (J/mol·K)"] = np.nan
-            row["ΔG° (kJ/mol)"] = np.nan
+            row["Apparent ΔG (kJ/mol)"] = np.nan
 
         pub_table_data.append(row)
 
@@ -1236,7 +1256,7 @@ def _render_overall_ranking(studies_data: dict, study_names: list):
                 "R²_PSO": "{:.4f}",
                 "ΔH° (kJ/mol)": "{:.2f}",
                 "ΔS° (J/mol·K)": "{:.2f}",
-                "ΔG° (kJ/mol)": "{:.2f}",
+                "Apparent ΔG (kJ/mol)": "{:.2f}",
             },
             highlight_max_cols=["qm (mg/g)", "qe (mg/g)", "R²_L", "R²_PSO"],
         ),

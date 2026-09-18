@@ -805,14 +805,29 @@ def validate_kinetic_data(
                 )
             )
 
-        # Check monotonically increasing
-        if not np.all(np.diff(time) > 0):
+        # Time must be ordered, but duplicate times are legitimate replicate
+        # measurements and should not make a research dataset invalid.
+        time_diffs = np.diff(time)
+        if np.any(time_diffs < 0):
             errors.append(
                 ValidationResult(
                     is_valid=False,
                     level=ValidationLevel.ERROR,
-                    message="Time values must be monotonically increasing",
+                    message="Time values must be sorted in non-decreasing order",
                     field="Time",
+                )
+            )
+        elif np.any(time_diffs == 0):
+            warnings.append(
+                ValidationResult(
+                    is_valid=True,
+                    level=ValidationLevel.WARNING,
+                    message="Replicate measurements detected at identical time points",
+                    field="Time",
+                    suggestion=(
+                        "Fits currently treat replicate rows as individual observations. "
+                        "Retain them, and inspect replicate spread before interpretation."
+                    ),
                 )
             )
 

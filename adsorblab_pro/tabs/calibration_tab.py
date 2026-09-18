@@ -20,7 +20,7 @@ from scipy.stats import t as t_dist
 
 from adsorblab_pro.streamlit_compat import st
 
-from ..config import EPSILON_DIV, FONT_FAMILY, get_calibration_grade
+from ..config import EPSILON_DIV, FONT_FAMILY
 from ..plot_style import (
     COLORS,
     MARKERS,
@@ -70,49 +70,32 @@ def render():
                         st.warning(f"{w.message}")
                         if w.suggestion:
                             st.caption(f"💡 {w.suggestion}")
-        # Data Quality - use calib_params quality_score if available (based on R²)
+        # Data-quality checks and R² are shown separately: R² alone does not
+        # validate calibration range, lack of fit, replicate precision, or blanks.
         quality_report = assess_data_quality(calib_df, "calibration")
-
-        # Override with R²-based quality score from calib_params for consistency
-        if calib_params and "r_squared" in calib_params:
-            r2 = calib_params.get("r_squared", 0)
-            grade_info = get_calibration_grade(r2)
-            display_quality = grade_info["score"]
-        else:
-            # Create grade_info from quality_report
-            from ..config import get_grade_from_score
-
-            grade_info = get_grade_from_score(quality_report["quality_score"])
-            display_quality = grade_info["score"]
+        r2 = calib_params.get("r_squared", np.nan) if calib_params else np.nan
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Quality Score", f"{display_quality}/100")
+            st.metric("R² (linearity indicator)", f"{r2:.6f}" if np.isfinite(r2) else "—")
         with col2:
             st.metric("Data Points", len(calib_df))
         with col3:
-            st.metric("Status", grade_info["status"])
+            st.metric("Data Checks", f"{quality_report['quality_score']}/100")
 
         with st.expander("📋 Quality Report", expanded=False):
-            # Show R² quality assessment
             if calib_params:
                 r2 = calib_params.get("r_squared", 0)
-                grade_info = get_calibration_grade(r2)
-
-                if grade_info["grade"] in ["A+", "A"]:
-                    st.success(f"✓ {grade_info['label']} linearity: R² = {r2:.6f}")
-                elif grade_info["grade"] in ["A-", "B"]:
-                    st.info(f"ℹ {grade_info['label']} linearity: R² = {r2:.6f}")
-                elif grade_info["grade"] == "C":
-                    st.warning(f"⚠ {grade_info['label']} linearity: R² = {r2:.6f}")
-                else:
-                    st.error(f"✗ {grade_info['label']} linearity: R² = {r2:.6f}")
+                st.info(
+                    f"R² = {r2:.6f}. Treat this as a linearity indicator only; also inspect "
+                    "residuals, replicate precision, blank response, and back-calculated standards."
+                )
 
             # Data points check
             if len(calib_df) >= 6:
-                st.success(f"✓ Excellent data coverage: {len(calib_df)} points")
+                st.success(f"✓ {len(calib_df)} calibration points available")
             elif len(calib_df) >= 5:
-                st.success(f"✓ Good data coverage: {len(calib_df)} points")
+                st.info(f"ℹ {len(calib_df)} calibration points available")
             else:
                 st.warning(f"⚠ Limited data: {len(calib_df)} points (recommend ≥5)")
 
@@ -125,20 +108,6 @@ def render():
                 st.markdown("**Additional notes:**")
                 for issue in quality_report["issues"]:
                     st.info(f"ℹ {issue}")
-
-            # Grading criteria
-            st.markdown("---")
-            st.markdown("**Grading Criteria (based on R²):**")
-            st.markdown("""
-            | Grade | R² Range | Quality |
-            |-------|----------|---------|
-            | A+ | ≥ 0.999 | Outstanding |
-            | A | ≥ 0.995 | Excellent |
-            | A- | ≥ 0.99 | Very Good |
-            | B | ≥ 0.98 | Good |
-            | C | ≥ 0.95 | Acceptable |
-            | D | < 0.95 | Needs Improvement |
-            """)
 
         st.markdown("---")
 
@@ -160,9 +129,7 @@ def render():
             with col3:
                 st.metric("R²", f"{calib_params['r_squared']:.6f}")
             with col4:
-                r2 = calib_params["r_squared"]
-                grade_info = get_calibration_grade(r2)
-                st.metric("Quality", f"{grade_info['status'].split()[0]} {grade_info['grade']}")
+                st.metric("Std. Error", f"{calib_params.get('std_err_estimate', np.nan):.6f}")
 
             # Advanced Statistics (collapsed)
             with st.expander("📊 Advanced Statistics", expanded=False):
@@ -463,7 +430,7 @@ def render():
             1. **Minimum Points:** Use 6-10 concentration levels
             2. **Include Blank:** Always include C = 0 (blank)
             3. **Range:** Cover expected sample concentration range
-            4. **Linearity:** R² ≥ 0.999 recommended
+            4. **Linearity:** define an acceptance criterion for your method and inspect residuals
             5. **Replicates:** Prepare triplicates for error estimation
             6. **Report:** Include slope, intercept, R², and confidence intervals
 

@@ -1931,7 +1931,7 @@ class TestRateLimitingStep:
 
         result = identify_rate_limiting_step(t, qt, qe)
         assert isinstance(result, dict)
-        assert "F" in result or "mechanism_suggestion" in result
+        assert "F" in result or "transport_indication" in result
 
     def test_identify_rate_limiting_step_basic(self):
         """Test basic rate limiting step analysis."""
@@ -1947,8 +1947,8 @@ class TestRateLimitingStep:
 
         assert "weber_morris" in results
         assert "boyd_plot" in results
-        assert "mechanism_suggestion" in results
-        assert "confidence" in results
+        assert "transport_indication" in results
+        assert "confidence" not in results
 
     def test_identify_rate_limiting_step_insufficient_data(self):
         """Test rate limiting step with insufficient data."""
@@ -1970,7 +1970,8 @@ class TestRateLimitingStep:
 
         results = identify_rate_limiting_step(t, qt, qe=55, particle_radius=0.01)
 
-        assert "D_eff_cm2_min" in results["weber_morris"]
+        assert "D_eff_cm2_min" in results["boyd_plot"]
+        assert "D_eff_cm2_min" not in results["weber_morris"]
 
     def test_identify_rate_limiting_with_biot(self):
         """Test rate limiting step with Biot number calculation."""

@@ -252,9 +252,6 @@ def _render_workflow_diagram():
 <div style="background: linear-gradient(135deg, #C73E1D, #9c3117); color: white; padding: 12px 16px; border-radius: 10px; min-width: 130px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.15);">
 <strong>🔬 Effects</strong><br><span style="font-size: 0.75em; opacity: 0.9;">pH, T, Dosage</span>
 </div>
-<div style="background: linear-gradient(135deg, #E85A4F, #c44a40); color: white; padding: 12px 16px; border-radius: 10px; min-width: 130px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.15);">
-<strong>🔮 3D Explorer</strong><br><span style="font-size: 0.75em; opacity: 0.9;">Visualization</span>
-</div>
 <div style="background: linear-gradient(135deg, #26A69A, #1e8e83); color: white; padding: 12px 16px; border-radius: 10px; min-width: 130px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.15);">
 <strong>📦 Export All</strong><br><span style="font-size: 0.75em; opacity: 0.9;">TIFF, PNG, PDF</span>
 </div>
@@ -307,7 +304,7 @@ def _render_capabilities():
         | R² | Goodness of fit |
         | Adjusted R² | Penalized fit |
         | RMSE | Error magnitude |
-        | χ² (Chi-squared) | Residual analysis |
+        | Relative SSE | Descriptive relative residual score |
         | AIC | Model selection |
         | BIC | Model selection |
         | 95% CI | Uncertainty |
@@ -326,7 +323,7 @@ def _render_tips_section():
         st.markdown("""
         - Use **6-10 concentration points** spanning your expected range
         - Always include a **blank (C = 0)**
-        - Target **R² ≥ 0.999** for best results
+        - Define a method-specific acceptance criterion; do not validate calibration from R² alone
         - Report confidence intervals for slope and intercept
         - Check residuals for systematic patterns
         """)
@@ -370,7 +367,7 @@ def _render_tips_section():
         st.markdown("""
         **Before submission, verify:**
 
-        ✅ Calibration R² ≥ 0.999
+        ✅ Calibration residuals, blank, range, and replicate precision checked
         ✅ Multiple isotherm models compared (≥3)
         ✅ Multiple kinetic models compared (≥3)
         ✅ 95% CI reported for all key parameters
@@ -383,7 +380,7 @@ def _render_tips_section():
 
         **Mechanistic Interpretation:**
         ⚠️ Do NOT claim chemisorption based solely on PSO fit
-        ✅ Use Boyd/Weber-Morris plots for diffusion mechanism
+        ✅ Use Boyd/Weber-Morris plots only as supporting transport diagnostics
         ✅ Report activation energy (Ea) from temperature studies
         ✅ Consider spectroscopic evidence (FTIR, XPS) for mechanism
         """)

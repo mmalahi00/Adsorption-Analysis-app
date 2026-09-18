@@ -567,9 +567,30 @@ def revised_pso_model(
 
     Notes
     -----
-    The rPSO model reduces residual sum of squares by ~66% compared to
-    standard PSO when using a single rate constant to model multiple
-    experiments with varying initial conditions.
+    **The ``qe`` argument is a model parameter, not the equilibrium capacity.**
+    Taking the limit of the equation above as t → ∞::
+
+        lim qt = qe / φ  =  qe · Q / (Q + qe)     where  Q = C0·V/m
+
+    so the plateau the curve actually approaches is ``qe / φ``, which is
+    strictly less than ``qe``.  Use :func:`revised_pso_equilibrium_capacity`
+    to obtain the capacity to report; never present the fitted ``qe`` itself
+    as q_e, because for a high-removal experiment it exceeds the mass-balance
+    ceiling Q and is therefore physically impossible.
+
+    Two consequences follow for fitting:
+
+    * The reachable plateau is bounded above by ``Q = C0·V/m`` — the capacity
+      if every molecule in solution were adsorbed.  This is physically correct
+      behaviour, but it means the upper bound on ``qe`` must be derived from Q
+      rather than from a multiple of the observed q_e; a bound of ``3·q_e,exp``
+      makes the plateau unreachable whenever removal exceeds 66.7%.
+    * Differentiating gives ``dq/dt = k2·(qe - φ·q)²`` with φ constant, i.e.
+      PSO under a reparameterisation.  Comparing rPSO against PSO by AIC on a
+      *single* experiment is therefore close to degenerate.  The reduction in
+      residual sum of squares reported by Bullen et al. comes from fitting one
+      shared k2 across *multiple* experiments at differing C0 and dose, which
+      this single-experiment API does not do.
 
     The standard PSO model's near-universal "best fit" (~90% of studies)
     is a methodological artifact, not evidence of chemisorption mechanism.
@@ -603,6 +624,119 @@ def revised_pso_model(
     denominator = 1 + qe * k2 * t * phi
 
     return numerator / np.maximum(denominator, EPSILON)
+
+
+def mass_balance_capacity(C0: float, m: float, V: float) -> float:
+    """
+    Maximum capacity permitted by mass balance: Q = C0 × V / m  (mg/g).
+
+    This is the capacity reached if every molecule initially in solution were
+    adsorbed (100% removal).  No measured or fitted q_e may exceed it.
+
+    Parameters
+    ----------
+    C0 : float
+        Initial adsorbate concentration (mg/L)
+    m : float
+        Adsorbent mass (g)
+    V : float
+        Solution volume (L)
+
+    Returns
+    -------
+    float
+        Mass-balance ceiling on q_e (mg/g)
+    """
+    return (max(C0, EPSILON) * max(V, EPSILON)) / max(m, EPSILON)
+
+
+def revised_pso_equilibrium_capacity(qe: float, C0: float, m: float, V: float) -> float:
+    """
+    Equilibrium capacity actually predicted by the rPSO curve (mg/g).
+
+    The rPSO equation approaches ``qe / φ`` as t → ∞, not ``qe``.  Substituting
+    ``φ = 1 + qe·m/(C0·V)`` and ``Q = C0·V/m`` gives::
+
+        q_eq = qe / φ = qe · Q / (Q + qe)
+
+    which is strictly less than both ``qe`` and ``Q``.  This is the value to
+    report as q_e and to compare against the experimental plateau.
+
+    Parameters
+    ----------
+    qe : float
+        The fitted rPSO model parameter (mg/g) — *not* the equilibrium capacity
+    C0 : float
+        Initial adsorbate concentration (mg/L)
+    m : float
+        Adsorbent mass (g)
+    V : float
+        Solution volume (L)
+
+    Returns
+    -------
+    float
+        Predicted equilibrium capacity (mg/g)
+
+    See Also
+    --------
+    revised_pso_qe_parameter : the inverse mapping, used to set p0 and bounds.
+    """
+    Q = mass_balance_capacity(C0, m, V)
+    qe = max(float(qe), 0.0)
+    return float(qe * Q / max(Q + qe, EPSILON))
+
+
+def revised_pso_qe_parameter(q_eq: float, C0: float, m: float, V: float) -> float:
+    """
+    Inverse of :func:`revised_pso_equilibrium_capacity`.
+
+    Returns the rPSO model parameter ``qe`` whose curve plateaus at ``q_eq``::
+
+        qe = q_eq · Q / (Q - q_eq)
+
+    Used to translate a physically meaningful capacity (an observed plateau, or
+    a fraction of the mass-balance ceiling) into the parameter space curve_fit
+    actually searches, so that initial guesses and bounds are stated in terms of
+    capacities rather than of an unbounded fitting parameter.
+
+    Parameters
+    ----------
+    q_eq : float
+        Target equilibrium capacity (mg/g); must be < Q
+    C0 : float
+        Initial adsorbate concentration (mg/L)
+    m : float
+        Adsorbent mass (g)
+    V : float
+        Solution volume (L)
+
+    Returns
+    -------
+    float
+        Corresponding rPSO ``qe`` parameter (mg/g).  Returns ``inf`` when
+        ``q_eq >= Q``, which is unreachable by construction.
+    """
+    Q = mass_balance_capacity(C0, m, V)
+    q_eq = max(float(q_eq), 0.0)
+    if q_eq >= Q:
+        return float("inf")
+    return float(q_eq * Q / max(Q - q_eq, EPSILON))
+
+
+def predict_revised_pso(t: NDArray[np.floating[Any]], result: dict) -> NDArray[np.floating[Any]]:
+    """Evaluate the fitted legacy equation, never substitute standard PSO.
+
+    Conditions are mandatory: a missing-condition result cannot be reconstructed.
+    """
+    conditions = result.get("experimental_conditions", {})
+    if not all(key in conditions for key in ("C0", "m", "V")):
+        raise ValueError("rPSO prediction requires the fitted C0, m and V conditions")
+    values = [float(conditions[key]) for key in ("C0", "m", "V")]
+    if not all(np.isfinite(value) and value > 0 for value in values):
+        raise ValueError("rPSO conditions must be finite and positive")
+    params = result["params"]
+    return revised_pso_model(t, params["qe"], params["k2"], *values)
 
 
 def revised_pso_model_fixed_conditions(C0: float, m: float, V: float) -> Callable:
@@ -742,9 +876,9 @@ def calculate_biot_number(kf: float, Dp: float, r: float) -> float:
     - Bi ≈ 1: Both mechanisms are important
 
     Typical guidance:
-    - Bi > 100: Pore diffusion dominates (>90% of resistance)
-    - Bi < 0.1: Film diffusion dominates (>90% of resistance)
-    - 0.1 < Bi < 100: Mixed control
+    - Bi > 100: Internal resistance is expected to be more influential
+    - Bi < 0.1: External-film resistance is expected to be more influential
+    - 0.1 < Bi < 100: Neither resistance can be neglected from Bi alone
 
     Example
     -------
@@ -755,9 +889,8 @@ def calculate_biot_number(kf: float, Dp: float, r: float) -> float:
     ---------
     Ruthven, D.M. (1984). Principles of Adsorption and Adsorption Processes.
     """
-    kf = max(kf, EPSILON)
-    Dp = max(Dp, EPSILON)
-    r = max(r, EPSILON)
+    if kf <= 0 or Dp <= 0 or r <= 0:
+        raise ValueError("kf, Dp, and particle radius must all be positive")
 
     return kf * r / Dp
 
@@ -769,10 +902,10 @@ def identify_rate_limiting_step(
     particle_radius: float | None = None,
 ) -> dict[str, Any]:
     """
-    Analyze kinetic data to identify the rate-limiting step.
+    Screen kinetic data for film- and particle-diffusion patterns.
 
-    Performs multiple diagnostic tests to determine whether film diffusion,
-    pore diffusion, or mixed control governs the adsorption kinetics.
+    The returned indicators are model-based diagnostics, not a unique
+    identification of adsorption mechanism or a calibrated probability.
 
     Parameters
     ----------
@@ -783,7 +916,8 @@ def identify_rate_limiting_step(
     qe : float
         Equilibrium capacity (mg/g), use qt[-1] if unknown
     particle_radius : float, optional
-        Particle radius (cm) for diffusion coefficient estimation
+        Particle radius (cm) for the Boyd spherical-particle diffusivity
+        estimate
 
     Returns
     -------
@@ -792,22 +926,24 @@ def identify_rate_limiting_step(
         - 'F': Fractional attainment array
         - 'weber_morris': Weber-Morris IPD analysis results
         - 'boyd_plot': Boyd plot analysis results
-        - 'mechanism_suggestion': Most likely rate-limiting mechanism
-        - 'confidence': Confidence level in suggestion
+        - 'transport_indication': Evidence-aware interpretation
 
     Notes
     -----
     Diagnostic criteria used:
     1. Weber-Morris plot (qt vs t^0.5):
-       - Linear through origin → pore diffusion controls
+       - A statistically origin-compatible line is consistent with an
+         intraparticle-diffusion contribution
     2. Boyd plot (Bt vs t):
-       - Linear through origin → film diffusion controls
-       - Linear, non-zero intercept → pore diffusion controls
+       - Linear through origin → particle-diffusion control is plausible
+         under the Boyd assumptions
+       - Non-zero intercept → film resistance may contribute
 
     Reference
     ---------
-    Qiu, H., et al. (2009). Critical review in adsorption kinetic models.
-    J. Zhejiang Univ. Sci. A, 10(5), 716-724.
+    Boyd, G.E., Adamson, A.W., & Myers, L.S. (1947). JACS 69, 2836-2848.
+    Reichenberg, D. (1953). JACS 75, 589-598.
+    Weber, W.J., & Morris, J.C. (1963). J. Sanit. Eng. Div. 89, 31-60.
     """
     t = np.asarray(t)
     qt = np.asarray(qt)
@@ -827,73 +963,107 @@ def identify_rate_limiting_step(
 
     # 1. Weber-Morris IPD analysis
     sqrt_t = np.sqrt(t)
-    slope_wm, intercept_wm, r_wm, _, _ = linregress(sqrt_t, qt)
+    wm_fit = linregress(sqrt_t, qt)
+    slope_wm = float(wm_fit.slope)
+    intercept_wm = float(wm_fit.intercept)
+    wm_tcrit = float(t_dist.ppf(0.975, len(t) - 2))
+    wm_intercept_ci = (
+        intercept_wm - wm_tcrit * float(wm_fit.intercept_stderr),
+        intercept_wm + wm_tcrit * float(wm_fit.intercept_stderr),
+    )
+    wm_origin_compatible = wm_intercept_ci[0] <= 0 <= wm_intercept_ci[1]
     weber_morris: dict[str, Any] = {
         "kid": slope_wm,
         "C": intercept_wm,
-        "r_squared": r_wm**2,
-        "passes_origin": abs(intercept_wm) < 0.1 * qt.max(),
+        "intercept": intercept_wm,
+        "intercept_ci_95": wm_intercept_ci,
+        "r_squared": float(wm_fit.rvalue**2),
+        "passes_through_origin": wm_origin_compatible,
+        "origin_test": "95% intercept CI includes zero",
     }
     results["weber_morris"] = weber_morris
 
-    # Calculate effective diffusion coefficient if particle radius provided
-    if particle_radius is not None and particle_radius > 0:
-        # D_eff = (kid² × r²) / (6 × qe²) in cm²/min
-        kid = slope_wm
-        D_eff = (kid**2 * particle_radius**2) / (6 * qe**2)
-        weber_morris["D_eff_cm2_min"] = D_eff
-        weber_morris["D_eff_cm2_s"] = D_eff / 60  # Convert to cm²/s
-        weber_morris["particle_radius_cm"] = particle_radius
     # 2. Boyd plot analysis
-    # Bt = -0.4977 - ln(1-F) for F < 0.85
-    # Bt ≈ 2π - 2π²F/3 for F > 0.85 (approximation)
-    Bt = np.where(F < 0.85, -0.4977 - np.log(1 - F), 2 * np.pi - 2 * PI_SQUARED * F / 3)
+    # Reichenberg approximations to the spherical-particle Boyd solution:
+    #   F > 0.85: Bt = -0.4977 - ln(1-F)
+    #   F <= 0.85: Bt = 2π - π²F/3 - 2π sqrt(1-πF/3)
+    # The former implementation applied these branches in reverse and omitted
+    # the square-root term in the low-F approximation.
+    Bt_low = (
+        2 * np.pi - PI_SQUARED * F / 3 - 2 * np.pi * np.sqrt(np.maximum(0.0, 1 - np.pi * F / 3))
+    )
+    Bt_high = -0.4977 - np.log(1 - F)
+    Bt = np.where(F <= 0.85, Bt_low, Bt_high)
 
-    slope_boyd, intercept_boyd, r_boyd, _, _ = linregress(t, Bt)
+    boyd_fit = linregress(t, Bt)
+    slope_boyd = float(boyd_fit.slope)
+    intercept_boyd = float(boyd_fit.intercept)
+    boyd_tcrit = float(t_dist.ppf(0.975, len(t) - 2))
+    boyd_intercept_ci = (
+        intercept_boyd - boyd_tcrit * float(boyd_fit.intercept_stderr),
+        intercept_boyd + boyd_tcrit * float(boyd_fit.intercept_stderr),
+    )
+    boyd_origin_compatible = boyd_intercept_ci[0] <= 0 <= boyd_intercept_ci[1]
     boyd_plot: dict[str, Any] = {
         "slope": slope_boyd,
         "intercept": intercept_boyd,
-        "r_squared": r_boyd**2,
-        "passes_origin": abs(intercept_boyd) < 0.1 * Bt.max(),
+        "intercept_ci_95": boyd_intercept_ci,
+        "r_squared": float(boyd_fit.rvalue**2),
+        "passes_through_origin": boyd_origin_compatible,
+        "origin_test": "95% intercept CI includes zero",
+        "Bt": Bt,
     }
+
+    # Under the spherical-particle Boyd model, B = π² D_i / r².  This estimate
+    # is tied to the Boyd slope; the previous Weber-Morris-slope formula was
+    # unsupported and has deliberately been removed.
+    if particle_radius is not None and particle_radius > 0 and slope_boyd > 0:
+        d_eff_min = slope_boyd * particle_radius**2 / PI_SQUARED
+        boyd_plot["D_eff_cm2_min"] = d_eff_min
+        boyd_plot["D_eff_cm2_s"] = d_eff_min / 60
+        boyd_plot["particle_radius_cm"] = particle_radius
     results["boyd_plot"] = boyd_plot
 
-    # 3. Mechanism identification
-    wm_origin = weber_morris["passes_origin"]
-    boyd_origin = boyd_plot["passes_origin"]
+    # 3. Evidence-aware transport indication
+    wm_origin = weber_morris["passes_through_origin"]
+    boyd_origin = boyd_plot["passes_through_origin"]
     wm_r2 = weber_morris["r_squared"]
     boyd_r2 = boyd_plot["r_squared"]
 
     if boyd_origin and boyd_r2 > 0.95:
-        mechanism = "Film diffusion (external mass transfer)"
-        confidence = "High" if boyd_r2 > 0.98 else "Medium"
+        indication = (
+            "Boyd linearity and an origin-compatible intercept are consistent with "
+            "particle-diffusion control under the model assumptions."
+        )
     elif wm_origin and wm_r2 > 0.95:
-        mechanism = "Pore diffusion (intraparticle diffusion)"
-        confidence = "High" if wm_r2 > 0.98 else "Medium"
+        indication = (
+            "The Weber-Morris line is origin-compatible, which is consistent with an "
+            "intraparticle-diffusion contribution; this alone does not establish sole control."
+        )
     elif not wm_origin and wm_r2 > 0.90:
-        if weber_morris["C"] > 0:
-            mechanism = "Pore diffusion with boundary layer effect"
-        else:
-            mechanism = "Mixed film and pore diffusion"
-        confidence = "Medium"
+        indication = (
+            "The non-zero Weber-Morris intercept indicates that boundary-layer resistance "
+            "may contribute alongside intraparticle transport."
+        )
     else:
-        mechanism = "Mixed or complex mechanism"
-        confidence = "Low"
+        indication = (
+            "The linearized diagnostics do not support a unique rate-limiting step; "
+            "mixed transport or multiple kinetic regions should be considered."
+        )
 
-    results["mechanism_suggestion"] = mechanism
-    results["confidence"] = confidence
+    results["transport_indication"] = indication
 
     # Additional guidance
-    recommendations: list[str] = []
-    if confidence == "Low":
-        recommendations.append("Perform particle size variation study to confirm mechanism")
+    recommendations: list[str] = [
+        "Vary particle size and agitation rate before assigning a rate-limiting step."
+    ]
     if not wm_origin:
-        recommendations.append("Non-zero Weber-Morris intercept suggests boundary layer resistance")
-    if "Mixed" in mechanism:
-        recommendations.append("Consider double-exponential model for two-site kinetics")
+        recommendations.append(
+            "The Weber-Morris intercept differs from zero at the 95% level; inspect boundary-layer effects."
+        )
     if particle_radius is None:
         recommendations.append(
-            "Provide particle radius to estimate effective diffusion coefficient"
+            "Provide a defensible spherical-particle radius if a Boyd diffusivity estimate is needed."
         )
     results["recommendations"] = recommendations
 
@@ -961,6 +1131,25 @@ def _fit_model_core(
                 "tighter bounds, or a simpler model."
             )
 
+        # Parameters resting on a bound.
+        #
+        # curve_fit reports success when the optimiser stops on the edge of the
+        # feasible region, so a fit that was *prevented* from reaching the data
+        # is indistinguishable from a good one by `converged` alone — it just
+        # has a poor R².  A user then concludes the model does not describe
+        # their system, when in reality the bound did.  Naming the offending
+        # parameters lets callers say which, and lets them treat a bound-limited
+        # fit as the diagnostic it is rather than as a result.
+        bounds_hit: list[str] = []
+        if bounds:
+            _names = param_names or [f"p{i}" for i in range(n_params)]
+            for i, value in enumerate(popt):
+                lo, hi = bounds[0][i], bounds[1][i]
+                if np.isfinite(lo) and np.isclose(value, lo, rtol=1e-6, atol=1e-9):
+                    bounds_hit.append(f"{_names[i]} (lower bound {lo:.6g})")
+                elif np.isfinite(hi) and np.isclose(value, hi, rtol=1e-6, atol=1e-9):
+                    bounds_hit.append(f"{_names[i]} (upper bound {hi:.6g})")
+
         # Predictions and residuals
         y_pred = model_func(x_data, *popt)
         residuals = y_data - y_pred
@@ -977,24 +1166,23 @@ def _fit_model_core(
             adj_r_squared = r_squared
 
         # RMSE
+        #
+        # CONVENTION: divided by n, not by the residual degrees of freedom
+        # (n - n_params).  This matches the definition used throughout the
+        # adsorption literature, but it means RMSE is NOT comparable between
+        # models with different parameter counts — the model with more
+        # parameters is flattered.  Use AICc for model selection; RMSE here is
+        # a descriptive measure of fit magnitude only.
         rmse = np.sqrt(np.sum(residuals**2) / n)
 
-        # Chi-squared
+        # Relative SSE (legacy key: chi_squared).  Without independently known
+        # observation variances this is not an inferential chi-square statistic.
         y_pred_safe = np.where(np.abs(y_pred) < EPSILON, EPSILON, y_pred)
-        chi_sq = np.sum(residuals**2 / np.abs(y_pred_safe))
+        normalized_sse = np.sum(residuals**2 / np.abs(y_pred_safe))
 
-        # AIC, AICc, BIC
-        if ss_res > 0:
-            log_lik = -n / 2 * np.log(2 * np.pi) - n / 2 * np.log(ss_res / n) - n / 2
-            aic = -2 * log_lik + 2 * n_params
-            aicc = (
-                aic + (2 * n_params * (n_params + 1)) / (n - n_params - 1)
-                if n > n_params + 1
-                else aic
-            )
-            bic = -2 * log_lik + n_params * np.log(n)
-        else:
-            aic = aicc = bic = np.inf
+        from .statistical_criteria import information_criteria
+
+        aic, aicc, bic = information_criteria(float(ss_res), n, n_params)
 
         # Confidence intervals
         dof = n - n_params
@@ -1043,7 +1231,8 @@ def _fit_model_core(
             "r_squared": r_squared,
             "adj_r_squared": adj_r_squared,
             "rmse": rmse,
-            "chi_squared": chi_sq,
+            "normalized_sse": normalized_sse,
+            "chi_squared": normalized_sse,  # Backward-compatible alias
             "aic": aic,
             "aicc": aicc,
             "bic": bic,
@@ -1052,6 +1241,7 @@ def _fit_model_core(
             "n_points": n,
             "num_params": n_params,
             "dof": dof,
+            "bounds_hit": bounds_hit,
             "converged": True,
         }
 

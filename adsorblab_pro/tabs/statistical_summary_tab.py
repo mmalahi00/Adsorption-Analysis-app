@@ -112,7 +112,9 @@ def render():
                     "R²": results.get("r_squared", 0),
                     "Adj-R²": results.get("adj_r_squared", 0),
                     "RMSE": results.get("rmse", np.inf),
-                    "χ²": results.get("chi_squared", np.inf),
+                    "Relative SSE": results.get(
+                        "normalized_sse", results.get("chi_squared", np.inf)
+                    ),
                     "AIC": results.get("aicc", results.get("aic", np.inf)),
                     "BIC": results.get("bic", np.inf),
                 }
@@ -149,13 +151,13 @@ def render():
                         "R²": "{:.4f}",
                         "Adj-R²": "{:.4f}",
                         "RMSE": "{:.4f}",
-                        "χ²": "{:.2f}",
+                        "Relative SSE": "{:.2f}",
                         "AIC": "{:.2f}",
                         "BIC": "{:.2f}",
                     }
                 )
                 .highlight_max(subset=["R²", "Adj-R²"], color="lightgreen")
-                .highlight_min(subset=["RMSE", "AIC", "BIC", "χ²"], color="lightblue"),
+                .highlight_min(subset=["RMSE", "AIC", "BIC", "Relative SSE"], color="lightblue"),
                 use_container_width=True,
             )
 
@@ -241,7 +243,9 @@ def render():
                         f"**Best Kinetic Model:** {best_model} (Adj-R² = {kin_df.loc[best_idx, 'Adj-R²']:.4f})"
                     )
                     st.caption(
-                        "⚠️ Note: Best statistical fit ≠ mechanistic evidence. Use Boyd/Weber-Morris plots and activation energy for mechanism identification."
+                        "⚠️ Note: Best statistical fit ≠ mechanistic evidence. Use controlled "
+                        "particle-size/agitation experiments, supported by Boyd/Weber-Morris "
+                        "diagnostics and independent characterization."
                     )
             except (KeyError, ValueError):
                 st.caption("⚠️ Could not determine best kinetic model (missing Adj-R² values).")
@@ -453,12 +457,28 @@ def _render_consistency_check(study_state: dict):
             "text": "#721c24",
             "title": "Conflicts Detected",
         },
+        # A study to which no check applies is NOT "All Clear".  Rendering an
+        # empty check set in the green banner presents "0/0 checks passed" as a
+        # positive result, which is an affirmative claim about work that was
+        # never done.  Neutral styling, and a caption that says so.
+        "no_checks": {
+            "icon": "ℹ️",
+            "bg": "linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%)",
+            "border": "#6c757d",
+            "text": "#343a40",
+            "title": "Nothing Checked",
+        },
     }
 
-    config = status_configs.get(result["status"], status_configs["consistent"])
+    config = status_configs.get(result["status"], status_configs["no_checks"])
 
     # Overall status banner
     safe_interpretation = html.escape(str(result["interpretation"]))
+    subtitle = (
+        "No applicable checks — this is not a pass"
+        if n_checks == 0
+        else f"{n_passed}/{n_checks} checks passed"
+    )
     st.markdown(
         f"""
     <div style="background: {config["bg"]}; padding: 20px; border-radius: 10px;
@@ -471,7 +491,7 @@ def _render_consistency_check(study_state: dict):
                     {safe_interpretation}
                 </h4>
                 <p style="color: {config["text"]}; margin: 5px 0 0 0; font-size: 0.9em; opacity: 0.8;">
-                    {n_passed}/{n_checks} checks passed
+                    {html.escape(subtitle)}
                 </p>
             </div>
         </div>

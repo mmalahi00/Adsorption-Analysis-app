@@ -44,6 +44,7 @@ from ..models import (
     ipd_model,
     langmuir_model,
     pfo_model,
+    predict_revised_pso,
     pso_model,
     sips_model,
     temkin_model,
@@ -65,7 +66,7 @@ from ..plot_style import (
     style_experimental_trace,
 )
 
-from ..utils import get_current_study_state
+from ..utils import get_current_study_state, sign_label
 
 # Check for kaleido (used by Plotly for static image export)
 try:
@@ -363,11 +364,6 @@ FIGURE_CATEGORIES = {
         ],
     },
     "statistical": {"name": "Statistical Summary", "icon": "📊", "items": []},
-    "3d_explorer": {
-        "name": "3D Explorer (Saved)",
-        "icon": "🔮",
-        "items": [],  # Dynamically populated from saved figures
-    },
     "multi_study": {
         "name": "Multi-Study Comparison",
         "icon": "🆚",
@@ -377,7 +373,6 @@ FIGURE_CATEGORIES = {
             ("multi_kin_qe_bar", "qe Comparison Bar Chart", "PSO qe across studies"),
             ("multi_kin_radar", "Kinetic Radar Chart", "Multi-criteria kinetic comparison"),
             ("multi_thermo_bar", "Thermodynamic Bar Chart", "ΔH°, ΔS°, ΔG° comparison"),
-            ("multi_ranking_bar", "Overall Ranking", "Combined performance ranking"),
         ],
     },
 }
@@ -431,7 +426,6 @@ TABLE_CATEGORIES = {
             ),
             ("tbl_multi_kin_params", "Kinetic Parameters Comparison", "All studies kinetic params"),
             ("tbl_multi_thermo", "Thermodynamic Comparison", "All studies ΔH°, ΔS°, ΔG°"),
-            ("tbl_multi_ranking", "Overall Study Ranking", "Combined performance scores"),
             ("tbl_multi_pub_summary", "Summary Table", "All key parameters in one table"),
             (
                 "tbl_multi_mechanism",
@@ -815,7 +809,7 @@ def _gen_kinetic_model(study_state: dict, model_name: str) -> go.Figure | None:
     elif model_name == "PSO" and "qe" in params and "k2" in params:
         qt_pred = pso_model(t_line, params["qe"], params["k2"])
     elif model_name == "rPSO" and "qe" in params and "k2" in params:
-        qt_pred = pso_model(t_line, params["qe"], params["k2"])
+        qt_pred = predict_revised_pso(t_line, model_data)
     elif model_name == "Elovich" and "alpha" in params and "beta" in params:
         qt_pred = elovich_model(t_line, params["alpha"], params["beta"])
     elif model_name == "IPD" and "kid" in params and "C" in params:
@@ -855,7 +849,7 @@ def _gen_kinetic_comparison(study_state: dict) -> go.Figure | None:
     model_functions = {
         "PFO": lambda x, p: pfo_model(x, p["qe"], p["k1"]),
         "PSO": lambda x, p: pso_model(x, p["qe"], p["k2"]),
-        "rPSO": lambda x, p: pso_model(x, p["qe"], p["k2"]),
+        "rPSO": lambda x, p: predict_revised_pso(x, kin_results["rPSO"]),
         "Elovich": lambda x, p: elovich_model(x, p["alpha"], p["beta"]),
         "IPD": lambda x, p: ipd_model(x, p["kid"], p["C"]),
     }
@@ -1724,10 +1718,8 @@ def _gen_tbl_multi_thermo(s: dict) -> pd.DataFrame | None:
                     "ΔS° (J/mol·K)": thermo.get("delta_S", np.nan),
                     "Apparent ΔG (kJ/mol)": delta_G_val,
                     "R²": thermo.get("r_squared", np.nan),
-                    "ΔG sign": "Negative" if delta_G_val < 0 else "Positive",
-                    "Enthalpy sign": "Endothermic"
-                    if thermo.get("delta_H", 0) > 0
-                    else "Exothermic",
+                    "ΔG sign": sign_label(delta_G_val, "Negative", "Positive"),
+                    "Enthalpy sign": sign_label(thermo.get("delta_H"), "Exothermic", "Endothermic"),
                 }
             )
 

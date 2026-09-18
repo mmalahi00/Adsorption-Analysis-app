@@ -6,8 +6,8 @@ Features:
 - PFO, PSO, rPSO, Elovich, IPD models with non-linear regression
 - 95% confidence intervals via bootstrap resampling
 - Weber-Morris and Boyd plot diffusion analysis
-- Biot number calculation for rate-limiting step identification
-- Comprehensive model comparison (R², Adj-R², RMSE, AIC, χ²)
+- Biot number calculation for transport screening
+- Comprehensive model comparison (R², Adj-R², RMSE, AIC, relative SSE)
 """
 
 import hashlib
@@ -28,9 +28,13 @@ from ..models import (
     fit_model_with_ci,
     identify_equilibrium_time,
     identify_rate_limiting_step,
+    mass_balance_capacity,
     pfo_model,
+    predict_revised_pso,
     pso_model,
+    revised_pso_equilibrium_capacity,
     revised_pso_model_fixed_conditions,
+    revised_pso_qe_parameter,
 )
 from ..plot_style import (
     COLORS,
@@ -54,7 +58,6 @@ from ..utils import (
     display_results_table,
     get_current_study_state,
     propagate_calibration_uncertainty,
-    recommend_best_models,
     validate_required_params,
 )
 from ..validation import format_validation_errors, validate_kinetic_data
@@ -324,27 +327,62 @@ def _fit_all_kinetic_models_cached(
                 # Create model with fixed experimental conditions
                 rpso_model = revised_pso_model_fixed_conditions(C0, m, V)
 
-                result = fit_model_with_ci(
-                    rpso_model,
-                    t_v,
-                    qt_v,
-                    p0=[qe_exp, 0.01],
-                    bounds=([0, 0], [qe_exp * 3, 10]),
-                    param_names=["qe", "k2"],
-                    confidence=confidence_level,
-                )
-                if result and result.get("converged"):
-                    qe, k2 = result["params"]["qe"], result["params"]["k2"]
-                    # Calculate correction factor phi
-                    phi = 1 + (qe * m) / (C0 * V)
-                    result["params"]["phi"] = phi
-                    result["params"]["h"] = k2 * qe**2  # Initial rate
-                    result["params"]["t_half"] = (
-                        1 / (k2 * qe * phi) if k2 * qe * phi > 0 else np.nan
+                # The rPSO curve plateaus at qe/φ, not at the fitted qe, and that
+                # plateau is bounded above by the mass-balance ceiling Q = C0·V/m.
+                # Bounds and p0 must therefore be expressed as capacities and then
+                # mapped into the parameter space curve_fit searches.  A naive
+                # bound of 3·qe_exp on the raw parameter caps the reachable
+                # plateau at 3·qe_exp·Q/(Q + 3·qe_exp), which falls below the
+                # observed qe_exp whenever removal exceeds 66.7% — i.e. for most
+                # real adsorption experiments — producing a bound-pinned fit with
+                # a poor R² and a reported qe above the mass-balance ceiling.
+                q_max_mb = mass_balance_capacity(C0, m, V)
+
+                if qe_exp >= q_max_mb:
+                    # More adsorbed than was ever in solution: the data or the
+                    # stated conditions are inconsistent, and every rPSO capacity
+                    # would be unreachable.  Say so rather than fit to a bound.
+                    fitted["rPSO"] = {
+                        "converged": False,
+                        "error": (
+                            f"Observed qe ({qe_exp:.4g} mg/g) meets or exceeds the mass-balance "
+                            f"ceiling C₀·V/m ({q_max_mb:.4g} mg/g). Check C₀, m, V and the "
+                            f"qt data before fitting rPSO."
+                        ),
+                    }
+                else:
+                    # No arbitrary 99% removal cap on this legacy parameterisation.
+                    qe_upper = np.inf
+                    # Start from the parameter whose plateau equals the observed qe.
+                    qe_start = revised_pso_qe_parameter(qe_exp, C0, m, V)
+                    qe_start = float(np.clip(qe_start, 0.0, qe_upper))
+
+                    result = fit_model_with_ci(
+                        rpso_model,
+                        t_v,
+                        qt_v,
+                        p0=[qe_start, 0.01 / (1 + qe_start / q_max_mb) ** 2],
+                        bounds=([0, 0], [qe_upper, 10]),
+                        param_names=["qe", "k2"],
+                        confidence=confidence_level,
                     )
-                    result["experimental_conditions"] = {"C0": C0, "m": m, "V": V}
-                    result["reference"] = "Bullen et al. (2021). Langmuir, 37(10), 3189-3201"
-                    fitted["rPSO"] = result
+                    if result and result.get("converged"):
+                        qe, k2 = result["params"]["qe"], result["params"]["k2"]
+                        # Correction factor φ, and the capacity the curve actually
+                        # approaches.  `qe` stays the raw model parameter because
+                        # the model function and the bootstrap are called with it;
+                        # `qe_eq` is the value to report and plot as q_e.
+                        phi = 1 + (qe * m) / (C0 * V)
+                        result["params"]["phi"] = phi
+                        result["params"]["qe_eq"] = revised_pso_equilibrium_capacity(qe, C0, m, V)
+                        result["params"]["q_max_mb"] = q_max_mb
+                        result["params"]["h"] = k2 * qe**2  # Initial rate
+                        result["params"]["t_half"] = (
+                            1 / (k2 * qe * phi) if k2 * qe * phi > 0 else np.nan
+                        )
+                        result["experimental_conditions"] = {"C0": C0, "m": m, "V": V}
+                        result["reference"] = "Bullen et al. (2021). Langmuir, 37(10), 3189-3201"
+                        fitted["rPSO"] = result
         except Exception as e:
             fitted["rPSO"] = {"converged": False, "error": str(e)}
 
@@ -369,24 +407,40 @@ def _fit_all_kinetic_models_cached(
     # IPD (linear model)
     try:
         from scipy.stats import linregress
+        from scipy.stats import t as t_dist
 
         sqrt_t = np.sqrt(t_v)
-        slope, intercept, r_val, p_val, std_err = linregress(sqrt_t, qt_v)
+        ipd_fit = linregress(sqrt_t, qt_v)
+        slope = float(ipd_fit.slope)
+        intercept = float(ipd_fit.intercept)
+        intercept_se = float(ipd_fit.intercept_stderr)
+        tcrit = float(t_dist.ppf(0.975, len(t_v) - 2))
+        intercept_ci = (intercept - tcrit * intercept_se, intercept + tcrit * intercept_se)
+        origin_compatible = intercept_ci[0] <= 0 <= intercept_ci[1]
 
         y_pred = slope * sqrt_t + intercept
         metrics = calculate_error_metrics(qt_v, y_pred, 2)
 
         fitted["IPD"] = {
             "converged": True,
-            "params": {"kid": slope, "C": intercept, "kid_se": std_err},
-            "r_squared": r_val**2,
+            "params": {
+                "kid": slope,
+                "C": intercept,
+                "kid_se": float(ipd_fit.stderr),
+                "C_se": intercept_se,
+            },
+            "ci_95": {"C": intercept_ci},
+            "origin_compatible": origin_compatible,
+            "r_squared": float(ipd_fit.rvalue**2),
             "adj_r_squared": metrics["adj_r_squared"],
             "rmse": metrics["rmse"],
             "aic": metrics.get("aic", np.inf),
+            "aicc": metrics["aicc"],
+            "n_points": len(t_v),
+            "num_params": 2,
             "bic": metrics.get("bic", np.nan),
-            "mechanism": "Intraparticle diffusion controlled"
-            if abs(intercept) < 1
-            else "Boundary layer effect present",
+            "normalized_sse": metrics["normalized_sse"],
+            "chi_squared": metrics["normalized_sse"],
         }
     except Exception as e:
         fitted["IPD"] = {"converged": False, "error": str(e)}
@@ -470,7 +524,7 @@ def fit_kinetic_models_with_cache(
 def render():
     """Render kinetic analysis with professional statistics."""
     st.subheader("⏱️ Adsorption Kinetics Analysis")
-    st.markdown("*Multi-model fitting with confidence intervals and mechanism identification*")
+    st.markdown("*Multi-model fitting with confidence intervals and transport diagnostics*")
 
     current_study_state = get_current_study_state()
     if not current_study_state:
@@ -699,7 +753,10 @@ def render():
                 C0 = params.get("C0", 0)
                 m = params.get("m", 0)
                 V = params.get("V", 0)
-                experimental_conditions = (C0, m, V) if all([C0 > 0, m > 0, V > 0]) else None
+                # Legacy rPSO is quarantined until its equation is verified
+                # against the primary source. Keep the API for old results.
+                experimental_conditions = None
+                st.caption("Legacy rPSO is unavailable pending primary-equation validation.")
 
                 model_count = "5" if experimental_conditions else "4"
                 with st.spinner(f"🔄 Fitting {model_count} kinetic models..."):
@@ -780,10 +837,6 @@ def render():
 
             # Display results only if we have them
             if show_results and fitted_models:
-                valid_models = {
-                    k: v for k, v in fitted_models.items() if v and v.get("converged", False)
-                }
-
                 # Get qe_exp and experimental_conditions for diffusion analysis
                 qe_exp = qt.max()
                 params = kin_input.get("params", {})
@@ -791,19 +844,6 @@ def render():
                 m = params.get("m", 0)
                 V = params.get("V", 0)
                 experimental_conditions = (C0, m, V) if all([C0 > 0, m > 0, V > 0]) else None
-
-                if valid_models:
-                    recommendations = recommend_best_models(valid_models, "kinetic")
-
-                    if recommendations:
-                        best = recommendations[0]
-                        st.success(f"""
-                        **🎯 Recommended Model: {best["model"]}**
-
-                        **Confidence:** {best["confidence"]:.1f}% | **Adj-R²:** {best.get("adj_r_squared", best["r_squared"]):.4f}
-
-                        **Rationale:** {best["rationale"]}
-                        """)
 
                 # Model tabs
                 tab1, tab2, tab2b, tab3, tab4, tab5, tab6 = st.tabs(
@@ -1196,10 +1236,13 @@ def _display_ipd(t, qt, results):
             {
                 "Parameter": ["kid (mg/(g·min⁰·⁵))", "C (mg/g)"],
                 "Value": [f"{params['kid']:.4f}", f"{params['C']:.4f}"],
-                "Std. Error": [f"{params.get('kid_se', 0):.4f}", "—"],
+                "Std. Error": [
+                    f"{params.get('kid_se', 0):.4f}",
+                    f"{params.get('C_se', 0):.4f}",
+                ],
                 "Interpretation": [
                     "Diffusion rate constant",
-                    results.get("mechanism", "Boundary layer thickness"),
+                    "Intercept; assess its confidence interval against zero",
                 ],
             }
         )
@@ -1214,14 +1257,16 @@ def _display_ipd(t, qt, results):
 
         # Interpretation
         C = params["C"]
-        if abs(C) < 1:
+        c_ci = results.get("ci_95", {}).get("C", (np.nan, np.nan))
+        if results.get("origin_compatible", False):
             st.success(
-                "**C ≈ 0:** The fitted line passes near the origin. This is consistent with an "
-                "IPD contribution but does not prove that IPD is the sole rate-limiting step."
+                f"**C = {C:.2f}; 95% CI [{c_ci[0]:.2f}, {c_ci[1]:.2f}] includes zero.** "
+                "This is consistent with an IPD contribution but does not prove sole control."
             )
         else:
             st.info(
-                f"**C = {C:.2f}:** Boundary layer effect present. Multiple mechanisms involved."
+                f"**C = {C:.2f}; 95% CI [{c_ci[0]:.2f}, {c_ci[1]:.2f}] excludes zero.** "
+                "Boundary-layer resistance may contribute; inspect multiple kinetic regions."
             )
 
         # Plot
@@ -1283,22 +1328,36 @@ def _display_rpso(t, qt, results):
     correction factor (φ) that accounts for the initial adsorbate concentration. This
     reduced median residual sum of squares by 66% in the cited multi-experiment evaluation.
     This is not a universal performance guarantee.
+
+    Note that the rPSO curve approaches **qₑ,fit / φ**, not qₑ,fit. The equilibrium capacity
+    to report is the plateau row below; the raw fitted parameter is shown separately and
+    should not be quoted as a capacity.
     """)
 
     if results and results.get("converged"):
         params = results["params"]
         ci = results.get("ci_95", {})
 
+        if results.get("bounds_hit"):
+            st.warning(
+                "⚠️ The optimiser stopped on a parameter bound ("
+                + "; ".join(results["bounds_hit"])
+                + "). The fit was constrained rather than determined by the data, so the "
+                "parameters and R² below are not a valid assessment of this model."
+            )
+
         display_results_table(
             {
                 "Parameter": [
-                    "qe (mg/g)",
+                    "qₑ (mg/g) — predicted plateau",
+                    "qₑ,fit (mg/g) — model parameter",
                     "k₂ (g/(mg·min))",
                     "φ (correction)",
                     "h (mg/(g·min))",
                     "t₁/₂ (min)",
                 ],
                 "Value": [
+                    f"{params.get('qe_eq', np.nan):.4f}",
                     f"{params['qe']:.4f}",
                     f"{params['k2']:.6f}",
                     f"{params.get('phi', 1.0):.4f}",
@@ -1306,6 +1365,7 @@ def _display_rpso(t, qt, results):
                     f"{params.get('t_half', np.nan):.2f}",
                 ],
                 "Std. Error": [
+                    "—",
                     f"{params.get('qe_se', 0):.4f}",
                     f"{params.get('k2_se', 0):.6f}",
                     "—",
@@ -1313,6 +1373,7 @@ def _display_rpso(t, qt, results):
                     "—",
                 ],
                 "95% CI": [
+                    "—",
                     f"({ci.get('qe', (np.nan, np.nan))[0]:.4f}, {ci.get('qe', (np.nan, np.nan))[1]:.4f})",
                     f"({ci.get('k2', (np.nan, np.nan))[0]:.6f}, {ci.get('k2', (np.nan, np.nan))[1]:.6f})",
                     "—",
@@ -1321,6 +1382,14 @@ def _display_rpso(t, qt, results):
                 ],
             }
         )
+
+        q_max_mb = params.get("q_max_mb")
+        if q_max_mb:
+            st.caption(
+                f"Mass-balance ceiling C₀·V/m = {q_max_mb:.4g} mg/g — no equilibrium capacity "
+                f"can exceed this. The plateau above is {params.get('qe_eq', np.nan):.4g} mg/g "
+                f"({100 * params.get('qe_eq', np.nan) / q_max_mb:.1f}% of the ceiling)."
+            )
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -1339,7 +1408,7 @@ def _display_rpso(t, qt, results):
 
         # Plot
         t_line = np.linspace(0, t.max() * 1.1, 100)
-        qt_pred = pso_model(t_line, params["qe"], params["k2"])
+        qt_pred = predict_revised_pso(t_line, results)
 
         fig = create_kinetic_plot(
             t, qt, t_line, qt_pred, model_name="rPSO", r_squared=results["r_squared"]
@@ -1347,7 +1416,7 @@ def _display_rpso(t, qt, results):
         st.plotly_chart(fig, use_container_width=True, key="rpso_plot")
 
         # Diagnostics
-        qt_pred_exp = pso_model(t, params["qe"], params["k2"])
+        qt_pred_exp = predict_revised_pso(t, results)
         with st.expander("rPSO diagnostics", expanded=False):
             fig_parity = create_parity_plot(
                 y_obs=np.asarray(qt, dtype=float),
@@ -1426,9 +1495,12 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
 
     # Run analysis and store in session state
     if run_diffusion:
-        with st.spinner("Analyzing diffusion mechanism..."):
+        with st.spinner("Running diffusion diagnostics..."):
             try:
                 results = identify_rate_limiting_step(t, qt, qe_exp, particle_radius)
+                if "error" in results:
+                    st.error(results["error"])
+                    return
                 st.session_state["diffusion_results"] = {
                     "results": results,
                     "particle_radius": particle_radius,
@@ -1449,9 +1521,10 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
         t_stored = stored["t"]
         qt_stored = stored["qt"]
 
-        st.info(f"**Model-based indication:** {results['mechanism_suggestion']}")
+        st.info(f"**Transport indication:** {results['transport_indication']}")
         st.caption(
-            f"Heuristic confidence: {results['confidence']}. This is not a validated mechanism probability."
+            "This is a model-based diagnostic, not a mechanism probability. Confirm with "
+            "particle-size and agitation-rate experiments."
         )
 
         # Display Weber-Morris analysis
@@ -1472,7 +1545,9 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
                 "but does not prove that IPD is the sole rate-controlling step."
             )
         else:
-            st.warning("⚠️ Line does NOT pass through origin → Boundary layer effect present")
+            st.warning(
+                "⚠️ The 95% intercept CI excludes zero; boundary-layer resistance may contribute."
+            )
 
         # Weber-Morris plot (use stored data)
         sqrt_t = np.sqrt(t_stored)
@@ -1534,14 +1609,29 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
             st.metric("R²", f"{boyd['r_squared']:.4f}")
 
         if boyd["passes_through_origin"]:
-            st.success("✅ Linear through origin → Pore diffusion rate-limiting")
+            st.success(
+                "✅ The 95% intercept CI includes zero. With strong linearity, this is "
+                "consistent with particle-diffusion control under the Boyd assumptions."
+            )
         else:
-            st.warning("⚠️ Non-zero intercept → Film diffusion contributes")
+            st.warning(
+                "⚠️ The 95% intercept CI excludes zero; external film resistance may contribute."
+            )
 
-        # Boyd plot (use stored data)
+        if "D_eff_cm2_s" in boyd:
+            st.metric(
+                "Boyd effective diffusivity (cm²/s)",
+                f"{boyd['D_eff_cm2_s']:.3e}",
+                help=(
+                    "Estimated from the Boyd slope assuming spherical particles: "
+                    "Dᵢ = B r²/π². Interpret only when the Boyd assumptions are defensible."
+                ),
+            )
+
+        # Boyd plot (use the filtered arrays returned by the calculation)
         Bt = boyd["Bt"]
         valid_Bt = ~np.isnan(Bt) & ~np.isinf(Bt)
-        t_valid = t_stored[valid_Bt]
+        t_valid = results["t"][valid_Bt]
         Bt_valid = Bt[valid_Bt]
 
         if len(t_valid) > 2:
@@ -1581,7 +1671,7 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
                 fig_boyd,
                 title="Boyd Plot (Film/Pore Diffusion)",
                 x_title="Time (min)",
-                y_title="Bt = -ln(1 - F)",
+                y_title="B·t (Reichenberg approximation)",
                 height=400,
                 show_legend=True,
                 legend_horizontal=True,
@@ -1597,9 +1687,9 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
 
         | Bi Value | Rate-Limiting Step |
         |----------|-------------------|
-        | Bi < 0.1 | Film diffusion dominates (>90% resistance) |
-        | 0.1 < Bi < 100 | Mixed control |
-        | Bi > 100 | Pore diffusion dominates (>90% resistance) |
+        | Bi < 0.1 | External-film resistance may be more influential |
+        | 0.1 < Bi < 100 | Neither resistance can be neglected |
+        | Bi > 100 | Internal resistance may be more influential |
         """)
 
         # Allow user to input estimated kf and Dp for Biot calculation
@@ -1631,11 +1721,17 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
             st.metric("Biot Number", f"{Bi:.2f}")
 
             if Bi < 0.1:
-                st.warning("**Bi < 0.1:** Film diffusion is the rate-limiting step")
+                st.warning(
+                    "**Bi < 0.1:** External-film resistance may be more influential "
+                    "under the assumed coefficients."
+                )
             elif Bi > 100:
-                st.success("**Bi > 100:** Pore diffusion is the rate-limiting step")
+                st.info(
+                    "**Bi > 100:** Internal resistance may be more influential under "
+                    "the assumed coefficients."
+                )
             else:
-                st.info("**0.1 < Bi < 100:** Mixed control (both mechanisms contribute)")
+                st.info("**0.1 < Bi < 100:** Neither resistance can be neglected from Bi alone.")
 
     else:
         st.caption("Click 'Analyze Diffusion Mechanism' to run the analysis.")
@@ -1654,12 +1750,15 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
 
             **Interpretation Guide:**
 
-            | Diagnostic | Result | Indicates |
-            |------------|--------|-----------|
-            | Weber-Morris | C ≈ 0 | Pattern consistent with an IPD contribution |
-            | Weber-Morris | C > 0 | Boundary layer effect |
-            | Boyd plot | Linear through origin | Pore diffusion |
-            | Boyd plot | Non-zero intercept | Film diffusion |
+            | Diagnostic | Result | Consistent with |
+            |------------|--------|-----------------|
+            | Weber-Morris | C ≈ 0 | An IPD contribution |
+            | Weber-Morris | C > 0 | A boundary-layer contribution, or multilinearity |
+            | Boyd plot | Linear through origin | Pore diffusion control |
+            | Boyd plot | Non-zero intercept | Film diffusion control |
+
+            Every row above is a *consistency* statement, not an identification. These
+            diagnostics narrow the candidates; they do not select among them.
 
             *References: Boyd et al. (1947) J Am Chem Soc 69:2836; Crank (1975) Mathematics of Diffusion*
             """)
@@ -1678,7 +1777,9 @@ def _display_model_comparison(fitted_models, t, qt):
                     "R²": results["r_squared"],
                     "Adj-R²": results["adj_r_squared"],
                     "RMSE": results["rmse"],
-                    "χ²": results.get("chi_squared", np.nan),
+                    "Relative SSE": results.get(
+                        "normalized_sse", results.get("chi_squared", np.nan)
+                    ),
                     "AIC": results.get("aicc", results["aic"]),
                 }
             )
@@ -1700,7 +1801,7 @@ def _display_model_comparison(fitted_models, t, qt):
         |----------------|----------|----------------|
         | **R²/Adj-R²** | Overall fit quality | Higher = Better |
         | **RMSE** | Absolute error magnitude | ✓ |
-        | **χ²** | Weighted fit quality | ✓ |
+        | **Relative SSE** | Σ(residual²/|predicted|); descriptive only | ✓ |
         | **AIC** | Model selection (penalizes complexity) | ✓ |
 
         *Reference: Kumar et al. (2008) J Hazard Mater 151:794-804*
@@ -1712,13 +1813,13 @@ def _display_model_comparison(fitted_models, t, qt):
                 "R²": "{:.4f}",
                 "Adj-R²": "{:.4f}",
                 "RMSE": "{:.4f}",
-                "χ²": "{:.2f}",
+                "Relative SSE": "{:.2f}",
                 "AIC": "{:.2f}",
                 "AIC Weight": "{:.1%}",
             }
         )
         .highlight_max(subset=["R²", "Adj-R²", "AIC Weight"], color="lightgreen")
-        .highlight_min(subset=["RMSE", "AIC", "χ²"], color="lightblue"),
+        .highlight_min(subset=["RMSE", "AIC", "Relative SSE"], color="lightblue"),
         use_container_width=True,
         hide_index=True,
     )

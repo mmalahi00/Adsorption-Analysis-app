@@ -46,7 +46,6 @@ from adsorblab_pro.utils import (
     convert_df_to_excel,
     detect_common_errors,
     detect_replicates,
-    determine_adsorption_mechanism,
     interpret_separation_factor,
     interpret_thermodynamics,
     propagate_calibration_uncertainty,
@@ -201,12 +200,16 @@ class TestTemperatureResultsDirectExtended:
 # CHECK MECHANISM CONSISTENCY
 # =============================================================================
 class TestCheckMechanismConsistencyExtended:
-    def test_empty_state(self):
+    def test_empty_state_reports_no_checks_not_a_pass(self):
+        """A study with nothing to check must not be reported as 'consistent'."""
         result = check_mechanism_consistency({})
-        assert result["status"] == "consistent"
-        assert result["color"] == "green"
+        assert result["status"] == "no_checks"
+        assert result["color"] == "gray"
+        assert result["n_checks"] == 0
+        # The wording must not imply the results were examined and passed.
+        assert "No consistency checks applied" in result["interpretation"]
 
-    def test_pso_freundlich_mismatch(self):
+    def test_fits_without_high_r2_produce_no_applicable_checks(self):
         state = {
             "isotherm_models_fitted": {
                 "Langmuir": {"converged": True, "r_squared": 0.90, "adj_r_squared": 0.89},
@@ -218,7 +221,11 @@ class TestCheckMechanismConsistencyExtended:
             },
         }
         result = check_mechanism_consistency(state)
-        assert result["status"] in ("minor_issues", "consistent")
+        # No cross-model kinetic/isotherm rule is applied, and none of these
+        # fits has R² high enough to trigger the CI-reporting check, so nothing
+        # applies. That is reported as "no_checks", never as a clean bill.
+        assert result["status"] == "no_checks"
+        assert result["n_checks"] == 0
 
     def test_temperature_dh_mismatch_endothermic_decreasing_is_review_prompt(self):
         state = {
@@ -399,58 +406,6 @@ class TestAnalyzeResidualsExtended:
 # =============================================================================
 # DETERMINE ADSORPTION MECHANISM
 # =============================================================================
-class TestDetermineAdsorptionMechanismExtended:
-    @pytest.mark.parametrize("delta_h", [-10.0, -30.0, -60.0, -100.0])
-    def test_delta_h_does_not_assign_mechanism(self, delta_h):
-        result = determine_adsorption_mechanism(delta_H=delta_h)
-        assert result["mechanism"] == "Not determined from model fitting"
-        assert result["confidence"] is None
-        assert result["scores"] == {}
-        assert result["indicators"]["ΔH° (kJ/mol)"]["confidence"] == "Not a mechanism test"
-
-    def test_with_negative_delta_g(self):
-        result = determine_adsorption_mechanism(
-            delta_H=-10.0,
-            delta_G=[-5.0, -8.0, -10.0],
-        )
-        assert result["mechanism"] == "Not determined from model fitting"
-        assert "ΔG° (kJ/mol)" in result["indicators"]
-        assert result["indicators"]["ΔG° (kJ/mol)"]["classification"] == "Negative"
-
-    def test_with_positive_delta_g(self):
-        result = determine_adsorption_mechanism(delta_H=-10.0, delta_G=[5.0])
-        g_ind = result["indicators"].get("ΔG° (kJ/mol)", {})
-        assert g_ind.get("classification") == "Positive"
-
-    def test_with_freundlich_n_descriptor(self):
-        result = determine_adsorption_mechanism(
-            delta_H=-10.0,
-            n_freundlich=2.0,
-        )
-        n_ind = result["indicators"]["n (Freundlich)"]
-        assert n_ind["classification"] == "n > 1"
-        assert n_ind["confidence"] == "Not a mechanism test"
-
-    def test_with_rl_favorable(self):
-        result = determine_adsorption_mechanism(delta_H=-10.0, RL=0.5)
-        assert "RL (Langmuir)" in result["indicators"]
-
-    def test_with_rl_descriptor(self):
-        result = determine_adsorption_mechanism(delta_H=-100.0, RL=0.05)
-        rl_ind = result["indicators"]["RL (Langmuir)"]
-        assert rl_ind["classification"] == "0 < RL < 1"
-        assert rl_ind["confidence"] == "Not a mechanism test"
-
-    def test_all_indicators(self):
-        result = determine_adsorption_mechanism(
-            delta_H=-15.0,
-            delta_G=[-10.0, -12.0],
-            n_freundlich=0.6,
-            RL=0.3,
-        )
-        assert result["confidence"] is None
-        assert len(result["evidence"]) >= 1
-        assert len(result["indicators"]) == 4
 
 
 # =============================================================================

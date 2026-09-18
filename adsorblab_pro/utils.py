@@ -107,7 +107,7 @@ __all__ = [
     "bootstrap_confidence_intervals",
     "analyze_residuals",
     # Mechanism analysis
-    "determine_adsorption_mechanism",
+    "sign_label",
     "check_mechanism_consistency",
     "detect_common_errors",
     # Thermodynamic calculations
@@ -705,8 +705,29 @@ def check_mechanism_consistency(study_state: dict[str, Any]) -> dict[str, Any]:
                 )
                 minor_issues += 1
 
-    # Determine overall status
-    if conflicts > 0:
+    # Determine overall status.
+    #
+    # "no_checks" is distinct from "consistent".  When no check applies — a
+    # study with, say, only a converged isotherm fit and no thermodynamics —
+    # zero checks run, and reporting that as "consistent" states a clean bill
+    # of health that nothing was actually examined to support.  Callers must
+    # render this state differently from a passing one.
+    #
+    # Note on the "conflicts" tier: no check currently raises it.  The
+    # temperature-direction check emits a review prompt rather than a conflict,
+    # because a directional mismatch between capacity and apparent ΔH is a
+    # reason to re-examine experimental comparability, not proof of an error.
+    # The tier and its counter are retained so a future check with genuine
+    # conflict semantics has somewhere to report, and so the returned shape
+    # stays stable for existing callers.
+    if not checks:
+        status = "no_checks"
+        color = "gray"
+        interpretation = (
+            "No consistency checks applied to this study — nothing here supports "
+            "or contradicts your results"
+        )
+    elif conflicts > 0:
         status = "conflicts"
         color = "red"
         interpretation = f"{conflicts} conflict(s) detected - results may be unreliable"
@@ -717,10 +738,17 @@ def check_mechanism_consistency(study_state: dict[str, Any]) -> dict[str, Any]:
     else:
         status = "consistent"
         color = "green"
-        interpretation = "Available analysis checks are internally consistent"
+        interpretation = (
+            f"All {len(checks)} applicable check(s) passed; no internal inconsistencies found"
+        )
 
     # Generate suggestions
     suggestions = []
+    if status == "no_checks":
+        suggestions.append(
+            "Complete a thermodynamic analysis, or fit models with confidence intervals, "
+            "to enable consistency checking"
+        )
     if conflicts > 0:
         suggestions.append("Review experimental conditions and data quality")
         suggestions.append("Consider alternative models that may better explain the data")
@@ -736,6 +764,7 @@ def check_mechanism_consistency(study_state: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "color": color,
         "checks": checks,
+        "n_checks": len(checks),
         "conflicts": conflicts,
         "minor_issues": minor_issues,
         "interpretation": interpretation,
@@ -1301,7 +1330,9 @@ def calculate_error_metrics(
     -------
     Dict[str, float]
         Dictionary containing: r_squared, adj_r_squared, rmse, mae,
-        chi_squared, chi_squared_reduced, aic, aicc, bic, sse, sst, residuals
+        normalized_sse, normalized_sse_reduced, aic, aicc, bic, sse, sst,
+        residuals. ``chi_squared`` keys are retained as backward-compatible
+        aliases; no inferential chi-square claim is made without known variances.
     """
     n = len(y_obs)
     residuals = y_obs - y_pred
@@ -1320,29 +1351,26 @@ def calculate_error_metrics(
     rmse = np.sqrt(ss_res / n)
     mae = np.mean(np.abs(residuals))
 
-    # Chi-squared (reduced)
+    # Relative/normalized SSE.  This historical adsorption error function is
+    # not an inferential chi-square statistic unless observation variances are
+    # independently known.
     y_pred_safe = np.where(np.abs(y_pred) < EPSILON_DIV, EPSILON_DIV, y_pred)
-    chi_sq = np.sum(residuals**2 / np.abs(y_pred_safe))
-    chi_sq_reduced = chi_sq / (n - n_params) if n > n_params else chi_sq
+    normalized_sse = np.sum(residuals**2 / np.abs(y_pred_safe))
+    normalized_sse_reduced = normalized_sse / (n - n_params) if n > n_params else normalized_sse
 
-    # AIC, AICc, BIC
-    if ss_res > 0 and n > n_params:
-        log_lik = -n / 2 * (np.log(2 * np.pi) + np.log(ss_res / n) + 1)
-        aic = -2 * log_lik + 2 * n_params
-        aicc = (
-            aic + (2 * n_params * (n_params + 1)) / (n - n_params - 1) if n > n_params + 1 else aic
-        )
-        bic = -2 * log_lik + n_params * np.log(n)
-    else:
-        aic = aicc = bic = np.inf
+    from .statistical_criteria import information_criteria
+
+    aic, aicc, bic = information_criteria(float(ss_res), n, n_params)
 
     return {
         "r_squared": r_squared,
         "adj_r_squared": adj_r_squared,
         "rmse": rmse,
         "mae": mae,
-        "chi_squared": chi_sq,
-        "chi_squared_reduced": chi_sq_reduced,
+        "normalized_sse": normalized_sse,
+        "normalized_sse_reduced": normalized_sse_reduced,
+        "chi_squared": normalized_sse,  # Backward-compatible alias
+        "chi_squared_reduced": normalized_sse_reduced,  # Backward-compatible alias
         "aic": aic,
         "aicc": aicc,
         "bic": bic,
@@ -2162,6 +2190,60 @@ def calculate_thermodynamic_parameters(
         return {"success": False, "error": str(e)}
 
 
+def sign_label(
+    value: Any,
+    negative: str,
+    positive: str,
+    unavailable: str = "—",
+    zero: str = "Zero",
+) -> str:
+    """
+    Label the sign of a quantity, or report that it is unavailable.
+
+    A plain ``"neg" if x < 0 else "pos"`` silently converts *missing* into
+    *positive*, because ``nan < 0`` and ``None < 0`` are both falsy.  In a
+    generated results table that turns "this study has no ΔG" into the
+    affirmative claim "this study has a positive ΔG".  Reporting tables must
+    distinguish a measured sign from an absent value, so non-finite and missing
+    inputs return ``unavailable`` rather than falling through to ``positive``.
+
+    Parameters
+    ----------
+    value : Any
+        The quantity whose sign is being described. May be ``None``, ``nan``,
+        ``inf``, or anything not coercible to float.
+    negative : str
+        Label to use when ``value < 0``.
+    positive : str
+        Label to use when ``value > 0``. Exact zero is labelled separately.
+    unavailable : str
+        Label to use when ``value`` is missing or non-finite (default ``"—"``).
+
+    Returns
+    -------
+    str
+        One of ``negative``, ``positive`` or ``unavailable``.
+
+    Examples
+    --------
+    >>> sign_label(-12.4, "Exothermic", "Endothermic")
+    'Exothermic'
+    >>> sign_label(float("nan"), "Exothermic", "Endothermic")
+    '—'
+    >>> sign_label(None, "Negative", "Positive")
+    '—'
+    """
+    if value is None:
+        return unavailable
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return unavailable
+    if not np.isfinite(numeric):
+        return unavailable
+    return negative if numeric < 0 else positive if numeric > 0 else zero
+
+
 def interpret_thermodynamics(delta_H: float, delta_S: float, delta_G: Any) -> dict[str, str]:
     """
     Interpret thermodynamic parameters.
@@ -2226,89 +2308,6 @@ def interpret_thermodynamics(delta_H: float, delta_S: float, delta_G: Any) -> di
     )
 
     return interpretations
-
-
-def determine_adsorption_mechanism(
-    delta_H: float,
-    delta_G: Any = None,
-    n_freundlich: float | None = None,
-    RL: float | None = None,
-) -> dict[str, Any]:
-    """
-    Return a non-mechanistic summary of commonly reported adsorption indicators.
-
-    .. deprecated:: 2.0.1
-       Model fits and threshold heuristics cannot determine adsorption mechanism.
-       This compatibility function no longer assigns physical/chemical labels or
-       a numerical confidence score.
-
-    Parameters
-    ----------
-    delta_H : float
-        Enthalpy change (kJ/mol)
-    delta_G : array-like, optional
-        Gibbs free energy values (kJ/mol)
-    n_freundlich : float, optional
-        Freundlich exponent n (not 1/n)
-    RL : float, optional
-        Langmuir separation factor
-
-    Returns
-    -------
-    dict
-        Compatibility dictionary containing descriptive indicators and an explicit caveat.
-    """
-    evidence = [
-        "Model-fit and threshold indicators are descriptive only; they cannot establish "
-        "physisorption, chemisorption, or ion exchange."
-    ]
-    indicators: dict[str, dict[str, Any]] = {
-        "ΔH° (kJ/mol)": {
-            "value": float(delta_H),
-            "classification": "Exothermic" if delta_H < 0 else "Endothermic",
-            "criterion": "Sign of the fitted Van't Hoff slope",
-            "confidence": "Not a mechanism test",
-        }
-    }
-
-    if delta_G is not None:
-        g_values = np.asarray(delta_G, dtype=float).flatten()
-        finite_g = g_values[np.isfinite(g_values)]
-        avg_G = float(np.mean(finite_g)) if finite_g.size else float("nan")
-        indicators["ΔG° (kJ/mol)"] = {
-            "value": avg_G,
-            "classification": "Negative" if avg_G < 0 else "Positive",
-            "criterion": "Sign for the explicitly reported Kd convention",
-            "confidence": "Apparent unless standard-state K is justified",
-        }
-
-    if n_freundlich is not None and n_freundlich > 0:
-        n_value = float(n_freundlich)
-        indicators["n (Freundlich)"] = {
-            "value": n_value,
-            "classification": "n > 1" if n_value > 1 else "n ≤ 1",
-            "criterion": "Empirical isotherm-shape descriptor",
-            "confidence": "Not a mechanism test",
-        }
-
-    if RL is not None:
-        rl_values = np.asarray(RL, dtype=float).flatten()
-        finite_rl = rl_values[np.isfinite(rl_values)]
-        rl_mean = float(np.mean(finite_rl)) if finite_rl.size else float("nan")
-        indicators["RL (Langmuir)"] = {
-            "value": rl_mean,
-            "classification": "0 < RL < 1" if 0 < rl_mean < 1 else "Outside 0 < RL < 1",
-            "criterion": "Dimensionless Langmuir separation-factor descriptor",
-            "confidence": "Not a mechanism test",
-        }
-
-    return {
-        "mechanism": "Not determined from model fitting",
-        "confidence": None,
-        "scores": {},
-        "evidence": evidence,
-        "indicators": indicators,
-    }
 
 
 def calculate_arrhenius_parameters(T_K: np.ndarray, k: np.ndarray) -> dict[str, Any]:
@@ -2783,8 +2782,12 @@ def get_study_metrics() -> dict:
 
     current_study_state = st.session_state.studies[active_study_name]
     active_data_count = sum(1 for key in data_keys if current_study_state.get(key) is not None)
-    calib_params = current_study_state.get("calibration_params")
-    calib_quality = calib_params.get("quality_score", 0) if calib_params else 0
+    calib_df = current_study_state.get("calib_df_input")
+    calib_quality = (
+        assess_data_quality(calib_df, "calibration").get("quality_score", 0)
+        if calib_df is not None
+        else 0
+    )
 
     return {
         "study_count": study_count,

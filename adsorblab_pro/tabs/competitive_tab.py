@@ -267,8 +267,13 @@ def _render_study_linked_mode(studies_with_isotherms: dict):
         )
 
         if not can_calculate_langmuir and not can_calculate_freundlich:
+            # Name the model the UI can actually use.  Saying "no common
+            # isotherm model" sends a user off to re-fit Freundlich curves they
+            # may already have, when the blocker is that only Extended Langmuir
+            # is available while the SRS path is disabled.
             st.error(
-                "❌ Cannot calculate: No common isotherm model fitted across all selected studies."
+                "❌ Cannot calculate: Extended Langmuir requires a converged Langmuir fit "
+                "(qm, KL) in every selected study. Fit Langmuir for each study first."
             )
             return
 
@@ -367,27 +372,41 @@ def _render_manual_entry_mode(studies_with_isotherms: dict):
                     help="Langmuir affinity constant",
                 )
 
-            with col3:
-                KF = st.number_input(
-                    "KF",
-                    min_value=0.0,
-                    value=float(default_KF),
-                    format="%.6g",
-                    key=f"manual_KF_{i}",
-                    help="Freundlich capacity constant",
-                )
-                n = st.number_input(
-                    "n",
-                    min_value=0.01,
-                    value=float(default_n),
-                    format="%.4f",
-                    key=f"manual_n_{i}",
-                    help="Freundlich heterogeneity factor (n > 1 favorable)",
-                )
+            # Freundlich inputs are only shown when the SRS path can actually
+            # run.  Collecting KF/n while `valid_freundlich` is hard-wired False
+            # lets a user fill in a complete Freundlich parameter set, press
+            # Calculate, and be told to enter Langmuir parameters instead — with
+            # no earlier indication that the numbers they typed were inert.
+            if ENABLE_EXPERIMENTAL_SRS:
+                with col3:
+                    KF = st.number_input(
+                        "KF",
+                        min_value=0.0,
+                        value=float(default_KF),
+                        format="%.6g",
+                        key=f"manual_KF_{i}",
+                        help="Freundlich capacity constant",
+                    )
+                    n = st.number_input(
+                        "n",
+                        min_value=0.01,
+                        value=float(default_n),
+                        format="%.4f",
+                        key=f"manual_n_{i}",
+                        help="Freundlich heterogeneity factor (n > 1 favorable)",
+                    )
+            else:
+                KF, n = float(default_KF), float(default_n)
+                with col3:
+                    st.caption(
+                        "Freundlich (KF, n) inputs are hidden while the "
+                        "Extended Freundlich/SRS calculation is disabled."
+                    )
 
-            # Validation
-            if i > 0 and qm == 0 and KL == 0 and KF == 0:
-                st.error("⚠️ Please enter valid parameters from literature or experiments")
+            # Validation — a row needs Langmuir parameters, since Langmuir is
+            # the only model the stable UI can evaluate.
+            if i > 0 and not (qm > 0 and KL > 0):
+                st.error("⚠️ Enter qm > 0 and KL > 0 for this component")
 
             components.append(
                 {

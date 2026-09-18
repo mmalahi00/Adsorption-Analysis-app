@@ -48,7 +48,7 @@ AdsorbLab Pro is a comprehensive, browser-based tool for analyzing adsorption ex
 |-------|-----|------------|
 | **Pseudo-First Order** | Empirical rate curve | qₑ, k₁ |
 | **Pseudo-Second Order** | Empirical rate curve; fit is not a mechanism test | qₑ, k₂, h |
-| **Revised PSO** (Bullen et al. 2021) | Concentration-corrected PSO | qₑ, k₂, C₀ |
+| **Revised PSO** (Bullen et al. 2021) | Concentration-corrected PSO; the curve plateaus at qₑ,fit/φ, and that plateau — not the fitted parameter — is the reported capacity | qₑ, k₂, C₀ |
 | **Elovich** | Empirical heterogeneous-surface rate equation | α, β |
 | **Intraparticle Diffusion** | Supporting transport diagnostic (Weber-Morris) | kᵢₚ, C |
 
@@ -63,10 +63,6 @@ Predict how multiple adsorbates compete for the same binding sites — critical 
 
 Includes selectivity coefficient (αᵢⱼ) calculation, the ability to link single-component fits or enter parameters manually, per-component bar charts, and automated interpretation of competitive effects.
 
-### 3D Parameter Space Explorer
-
-Visualise how adsorption responds to two variables at once (e.g. Cₑ × T → qₑ, or pH × T → Removal %). Fully interactive Plotly 3D surfaces that can be exported as static images or embedded in the Word report.
-
 ### Thermodynamics
 
 Van't Hoff analysis across multiple temperatures yielding apparent ΔG, ΔH, and ΔS unless a dimensionless standard-state equilibrium constant is supplied.
@@ -75,7 +71,7 @@ Van't Hoff analysis across multiple temperatures yielding apparent ΔG, ΔH, and
 
 - **Calibration** — UV-Vis Beer–Lambert calibration with linearity diagnostics
 - **Effect studies** — pH, adsorbent dosage, and temperature optimization
-- **Diffusion analysis** — Biot number, Boyd plot, and Weber-Morris multilinearity for rate-limiting step identification
+- **Diffusion diagnostics** — Biot number, Boyd plot, and Weber-Morris patterns as supporting transport evidence
 - **Multi-study comparison** across datasets
 
 ### Statistical Rigour
@@ -206,13 +202,13 @@ qₜ = qₑ · (1 − e^(−k₁·t))
 qₜ = (qₑ² · k₂ · t) / (1 + qₑ · k₂ · t)        h = k₂ · qₑ²  (initial rate)
 ```
 
-**Revised PSO (Bullen et al. 2021)** — concentration-corrected PSO that accounts for changing solution concentration.
+**Legacy rPSO (quarantined)** — retained for reproducing old results; excluded from new stable-UI fits pending verification against the primary publication.
 
 ```
 qₜ = (qₑ² · k₂ · t) / (1 + qₑ · k₂ · t · φ)     φ = 1 + (qₑ · m) / (C₀ · V)
 ```
 
-In Bullen et al.'s multi-experiment evaluation using one rate constant across varying conditions, the revised form reduced median residual sum of squares by 66%; this is not a universal performance guarantee.
+Here the parameter named `qe` is raw: the actual plateau is `qe/φ`. This implementation is a reparameterised PSO curve, not a verified implementation of the published revised model. See [scientific integration notes](docs/SCIENTIFIC_INTEGRATION.md) for changed rankings, removed APIs and limitations.
 
 **Elovich**
 
@@ -254,11 +250,23 @@ qₑ,ᵢ = Kf,ᵢ · Cₑ,ᵢ · (Σⱼ aᵢⱼ · Cₑ,ⱼ)^(1/nᵢ − 1)
 
 | Criterion | Purpose |
 |-----------|---------|
-| R² | Goodness of fit (0–1) |
+| R² | Descriptive goodness of fit. For non-linear least squares it is **not** a "proportion of variance explained" and is not bounded — use it to describe, not to select |
 | Adj. R² | Penalises extra parameters |
-| AIC / AICc | Model selection (lower = better); AICc for small samples |
+| AIC / AICc | Model selection (lower = better); AICc for small samples. **Prefer AICc**: adsorption datasets are 6–10 points |
 | BIC | Stricter parameter penalty than AIC |
 | Q² (PRESS) | Predictive ability via leave-one-out cross-validation |
+
+### Conventions
+
+These follow the adsorption literature where it differs from general statistical practice. Both are stated here because neither is the only defensible choice.
+
+| Quantity | Convention used | Consequence |
+|----------|-----------------|-------------|
+| k in AIC / AICc / BIC | `k = p + 1` — the residual variance σ² is an estimated parameter | Correct AICc small-sample correction. Using `k = p` under-penalises an extra parameter by ~3.7 AICc units at n = 8, more than the ΔAIC ≈ 2 decision threshold |
+| RMSE | `√(Σres²/n)` — divided by n, not by n − p | Not comparable between models with different parameter counts; use AICc to select |
+| χ² | `Σ(q_exp − q_cal)²/q_cal` — the adsorption-literature statistic | Has no distribution, so no p-value. **Scale-dependent**: µg/g instead of mg/g changes it 1000× — never compare across unit systems |
+| Van't Hoff WLS | Covariance scaled by the weighted residual variance | Standard errors are relative, not the absolute propagated σ |
+| K<sub>d</sub> | Whichever concentration ratio you select, reported explicitly | ΔG, ΔS are **apparent** unless converted to a justified standard state |
 
 **Bootstrap confidence intervals** — residuals are resampled 500–1000 times; the model is refit each iteration and the 2.5th/97.5th percentiles are reported.
 
@@ -303,14 +311,14 @@ This table is the single source of truth. Every row maps a model name to its cod
 | Extended Langmuir | `extended_langmuir_multicomponent` | `MULTICOMPONENT_MODELS["Extended-Langmuir"]` | qm_i, KL_i per species |
 | Extended Freundlich | `extended_freundlich_multicomponent` | `MULTICOMPONENT_MODELS["Extended-Freundlich"]` | Experimental legacy API; heuristic aij |
 
-### Diffusion / Mechanistic Analysis
+### Diffusion / Transport Diagnostics
 
 | Feature | Function | Notes |
 |---------|----------|-------|
 | Biot number | `calculate_biot_number` | Film vs. pore diffusion indicator |
 | Boyd plot | `identify_rate_limiting_step` | Bt vs. t linearity through origin |
 | Weber-Morris multilinearity | IPD model + `identify_rate_limiting_step` | kid, C from √t plot |
-| Rate-limiting step ID | `identify_rate_limiting_step` | Combines Biot + Boyd + Weber-Morris |
+| Transport indication | `identify_rate_limiting_step` | Evidence-aware Boyd + Weber-Morris screening |
 
 ---
 

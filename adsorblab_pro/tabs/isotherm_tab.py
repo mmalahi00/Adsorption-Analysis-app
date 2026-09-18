@@ -56,7 +56,6 @@ from ..utils import (
     get_current_study_state,
     interpret_separation_factor,
     propagate_calibration_uncertainty,
-    recommend_best_models,
     validate_required_params,
 )
 from ..validation import format_validation_errors, validate_isotherm_data
@@ -785,23 +784,6 @@ def render():
 
             # Display results only if we have them
             if show_results and fitted_models:
-                valid_models = {
-                    k: v for k, v in fitted_models.items() if v and v.get("converged", False)
-                }
-
-                if valid_models:
-                    recommendations = recommend_best_models(valid_models, "isotherm")
-
-                    if recommendations:
-                        best = recommendations[0]
-                        st.success(f"""
-                        **🎯 Recommended Model: {best["model"]}**
-
-                        **Confidence:** {best["confidence"]:.1f}% | **Adj-R²:** {best.get("adj_r_squared", best["r_squared"]):.4f} | **AIC Weight:** {best.get("aic_weight", 0) * 100:.1f}%
-
-                        **Rationale:** {best["rationale"]}
-                        """)
-
                 # Model tabs
                 tab1, tab2, tab3, tab4, tab5 = st.tabs(
                     ["Langmuir", "Freundlich", "Temkin", "Sips", "Comparison"]
@@ -1281,7 +1263,7 @@ def _display_model_comparison(fitted_models, Ce, qe, T_K: float = 298.15):
                 "R²": results["r_squared"],
                 "Adj-R²": results["adj_r_squared"],
                 "RMSE": results["rmse"],
-                "χ²": results.get("chi_squared", np.nan),
+                "Relative SSE": results.get("normalized_sse", results.get("chi_squared", np.nan)),
                 "AIC": results.get("aicc", results["aic"]),
                 "BIC": results.get("bic", np.nan),
             }
@@ -1313,7 +1295,7 @@ def _display_model_comparison(fitted_models, Ce, qe, T_K: float = 298.15):
         | **R²** | 1 - SSE/SST | Overall fit quality |
         | **Adj-R²** | Penalizes extra parameters | Model comparison |
         | **RMSE** | √(SSE/n) | Absolute error magnitude |
-        | **χ²** | Σ(residual²/predicted) | Relative error |
+        | **Relative SSE** | Σ(residual²/|predicted|) | Descriptive relative error |
         | **AIC/BIC** | Information criteria | Model selection |
         """
         if has_press:
@@ -1327,7 +1309,7 @@ def _display_model_comparison(fitted_models, Ce, qe, T_K: float = 298.15):
 
     # Display main comparison table
     highlight_max_cols = ["R²", "Adj-R²", "AIC Weight"]
-    highlight_min_cols = ["RMSE", "AIC", "BIC", "χ²"]
+    highlight_min_cols = ["RMSE", "AIC", "BIC", "Relative SSE"]
 
     if has_press:
         highlight_max_cols.append("Q²")
@@ -1339,7 +1321,7 @@ def _display_model_comparison(fitted_models, Ce, qe, T_K: float = 298.15):
                 "R²": "{:.4f}",
                 "Adj-R²": "{:.4f}",
                 "RMSE": "{:.4f}",
-                "χ²": "{:.2f}",
+                "Relative SSE": "{:.2f}",
                 "AIC": "{:.2f}",
                 "BIC": "{:.2f}",
                 "AIC Weight": "{:.1%}",

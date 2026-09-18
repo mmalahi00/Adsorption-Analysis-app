@@ -94,14 +94,35 @@ def _calculate_kd(
     Ce = np.asarray(Ce, dtype=float)
     qe = np.asarray(qe, dtype=float)
 
-    if not np.all(np.isfinite(Ce)) or not np.all(np.isfinite(qe)):
-        raise ValueError("Ce and qe must contain only finite values.")
-    if np.any(Ce <= 0):
-        raise ValueError("All Ce values must be greater than zero to calculate ln(Kd).")
-    if method_id == "dimensionless" and np.any(Ce >= C0):
-        raise ValueError("Dimensionless Kd requires 0 < Ce < C0 for every observation.")
-    if method_id in {"mass_based", "volume_corrected"} and np.any(qe <= 0):
-        raise ValueError(f"{method_id} Kd requires positive qe values.")
+    def _rows(mask: np.ndarray) -> str:
+        """1-based row numbers of the offending observations, for the error text."""
+        return ", ".join(str(int(i) + 1) for i in np.flatnonzero(np.atleast_1d(mask)))
+
+    bad = ~np.isfinite(Ce) | ~np.isfinite(qe)
+    if np.any(bad):
+        raise ValueError(f"Ce and qe must contain only finite values (row(s) {_rows(bad)}).")
+    bad = Ce <= 0
+    if np.any(bad):
+        raise ValueError(
+            f"All Ce values must be greater than zero to calculate ln(Kd) (row(s) {_rows(bad)})."
+        )
+    # Both dimensionless and volume-corrected are mass-balance ratios of the
+    # amount adsorbed to the amount remaining, so both require Ce < C0.  The
+    # volume-corrected form expresses that through qe rather than through Ce
+    # directly, but the physical requirement is identical, and checking only
+    # one of them left the two algebraically-equivalent methods with different
+    # admissible input ranges.
+    if method_id in {"dimensionless", "volume_corrected"}:
+        bad = Ce >= C0
+        if np.any(bad):
+            raise ValueError(
+                f"{method_id} Kd requires 0 < Ce < C0 for every observation "
+                f"(row(s) {_rows(bad)} have Ce >= C0)."
+            )
+    if method_id in {"mass_based", "volume_corrected"}:
+        bad = qe <= 0
+        if np.any(bad):
+            raise ValueError(f"{method_id} Kd requires positive qe values (row(s) {_rows(bad)}).")
     if method_id == "volume_corrected" and (m <= 0 or V <= 0):
         raise ValueError("Mass and volume must be positive for volume-corrected Kd.")
 
