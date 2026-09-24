@@ -361,15 +361,36 @@ class TestStylePlotlyForDocxExport:
 
 
 class TestBestModelLine:
-    def test_with_converged_models(self):
+    """R05: the report states the shared AICc comparison, never a best-by-R² winner."""
+
+    @staticmethod
+    def _fit(aicc, n=6):
+        import numpy as np
+
+        x = np.arange(1.0, n + 1)
+        return {"converged": True, "aicc": aicc, "num_params": 2, "x_data": x, "y_data": x * 2}
+
+    def test_ranked_models(self):
+        models = {"Langmuir": self._fit(10.0), "Freundlich": self._fit(14.0)}
+        result = _best_model_line(models, "Isotherm models")
+        assert result.startswith("Isotherm models: Lowest AICc")
+        assert "Langmuir" in result
+
+    def test_r_squared_alone_is_not_a_ranking(self):
         models = {
             "Langmuir": {"converged": True, "r_squared": 0.98},
             "Freundlich": {"converged": True, "r_squared": 0.95},
         }
-        result = _best_model_line(models, "Best isotherm model")
-        assert result is not None
-        assert "Langmuir" in result
-        assert "0.98" in result
+        result = _best_model_line(models, "Isotherm models")
+        assert "No AICc-based ranking" in result
+
+    def test_undefined_aicc_gives_no_winner(self):
+        models = {
+            "Langmuir": self._fit(float("inf"), n=4),
+            "Freundlich": self._fit(float("inf"), n=4),
+        }
+        result = _best_model_line(models, "Isotherm models")
+        assert "No AICc-based ranking" in result
 
     def test_no_converged(self):
         models = {
@@ -387,22 +408,9 @@ class TestBestModelLine:
         assert _best_model_line("string", "label") is None
         assert _best_model_line(42, "label") is None
 
-    def test_missing_r_squared(self):
-        models = {"Model": {"converged": True}}
-        result = _best_model_line(models, "label")
-        # r_squared is None -> -inf, returns None
-        assert result is None
-
-    def test_invalid_r_squared_type(self):
-        models = {"Model": {"converged": True, "r_squared": "not_a_number"}}
-        result = _best_model_line(models, "label")
-        assert result is None
-
     def test_single_model(self):
-        models = {"Sips": {"converged": True, "r_squared": 0.99}}
-        result = _best_model_line(models, "Best fit")
-        assert "Sips" in result
-        assert "0.99" in result
+        result = _best_model_line({"Sips": self._fit(3.0)}, "Isotherm models")
+        assert "Sips" in result and "no ranking" in result
 
 
 # =============================================================================

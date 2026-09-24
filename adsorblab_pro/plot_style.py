@@ -683,29 +683,12 @@ def create_model_comparison_plot(
     """
     fig = go.Figure()
 
-    # Determine "best" model (used for solid line; others dashed)
-    best_model = None
-    candidates = []
-    for name, r in (fitted_models or {}).items():
-        if not r or not r.get("converged"):
-            continue
-        aic = r.get("aicc", r.get("aic"))
-        adjr2 = r.get("adj_r_squared")
-        r2 = r.get("r_squared")
-        candidates.append((name, aic, adjr2, r2))
+    # Solid line for the lowest-AICc model among fits to the same observations
+    # whose AICc is defined (the ranking shown in the comparison table); every
+    # line is dashed when no such ranking exists.
+    from .utils import compare_information_criteria
 
-    # Prefer lowest AICc/AIC if available, else highest Adj-R², else highest R²
-    aic_vals = [c for c in candidates if c[1] is not None]
-    if aic_vals:
-        best_model = min(aic_vals, key=lambda t: cast(float, t[1]))[0]
-    else:
-        adj_vals = [c for c in candidates if c[2] is not None]
-        if adj_vals:
-            best_model = max(adj_vals, key=lambda t: cast(float, t[2]))[0]
-        else:
-            r2_vals = [c for c in candidates if c[3] is not None]
-            if r2_vals:
-                best_model = max(r2_vals, key=lambda t: cast(float, t[3]))[0]
+    best_model = compare_information_criteria(fitted_models or {}, "aicc")["best"]
 
     # Smooth x for fit curves
     x_min = max(0.0, float(np.min(x_exp)) * 0.9)

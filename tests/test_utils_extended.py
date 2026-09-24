@@ -163,12 +163,15 @@ class TestCalculatePressExtended:
 # =============================================================================
 class TestTemperatureResultsDirectExtended:
     def _make_input(self, temperature, temp_unit, C0, Ce, V, m):
-        """Helper to build temp_input dict."""
+        """Helper to build temp_input dict with an explicitly declared unit."""
         import pandas as pd
 
-        T_K = temperature + 273.15 if temp_unit == "Celsius" else temperature
-        df = pd.DataFrame({"Temperature": [T_K], "Ce": [Ce]})
-        return {"data": df, "params": {"C0": C0, "m": m, "V": V}}
+        df = pd.DataFrame({"Temperature": [temperature], "Ce": [Ce]})
+        return {
+            "data": df,
+            "params": {"C0": C0, "m": m, "V": V},
+            "temperature_unit": "°C" if temp_unit == "Celsius" else "K",
+        }
 
     def test_celsius_to_kelvin_conversion(self):
         temp_input = self._make_input(25.0, "Celsius", 100.0, 20.0, 0.05, 0.1)
@@ -192,8 +195,9 @@ class TestTemperatureResultsDirectExtended:
         temp_input = self._make_input(298.15, "Kelvin", 100.0, 20.0, 0.05, 0.1)
         result = calculate_temperature_results_direct(temp_input, include_uncertainty=True)
         assert result.success is True
-        if "Ce_error" in result.data.columns:
-            assert (result.data["Ce_error"] >= 0).all()
+        # Direct input has no uncertainty: reported as unavailable, not zero (R09).
+        assert result.data["Ce_error"].isna().all()
+        assert result.data["error_basis"].str.startswith("not available").all()
 
 
 # =============================================================================
@@ -469,8 +473,8 @@ class TestPropagateCalibrationUncertaintyExtended:
             slope_se=0.0005,
             intercept_se=0.003,
         )
-        assert Ce == 0.0
-        assert Ce_se == np.inf
+        # R04: undefined, not a zero concentration.
+        assert np.isnan(Ce) and np.isnan(Ce_se)
 
     def test_with_covariance(self):
         Ce, Ce_se = propagate_calibration_uncertainty(
@@ -491,7 +495,8 @@ class TestPropagateCalibrationUncertaintyExtended:
             slope_se=0.0005,
             intercept_se=0.003,
         )
-        assert Ce == 0.0  # max(0, Ce) when Ce is negative
+        # R04: below the intercept the back-calculation is negative, not a measured zero.
+        assert Ce == pytest.approx((-0.01 - 0.02) / 0.01)
 
 
 # =============================================================================

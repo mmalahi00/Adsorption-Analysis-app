@@ -460,14 +460,16 @@ class TestDataProcessing:
         expected = (absorbance - intercept) / slope
         assert Ce == pytest.approx(expected, rel=1e-5)
 
-    def test_Ce_non_negative(self, calibration_params):
-        """Test Ce is clamped to non-negative."""
+    def test_Ce_below_intercept_is_not_clamped(self, calibration_params):
+        """R04: a signal below the intercept is reported as such, not as Ce = 0."""
         absorbance = -0.1  # Would give negative
         Ce = calculate_Ce_from_absorbance(
             absorbance, calibration_params["slope"], calibration_params["intercept"]
         )
 
-        assert Ce >= 0, "Ce should be non-negative"
+        expected = (absorbance - calibration_params["intercept"]) / calibration_params["slope"]
+        assert Ce == pytest.approx(expected)
+        assert Ce < 0
 
     def test_adsorption_capacity(self, isotherm_experimental):
         """Test adsorption capacity calculation."""
@@ -699,10 +701,9 @@ class TestNumericalStability:
         """Test Ce calculation handles zero slope gracefully."""
         absorbance = 0.5
 
-        # Should handle zero slope
+        # R04: an unusable slope gives an undefined concentration, not 0.
         Ce = calculate_Ce_from_absorbance(absorbance, slope=0, intercept=0.1)
-        # With zero slope, should return 0
-        assert Ce == 0.0 or np.isfinite(Ce)
+        assert np.isnan(Ce)
 
     def test_adsorption_capacity_zero_mass(self):
         """Test qe calculation handles zero mass."""
@@ -710,10 +711,9 @@ class TestNumericalStability:
         Ce = 50.0
         V = 0.05
 
-        # Should handle zero mass gracefully
+        # R04: zero mass gives an undefined capacity, not 0.
         qe = calculate_adsorption_capacity(C0, Ce, V, m=0)
-        # With zero mass, should return 0 (protected division)
-        assert qe == 0.0 or np.isinf(qe)
+        assert np.isnan(qe)
 
 
 # =============================================================================

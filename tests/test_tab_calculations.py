@@ -274,10 +274,13 @@ class TestCalculateIsothermResultsDirect:
 
         result = _calculate_isotherm_results_direct(isotherm_direct_input)
         df = result.data
-        assert (df["Ce_error"] == 0.0).all()
-        assert (df["qe_error"] == 0.0).all()
+        # Unknown uncertainty is unavailable (NaN), never a measured zero (R09).
+        assert df["Ce_error"].isna().all()
+        assert df["qe_error"].isna().all()
+        assert df["error_basis"].str.startswith("not available").all()
 
-    def test_ce_greater_than_c0_skipped(self):
+    def test_ce_greater_than_c0_retained_and_excluded(self):
+        # R04: rows are kept with their reason, never skipped silently.
         from adsorblab_pro.tabs.isotherm_tab import _calculate_isotherm_results_direct
 
         bad_input = {
@@ -286,7 +289,10 @@ class TestCalculateIsothermResultsDirect:
         }
         result = _calculate_isotherm_results_direct(bad_input)
         assert result.success is False
-        assert "Ce ≤ C0" in result.error
+        assert "No usable observations" in result.error
+        assert len(result.data) == 2
+        assert (result.data["status"] == "excluded").all()
+        assert result.data["note"].str.contains("exceeds C0").all()
 
     def test_mixed_valid_invalid(self):
         from adsorblab_pro.tabs.isotherm_tab import _calculate_isotherm_results_direct
@@ -297,8 +303,11 @@ class TestCalculateIsothermResultsDirect:
         }
         result = _calculate_isotherm_results_direct(mixed_input)
         assert result.success is True
-        # Row with Ce=25 > C0=20 is skipped; rows 0 and 2 remain
-        assert len(result.data) == 2
+        # R04: the row with Ce=25 > C0=20 stays listed, excluded with its reason.
+        assert len(result.data) == 3
+        assert (result.data["status"] == "ok").sum() == 2
+        bad = result.data[result.data["C0_mgL"] == 20.0].iloc[0]
+        assert bad["status"] == "excluded" and "exceeds C0" in bad["note"]
 
     def test_qe_calculation_correctness(self):
         from adsorblab_pro.tabs.isotherm_tab import _calculate_isotherm_results_direct
@@ -398,8 +407,9 @@ class TestCalculateKineticResultsDirect:
         from adsorblab_pro.tabs.kinetic_tab import _calculate_kinetic_results_direct
 
         result = _calculate_kinetic_results_direct(kinetic_direct_input)
-        assert (result.data["Ct_error"] == 0.0).all()
-        assert (result.data["qt_error"] == 0.0).all()
+        # Unknown uncertainty is unavailable (NaN), never a measured zero (R09).
+        assert result.data["Ct_error"].isna().all()
+        assert result.data["qt_error"].isna().all()
 
     def test_qt_calculation_correctness(self):
         from adsorblab_pro.tabs.kinetic_tab import _calculate_kinetic_results_direct
@@ -453,7 +463,10 @@ class TestCalculateDosageResults:
         }
         result = _calculate_dosage_results(inp, calib_params)
         assert result.success is True
-        assert len(result.data) == 1  # Zero-mass row skipped
+        # R04: the zero-mass row is kept and excluded with its reason.
+        assert len(result.data) == 2
+        zero = result.data[result.data["Mass_g"] == 0.0].iloc[0]
+        assert zero["status"] == "excluded" and "mass must be positive" in zero["note"]
 
     def test_empty_input_fails(self, calib_params):
         from adsorblab_pro.tabs.dosage_tab import _calculate_dosage_results
@@ -485,7 +498,9 @@ class TestCalculateDosageResultsDirect:
         }
         result = _calculate_dosage_results_direct(inp)
         assert result.success is True
-        assert len(result.data) == 1  # Ce=60 > C0=50 skipped
+        # R04: Ce=60 > C0=50 is kept and excluded with its reason.
+        assert len(result.data) == 2
+        assert (result.data["status"] == "ok").sum() == 1
 
     def test_zero_mass_and_invalid_ce_both_skipped(self):
         from adsorblab_pro.tabs.dosage_tab import _calculate_dosage_results_direct
@@ -496,7 +511,8 @@ class TestCalculateDosageResultsDirect:
         }
         result = _calculate_dosage_results_direct(inp)
         assert result.success is True
-        assert len(result.data) == 1
+        assert len(result.data) == 2
+        assert (result.data["status"] == "ok").sum() == 1
 
 
 # =============================================================================
@@ -558,7 +574,9 @@ class TestCalculatePhResultsDirect:
         }
         result = _calculate_ph_results_direct(inp)
         assert result.success is True
-        assert len(result.data) == 1
+        # R04: the Ce > C0 row is kept and excluded with its reason.
+        assert len(result.data) == 2
+        assert (result.data["status"] == "ok").sum() == 1
 
     def test_all_invalid_fails(self):
         from adsorblab_pro.tabs.ph_effect_tab import _calculate_ph_results_direct

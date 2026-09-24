@@ -2285,17 +2285,28 @@ class TestTemperatureResultsDirect:
         assert "qe_mg_g" in result.data.columns
 
     def test_temperature_results_direct_kelvin(self):
-        """Test temperature results with Kelvin input."""
+        """Kelvin input is accepted only when the unit is declared (no >200 guess)."""
         from adsorblab_pro.utils import calculate_temperature_results_direct
 
         df = pd.DataFrame({"Temperature": [298, 308, 318], "Ce": [20, 15, 10]})
-        temp_input = {"data": df, "params": {"C0": 50, "m": 0.1, "V": 0.1}}
+        temp_input = {
+            "data": df,
+            "params": {"C0": 50, "m": 0.1, "V": 0.1},
+            "temperature_unit": "K",
+        }
 
         result = calculate_temperature_results_direct(temp_input)
 
         assert result.success is True
-        # Kelvin temps should be converted correctly
         assert result.data["Temperature_K"].iloc[0] == 298
+        assert result.data["Temperature_C"].iloc[0] == pytest.approx(24.85)
+
+        # The same values without a declared unit are refused, not guessed.
+        undeclared = calculate_temperature_results_direct(
+            {"data": df, "params": {"C0": 50, "m": 0.1, "V": 0.1}}
+        )
+        assert undeclared.success is False
+        assert "unit" in undeclared.error
 
     def test_temperature_results_direct_invalid_ce(self):
         """Test temperature results with Ce > C0."""

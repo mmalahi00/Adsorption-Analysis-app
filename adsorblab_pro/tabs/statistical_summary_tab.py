@@ -20,11 +20,11 @@ from adsorblab_pro.streamlit_compat import st
 
 from ..config import QUALITY_THRESHOLDS
 from ..utils import (
-    calculate_akaike_weights,
     check_mechanism_consistency,
     detect_common_errors,
     display_results_table,
     get_current_study_state,
+    model_comparison_table,
 )
 
 
@@ -102,75 +102,60 @@ def render():
         st.markdown("---")
         st.markdown("### 2. 📈 Isotherm Models Summary")
 
-        iso_data = []
-        for name, results in iso_models.items():
-            if results and results.get("converged"):
-                params = results.get("params", {})
-
-                row = {
-                    "Model": name,
-                    "R²": results.get("r_squared", 0),
-                    "Adj-R²": results.get("adj_r_squared", 0),
-                    "RMSE": results.get("rmse", np.inf),
-                    "Relative SSE": results.get(
-                        "normalized_sse", results.get("chi_squared", np.inf)
-                    ),
-                    "AIC": results.get("aicc", results.get("aic", np.inf)),
-                    "BIC": results.get("bic", np.inf),
-                }
-
-                # Add key parameters
+        iso_df, iso_comparison = model_comparison_table(iso_models)
+        if not iso_df.empty:
+            key_params = []
+            for name in iso_df["Model"]:
+                params = iso_models[name].get("params", {})
                 if name == "Langmuir":
-                    row["Key Parameter"] = f"qm = {params.get('qm', 0):.2f} mg/g"
+                    key_params.append(f"qm = {params.get('qm', np.nan):.2f} mg/g")
                 elif name == "Freundlich":
-                    row["Key Parameter"] = (
-                        f"KF = {params.get('KF', 0):.2f}, n = {params.get('n', 0):.2f}"
+                    key_params.append(
+                        f"KF = {params.get('KF', np.nan):.2f}, n = {params.get('n', np.nan):.2f}"
                     )
                 elif name == "Temkin":
-                    row["Key Parameter"] = f"B1 = {params.get('B1', 0):.2f}"
+                    key_params.append(f"B1 = {params.get('B1', np.nan):.2f}")
                 elif name == "Sips":
-                    row["Key Parameter"] = (
-                        f"qm = {params.get('qm', 0):.2f}, ns = {params.get('ns', 0):.2f}"
+                    key_params.append(
+                        f"qm = {params.get('qm', np.nan):.2f}, ns = {params.get('ns', np.nan):.2f}"
                     )
                 else:
-                    row["Key Parameter"] = "—"
-
-                iso_data.append(row)
-
-        if iso_data:
-            iso_df = pd.DataFrame(iso_data)
-
-            # Calculate AIC weights
-            weights = calculate_akaike_weights(iso_df["AIC"].tolist())
-            iso_df["AIC Weight"] = [f"{w:.1%}" for w in weights]
-
-            # Style and display
+                    key_params.append("—")
+            iso_df["Key Parameter"] = key_params
+            shown = [
+                "Model",
+                "n",
+                "R²",
+                "Adj-R²",
+                "RMSE",
+                "AIC",
+                "AICc",
+                "BIC",
+                "AICc weight",
+                "Set",
+                "Key Parameter",
+                "Note",
+            ]
             st.dataframe(
-                iso_df.style.format(
+                iso_df[shown].style.format(
                     {
                         "R²": "{:.4f}",
                         "Adj-R²": "{:.4f}",
                         "RMSE": "{:.4f}",
-                        "Relative SSE": "{:.2f}",
                         "AIC": "{:.2f}",
+                        "AICc": "{:.2f}",
                         "BIC": "{:.2f}",
-                    }
-                )
-                .highlight_max(subset=["R²", "Adj-R²"], color="lightgreen")
-                .highlight_min(subset=["RMSE", "AIC", "BIC", "Relative SSE"], color="lightblue"),
+                        "AICc weight": "{:.1%}",
+                    },
+                    na_rep="—",
+                ),
                 use_container_width=True,
+                hide_index=True,
             )
-
-            # Best model
-            try:
-                best_idx = iso_df["Adj-R²"].idxmax()
-                if pd.notna(best_idx):
-                    best_model = iso_df.loc[best_idx, "Model"]
-                    st.success(
-                        f"**Best Isotherm Model:** {best_model} (Adj-R² = {iso_df.loc[best_idx, 'Adj-R²']:.4f})"
-                    )
-            except (KeyError, ValueError):
-                st.caption("⚠️ Could not determine best isotherm model (missing Adj-R² values).")
+            if iso_comparison["status"] == "ranked":
+                st.success(f"**Isotherm models:** {iso_comparison['message']}")
+            else:
+                st.info(f"**Isotherm models:** {iso_comparison['message']}")
     else:
         st.caption("📈 Isotherms: not yet completed.")
 
@@ -179,76 +164,61 @@ def render():
         st.markdown("---")
         st.markdown("### 3. ⏱️ Kinetic Models Summary")
 
-        kin_data = []
-        for name, results in kin_models.items():
-            if results and results.get("converged"):
-                params = results.get("params", {})
-
-                row = {
-                    "Model": name,
-                    "R²": results.get("r_squared", 0),
-                    "Adj-R²": results.get("adj_r_squared", 0),
-                    "RMSE": results.get("rmse", np.inf),
-                    "AIC": results.get("aicc", results.get("aic", np.inf)),
-                }
-
-                # Key parameters
+        kin_df, kin_comparison = model_comparison_table(kin_models)
+        if not kin_df.empty:
+            rate_text = []
+            for name in kin_df["Model"]:
+                params = kin_models[name].get("params", {})
                 if name == "PFO":
-                    row["qe (mg/g)"] = params.get("qe", 0)
-                    row["k"] = f"k₁ = {params.get('k1', 0):.4f} min⁻¹"
-                elif name == "PSO":
-                    row["qe (mg/g)"] = params.get("qe", 0)
-                    row["k"] = f"k₂ = {params.get('k2', 0):.6f} g/(mg·min)"
-                elif name == "rPSO":
-                    row["qe (mg/g)"] = params.get("qe", 0)
-                    row["k"] = f"k₂ = {params.get('k2', 0):.6f} g/(mg·min)"
+                    rate_text.append(f"k₁ = {params.get('k1', np.nan):.4f} min⁻¹")
+                elif name in ("PSO", "rPSO"):
+                    rate_text.append(f"k₂ = {params.get('k2', np.nan):.6f} g/(mg·min)")
                 elif name == "Elovich":
-                    row["qe (mg/g)"] = "—"
-                    row["k"] = f"α = {params.get('alpha', 0):.2f}"
+                    rate_text.append(f"α = {params.get('alpha', np.nan):.2f}")
                 elif name == "IPD":
-                    row["qe (mg/g)"] = "—"
-                    row["k"] = f"kid = {params.get('kid', 0):.4f}"
+                    rate_text.append(f"kid = {params.get('kid', np.nan):.4f}")
                 else:
-                    row["qe (mg/g)"] = "—"
-                    row["k"] = "—"
-
-                kin_data.append(row)
-
-        if kin_data:
-            kin_df = pd.DataFrame(kin_data)
-
+                    rate_text.append("—")
+            kin_df["k"] = rate_text
+            shown = [
+                "Model",
+                "n",
+                "R²",
+                "Adj-R²",
+                "RMSE",
+                "AIC",
+                "AICc",
+                "BIC",
+                "AICc weight",
+                "Set",
+                "k",
+                "Note",
+            ]
             st.dataframe(
-                kin_df.style.format(
+                kin_df[shown].style.format(
                     {
                         "R²": "{:.4f}",
                         "Adj-R²": "{:.4f}",
                         "RMSE": "{:.4f}",
                         "AIC": "{:.2f}",
-                        "qe (mg/g)": "{:.2f}"
-                        if pd.api.types.is_numeric_dtype(kin_df["qe (mg/g)"])
-                        else "{}",
-                    }
-                )
-                .highlight_max(subset=["R²", "Adj-R²"], color="lightgreen")
-                .highlight_min(subset=["RMSE", "AIC"], color="lightblue"),
+                        "AICc": "{:.2f}",
+                        "BIC": "{:.2f}",
+                        "AICc weight": "{:.1%}",
+                    },
+                    na_rep="—",
+                ),
                 use_container_width=True,
+                hide_index=True,
             )
-
-            # Best model
-            try:
-                best_idx = kin_df["Adj-R²"].idxmax()
-                if pd.notna(best_idx):
-                    best_model = kin_df.loc[best_idx, "Model"]
-                    st.success(
-                        f"**Best Kinetic Model:** {best_model} (Adj-R² = {kin_df.loc[best_idx, 'Adj-R²']:.4f})"
-                    )
-                    st.caption(
-                        "⚠️ Note: Best statistical fit ≠ mechanistic evidence. Use controlled "
-                        "particle-size/agitation experiments, supported by Boyd/Weber-Morris "
-                        "diagnostics and independent characterization."
-                    )
-            except (KeyError, ValueError):
-                st.caption("⚠️ Could not determine best kinetic model (missing Adj-R² values).")
+            if kin_comparison["status"] == "ranked":
+                st.success(f"**Kinetic models:** {kin_comparison['message']}")
+            else:
+                st.info(f"**Kinetic models:** {kin_comparison['message']}")
+            st.caption(
+                "⚠️ Note: Best statistical fit ≠ mechanistic evidence. Use controlled "
+                "particle-size/agitation experiments, supported by Boyd/Weber-Morris "
+                "diagnostics and independent characterization."
+            )
     else:
         st.caption("⏱️ Kinetics: not yet completed.")
 
@@ -324,7 +294,7 @@ def render():
         "Multiple isotherm models compared": False,
         "Multiple kinetic models compared": False,
         "95% CI reported for parameters": False,
-        "AIC/BIC used for model selection": False,
+        "AICc compared within the same observations": False,
         "Thermodynamic analysis complete": False,
         "Adjusted R² reported for models": False,
     }
@@ -343,7 +313,7 @@ def render():
 
     if iso_models or kin_models:
         checklist["95% CI reported for parameters"] = True
-        checklist["AIC/BIC used for model selection"] = True
+        checklist["AICc compared within the same observations"] = True
         checklist["Adjusted R² reported for models"] = True
 
     if thermo_params:

@@ -268,7 +268,7 @@ These follow the adsorption literature where it differs from general statistical
 | Van't Hoff WLS | Covariance scaled by the weighted residual variance | Standard errors are relative, not the absolute propagated σ |
 | K<sub>d</sub> | Whichever concentration ratio you select, reported explicitly | ΔG, ΔS are **apparent** unless converted to a justified standard state |
 
-**Bootstrap confidence intervals** — residuals are resampled 500–1000 times; the model is refit each iteration and the 2.5th/97.5th percentiles are reported.
+**Bootstrap confidence intervals** — residuals are resampled 500–1000 times; each draw is refit with the original fit's starting values and limits, and the 2.5th/97.5th percentiles of the successful refits are reported. A deterministic work limit can stop a run before every draw is attempted; the summary then states the attempted, failed and unattempted draws and the stop reason, and no interval is given when fewer than 90 % of the requested draws succeed.
 
 **PRESS / Q²:**
 

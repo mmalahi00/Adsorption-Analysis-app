@@ -205,7 +205,7 @@ def effect_state():
                 "removal_%": [30, 34, 38, 40],
             }
         ),
-        "dosage_effect_results": pd.DataFrame(
+        "dosage_results": pd.DataFrame(
             {
                 "Mass_g": [0.02, 0.05, 0.1, 0.2, 0.5],
                 "qe_mg_g": [40, 25, 15, 8, 3],
@@ -686,11 +686,14 @@ class TestThermodynamicTables:
         df = generate_table("tbl_thermo_params", thermo_state)
         assert isinstance(df, pd.DataFrame)
         params = set(df["Parameter"])
-        assert "ΔH°" in params
-        assert "ΔS°" in params
-        # Should have ΔG° rows for each temperature
-        delta_g_rows = df[df["Parameter"].str.startswith("ΔG°")]
+        # Operational distribution-ratio results are labelled as apparent values (R12)
+        assert "Apparent ΔH" in params
+        assert "Apparent ΔS" in params
+        # Should have ΔG rows for each temperature, with the stored values
+        delta_g_rows = df[df["Parameter"].str.startswith("Apparent ΔG")]
         assert len(delta_g_rows) == 4
+        assert list(delta_g_rows["Value"]) == [-4.5, -3.7, -2.8, -2.0]
+        assert df["Note"].str.contains("not standard-state").all()
 
     def test_thermo_params_missing(self, empty_state):
         from adsorblab_pro.tabs.report_tab import generate_table
@@ -700,8 +703,11 @@ class TestThermodynamicTables:
     def test_thermo_data_table(self, thermo_state):
         from adsorblab_pro.tabs.report_tab import generate_table
 
-        # No temp_effect_results in thermo_state → None
-        assert generate_table("tbl_thermo_data", thermo_state) is None
+        # The van't Hoff points actually fitted (T, Kd, ln Kd), as the catalog describes (R12)
+        df = generate_table("tbl_thermo_data", thermo_state)
+        assert list(df["Temperature_K"]) == [298.15, 308.15, 318.15, 328.15]
+        assert list(df["Kd"]) == [5.0, 4.2, 3.5, 3.0]
+        assert df["ln_Kd"].iloc[0] == pytest.approx(np.log(5.0))
 
 
 class TestEffectDataTables:
