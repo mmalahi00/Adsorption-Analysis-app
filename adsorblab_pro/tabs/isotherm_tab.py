@@ -24,12 +24,15 @@ import plotly.graph_objects as go
 
 from adsorblab_pro.streamlit_compat import st
 
-from ..config import BOOTSTRAP_DEFAULT_ITERATIONS
+from ..config import BOOTSTRAP_DEFAULT_ITERATIONS, BOOTSTRAP_DEFAULT_SEED
 from ..models import (
     fit_model_with_ci,
     freundlich_model,
+    isotherm_fit_setup,
     langmuir_model,
+    round_significant,
     sips_model,
+    temkin_curve,
     temkin_model,
 )
 
@@ -44,18 +47,27 @@ from ..plot_style import (
 )
 from ..utils import (
     EPSILON_DIV,
-    CalculationResult,
     assess_data_quality,
-    bootstrap_confidence_intervals,
-    calculate_adsorption_capacity,
-    calculate_akaike_weights,
-    calculate_Ce_from_absorbance,
-    calculate_removal_percentage,
+    BOOTSTRAP_UNAVAILABLE,
+    bootstrap_parameter_intervals,
+    display_bootstrap_intervals,
+    report_bootstrap_outcome,
+    store_bootstrap_result as _store_bootstrap,
+    build_uptake_table,
     calculate_separation_factor,
+    FIT_ERROR_MODEL,
+    display_fit_diagnostics,
     display_results_table,
+    format_criterion,
+    model_comparison_table,
+    parameter_status_column,
+    eligible_observations,
     get_current_study_state,
+    metadata_columns,
     interpret_separation_factor,
-    propagate_calibration_uncertainty,
+    observation_notice,
+    uptake_calculation_result,
+    uptake_results_frame,
     validate_required_params,
 )
 from ..validation import format_validation_errors, validate_isotherm_data
@@ -108,10 +120,12 @@ def _compute_data_hash(Ce: np.ndarray, qe: np.ndarray, C0: np.ndarray) -> str:
 
 def _arrays_to_tuples(Ce: np.ndarray, qe: np.ndarray, C0: np.ndarray):
     """Convert numpy arrays to tuples for cache key hashing."""
+    # Significant digits, not decimals: rounding to 8 decimals turned
+    # concentrations below 1e-8 mg/L into zero before fitting.
     return (
-        tuple(np.round(Ce, 8).tolist()),
-        tuple(np.round(qe, 8).tolist()),
-        tuple(np.round(C0, 8).tolist()),
+        tuple(round_significant(Ce).tolist()),
+        tuple(round_significant(qe).tolist()),
+        tuple(round_significant(C0).tolist()),
     )
 
 
@@ -124,9 +138,6 @@ def _run_isotherm_bootstrap(
     This function adds bootstrap confidence intervals to models that have
     already been fitted, showing a progress bar for user feedback.
     """
-
-    valid = (Ce > EPSILON_DIV) & (qe > EPSILON_DIV)
-    Ce_v, qe_v = Ce[valid], qe[valid]
 
     models_to_bootstrap = [
         ("Langmuir", langmuir_model, ["qm", "KL"]),
@@ -148,6 +159,7 @@ def _run_isotherm_bootstrap(
     status_text = st.empty()
 
     current_model_idx = 0
+    summaries: list[tuple[str | bool, str]] = []
 
     for model_name, model_func, param_names in models_to_bootstrap:
         if not fitted_models.get(model_name, {}).get("converged"):
@@ -176,39 +188,39 @@ def _run_isotherm_bootstrap(
             progress_bar.progress(overall_progress)
             status_text.text(f"🔄 {_model_name}: {message}")
 
+        # Resample exactly the observations the fit used (incl. model domain).
+        Ce_v = np.asarray(fitted_models[model_name].get("x_data", Ce), dtype=float)
+        qe_v = np.asarray(fitted_models[model_name].get("y_data", qe), dtype=float)
+
         try:
-            ci_lower, ci_upper = bootstrap_confidence_intervals(
+            # Every requested draw is refitted once with the full fit's start/limit
+            # policy; counts, seed and failures are stored with the result.
+            details = bootstrap_parameter_intervals(
                 model_func,
                 Ce_v,
                 qe_v,
                 params,
-                n_bootstrap=n_bootstrap,
-                confidence=confidence_level,
+                n_bootstrap,
+                confidence_level,
+                fit_setup=_isotherm_fold_setup(model_name),
+                seed=BOOTSTRAP_DEFAULT_SEED,
+                param_names=param_names,
                 progress_callback=model_progress,
-                early_stopping=True,
             )
-
-            # Update fitted models with bootstrap CI
-            if not np.any(np.isnan(ci_lower)):
-                fitted_models[model_name]["bootstrap_ci_95"] = {
-                    param_names[i]: (ci_lower[i], ci_upper[i]) for i in range(len(param_names))
-                }
-                fitted_models[model_name]["bootstrap_n"] = n_bootstrap
+            summaries.append(_store_bootstrap(fitted_models[model_name], details, model_name))
         except Exception as e:
-            st.warning(f"Bootstrap failed for {model_name}: {str(e)}")
+            fitted_models[model_name].pop("bootstrap", None)
+            summaries.append((BOOTSTRAP_UNAVAILABLE, f"{model_name}: bootstrap failed ({e})"))
 
     # Clean up
     progress_bar.progress(1.0)
-    status_text.text("✅ Bootstrap complete!")
+    status_text.text("Bootstrap runs finished.")
 
     time.sleep(0.5)
     progress_bar.empty()
     status_text.empty()
 
-    st.success(
-        f"✅ Bootstrap CI calculated for {current_model_idx} models ({n_bootstrap} iterations)"
-    )
-
+    report_bootstrap_outcome(summaries)
     return fitted_models
 
 
@@ -261,8 +273,10 @@ def _fit_all_isotherm_models_cached(
 
     fitted: dict[str, Any] = {}
 
-    # Filter valid data
-    valid = (Ce > EPSILON_DIV) & (qe > EPSILON_DIV)
+    # Observations reaching this function are the eligible rows of the results
+    # table.  Zero values are valid observations (Ce = 0: complete removal;
+    # qe = 0: no uptake) and are kept wherever a model's domain permits them.
+    valid = np.isfinite(Ce) & np.isfinite(qe) & np.isfinite(C0) & (Ce >= 0)
     Ce_v = Ce[valid]
     qe_v = qe[valid]
     C0_v = C0[valid]
@@ -270,8 +284,12 @@ def _fit_all_isotherm_models_cached(
     if len(Ce_v) < 4:
         return fitted
 
-    qe_max = qe_v.max()
-    Ce_mean = Ce_v.mean()
+    # Temkin's ln(KT·Ce) is undefined at Ce = 0; only that model excludes such rows.
+    temkin_domain = Ce_v > 0
+    # Starting values and limits scale with the data (no fixed ceilings such as
+    # KL ≤ 100 L/mg); see isotherm_fit_setup for the physical constraints kept.
+    setup = isotherm_fit_setup(Ce_v, qe_v)
+    temkin_setup = isotherm_fit_setup(Ce_v[temkin_domain], qe_v[temkin_domain])["Temkin"]
 
     # =========================================================================
     # FIT EACH MODEL
@@ -283,8 +301,8 @@ def _fit_all_isotherm_models_cached(
             langmuir_model,
             Ce_v,
             qe_v,
-            p0=[qe_max * 1.5, 0.1],
-            bounds=([0, 0], [qe_max * 10, 100]),
+            p0=setup["Langmuir"]["p0"],
+            bounds=setup["Langmuir"]["bounds"],
             param_names=["qm", "KL"],
             confidence=confidence_level,
         )
@@ -303,8 +321,8 @@ def _fit_all_isotherm_models_cached(
             freundlich_model,
             Ce_v,
             qe_v,
-            p0=[qe_max / Ce_mean**0.5, 0.5],
-            bounds=([0, 0.01], [1000, 5]),
+            p0=setup["Freundlich"]["p0"],
+            bounds=setup["Freundlich"]["bounds"],
             param_names=["KF", "n_inv"],
             confidence=confidence_level,
         )
@@ -320,18 +338,22 @@ def _fit_all_isotherm_models_cached(
     try:
         result = fit_model_with_ci(
             temkin_model,
-            Ce_v,
-            qe_v,
-            p0=[qe_max / 5, 1.0],
-            bounds=([-100, 0.001], [200, 1000]),
+            Ce_v[temkin_domain],
+            qe_v[temkin_domain],
+            p0=temkin_setup["p0"],
+            bounds=temkin_setup["bounds"],
             param_names=["B1", "KT"],
             confidence=confidence_level,
         )
         if result and result.get("converged"):
-            # Flag if model predicts negative qe (outside valid domain)
-            params = result["params"]
-            if params["KT"] * Ce_v.min() < 1:
-                result["temkin_domain_warning"] = True
+            # KT ≥ 1/min(Ce) is a fit limit (qe ≥ 0 at every observation); a fit
+            # stopping there is reported through param_status/bounds_hit.
+            n_outside = int((~temkin_domain).sum())
+            if n_outside:
+                result["domain_note"] = (
+                    f"{n_outside} observation(s) with Ce = 0 were not used: ln(KT·Ce) is "
+                    "undefined at Ce = 0."
+                )
             fitted["Temkin"] = result
     except Exception as e:
         fitted["Temkin"] = {"converged": False, "error": str(e)}
@@ -342,8 +364,8 @@ def _fit_all_isotherm_models_cached(
             sips_model,
             Ce_v,
             qe_v,
-            p0=[qe_max * 1.5, 0.1, 1.0],
-            bounds=([0, 0, 0.1], [qe_max * 10, 100, 5]),
+            p0=setup["Sips"]["p0"],
+            bounds=setup["Sips"]["bounds"],
             param_names=["qm", "Ks", "ns"],
             confidence=confidence_level,
         )
@@ -511,12 +533,16 @@ def render():
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Quality", f"{quality['quality_score']}/100")
+            st.metric(
+                "Data checks",
+                f"{quality['quality_score']}/100",
+                help="Heuristic points for the number of rows, outliers and negative values; not a statistical confidence and not a measure of fit quality.",
+            )
         with col2:
             st.metric("Points", len(iso_input["data"]))
         with col3:
-            status = "✅ Good" if quality["quality_score"] >= 70 else "⚠️ Review"
-            st.metric("Status", status)
+            status = "✅ No major flags" if quality["quality_score"] >= 70 else "⚠️ Review"
+            st.metric("Data flags", status)
 
         # Calculate isotherm data based on input mode
         if input_mode == "direct":
@@ -527,11 +553,16 @@ def render():
 
         if not iso_results_obj.success:
             st.warning(f"Could not process isotherm data: {iso_results_obj.error}")
+            if iso_results_obj.data is not None and not iso_results_obj.data.empty:
+                display_results_table(iso_results_obj.data.round(4), hide_index=True)
+            current_study_state["isotherm_results"] = None
             return
 
         iso_results = iso_results_obj.data
         if iso_results is not None and not iso_results.empty:
+            # The stored/exported table keeps every row with its status and reason.
             current_study_state["isotherm_results"] = iso_results
+            usable = eligible_observations(iso_results)
 
             # Data Display Section
             st.markdown("---")
@@ -543,8 +574,24 @@ def render():
             with col2:
                 st.latex(r"\% \text{ Removal} = \frac{(C_0 - C_e)}{C_0} \times 100")
 
-            display_cols = ["C0_mgL", "Ce_mgL", "qe_mg_g", "removal_%"]
-            display_results_table(iso_results[display_cols].round(4), hide_index=False)
+            notice = observation_notice(iso_results)
+            if notice:
+                st.warning(f"⚠️ {notice}")
+            display_cols = [
+                c
+                for c in [
+                    "source_row",
+                    "C0_mgL",
+                    "Absorbance",
+                    "Ce_mgL",
+                    "qe_mg_g",
+                    "removal_%",
+                    "status",
+                    "note",
+                ]
+                if c in iso_results.columns
+            ] + metadata_columns(iso_results)
+            display_results_table(iso_results[display_cols].round(4), hide_index=True)
 
             params = iso_input["params"]
             T_K = round(_get_temperature_k(params), 2)
@@ -568,8 +615,8 @@ def render():
                 fig = go.Figure()
                 fig.add_trace(
                     go.Scatter(
-                        x=iso_results["Ce_mgL"],
-                        y=iso_results["qe_mg_g"],
+                        x=usable["Ce_mgL"],
+                        y=usable["qe_mg_g"],
                         **style_experimental_trace(name="Experimental"),
                     )
                 )
@@ -593,8 +640,8 @@ def render():
                 fig = go.Figure()
                 fig.add_trace(
                     go.Scatter(
-                        x=iso_results["Ce_mgL"],
-                        y=iso_results["removal_%"],
+                        x=usable["Ce_mgL"],
+                        y=usable["removal_%"],
                         **style_experimental_trace(name="Experimental"),
                     )
                 )
@@ -615,9 +662,9 @@ def render():
 
             else:  # Both
                 fig = create_dual_axis_effect_plot(
-                    x=iso_results["Ce_mgL"],
-                    y1=iso_results["qe_mg_g"],
-                    y2=iso_results["removal_%"],
+                    x=usable["Ce_mgL"],
+                    y1=usable["qe_mg_g"],
+                    y2=usable["removal_%"],
                     title="Isotherm Curve",
                     x_title="Concentration Ce (mg/L)",
                     y1_title="qe (mg/g)",
@@ -635,9 +682,11 @@ def render():
             st.markdown("---")
             st.markdown("### 🔬 Model Fitting")
 
-            Ce = iso_results["Ce_mgL"].values
-            qe = iso_results["qe_mg_g"].values
-            C0 = iso_results["C0_mgL"].values
+            # Only usable observations enter validation and fitting; excluded rows
+            # are reported above and kept in the stored table.
+            Ce = usable["Ce_mgL"].to_numpy(dtype=float)
+            qe = usable["qe_mg_g"].to_numpy(dtype=float)
+            C0 = usable["C0_mgL"].to_numpy(dtype=float)
             params = iso_input["params"]
             is_valid, validation_report = _validate_isotherm_input(
                 C0=C0, Ce=Ce, V=params["V"], m=params["m"]
@@ -727,30 +776,37 @@ def render():
                             sips_model,
                             temkin_model,
                         )
-                        from ..utils import calculate_press, calculate_q2
+                        from ..utils import calculate_press_details
 
                         model_funcs = {
-                            "Langmuir": (langmuir_model, ["qm", "KL"]),
-                            "Freundlich": (freundlich_model, ["KF", "n_inv"]),
-                            "Temkin": (temkin_model, ["B1", "KT"]),
-                            "Sips": (sips_model, ["qm", "Ks", "ns"]),
+                            "Langmuir": langmuir_model,
+                            "Freundlich": freundlich_model,
+                            "Temkin": temkin_model,
+                            "Sips": sips_model,
                         }
 
-                        for model_name, (func, param_names) in model_funcs.items():
+                        unavailable = []
+                        for model_name, func in model_funcs.items():
                             if fitted_models.get(model_name, {}).get("converged"):
-                                try:
-                                    params = [
-                                        fitted_models[model_name]["params"][p] for p in param_names
-                                    ]
-                                    press = calculate_press(func, Ce, qe, params)
-                                    q2 = calculate_q2(press, qe)
-                                    fitted_models[model_name]["press"] = press
-                                    fitted_models[model_name]["q2"] = q2
-                                except Exception as e:
-                                    st.warning(f"PRESS calculation failed for {model_name}: {e}")
+                                # Each fold is refitted with the same start/limit
+                                # policy as the full fit, on that fit's observations.
+                                details = calculate_press_details(
+                                    func,
+                                    np.asarray(fitted_models[model_name]["x_data"]),
+                                    np.asarray(fitted_models[model_name]["y_data"]),
+                                    fit_setup=_isotherm_fold_setup(model_name),
+                                )
+                                fitted_models[model_name]["press"] = details["press"]
+                                fitted_models[model_name]["q2"] = details["q2"]
+                                fitted_models[model_name]["press_details"] = details
+                                if details["status"] != "complete":
+                                    unavailable.append(f"{model_name}: {details['message']}")
 
                         current_study_state["isotherm_models_fitted"] = fitted_models
-                    st.success("✅ PRESS/Q² calculated!")
+                    if unavailable:
+                        st.warning("⚠️ " + " ".join(unavailable))
+                    else:
+                        st.success("✅ PRESS/Q² calculated (every leave-one-out refit succeeded).")
                 else:
                     # Remove PRESS/Q² values when checkbox is unchecked
                     for model_name in fitted_models:
@@ -759,6 +815,7 @@ def render():
                         ):
                             fitted_models[model_name].pop("press", None)
                             fitted_models[model_name].pop("q2", None)
+                            fitted_models[model_name].pop("press_details", None)
                     current_study_state["isotherm_models_fitted"] = fitted_models
 
                 # Run bootstrap if requested
@@ -819,6 +876,16 @@ def render():
         _display_guidelines()
 
 
+def _isotherm_fold_setup(model_name: str):
+    """Start/limit policy of the full isotherm fit, applied to a fold's training data."""
+
+    def setup(x_train, y_train):
+        config = isotherm_fit_setup(x_train, y_train)[model_name]
+        return config["p0"], config["bounds"]
+
+    return setup
+
+
 # =============================================================================
 # CACHED DATA CALCULATION
 # =============================================================================
@@ -826,96 +893,48 @@ def render():
 
 @st.cache_data
 def _calculate_isotherm_results(iso_input, calib_params):
-    """Calculate isotherm equilibrium data with error propagation."""
-    df = iso_input["data"].copy()
+    """Calculate isotherm equilibrium data (absorbance mode) with per-row status.
+
+    Every input row is kept with its source row, status and reason; rows below the
+    calibration intercept/LOD are unresolved (never an exact zero), and Ce > C0 is
+    excluded with its reason instead of being clipped.
+    """
     params = iso_input["params"]
-
-    slope = calib_params["slope"]
-    intercept = calib_params["intercept"]
-    m = params["m"]
-    V = params["V"]
-
-    # Get calibration uncertainties (with fallback defaults)
-    slope_se = calib_params.get("std_err_slope", 0)
-    intercept_se = calib_params.get("std_err_intercept", 0)
-
-    results = []
-    for _, row in df.iterrows():
-        C0 = row["Concentration"]
-        abs_eq = row["Absorbance"]
-
-        Ce = calculate_Ce_from_absorbance(abs_eq, slope, intercept)
-        qe = calculate_adsorption_capacity(C0, Ce, V, m)
-        removal = calculate_removal_percentage(C0, Ce)
-
-        # Calculate propagated uncertainty for Ce (returns tuple: Ce_calc, Ce_se)
-        _, Ce_se = propagate_calibration_uncertainty(
-            abs_eq, slope, intercept, slope_se, intercept_se
-        )
-
-        # Propagate Ce uncertainty to qe
-        qe_error = (V / m) * Ce_se if m > 0 else 0
-
-        results.append(
-            {
-                "C0_mgL": C0,
-                "Ce_mgL": Ce,
-                "Ce_error": Ce_se,
-                "qe_mg_g": qe,
-                "qe_error": qe_error,
-                "removal_%": removal,
-            }
-        )
-
-    if not results:
-        return CalculationResult(success=False, error="No valid data points to calculate results.")
-    results_df = pd.DataFrame(results).sort_values("C0_mgL")
-    return CalculationResult(success=True, data=results_df)
+    table = build_uptake_table(
+        iso_input["data"],
+        mode="absorbance",
+        signal_col="Absorbance",
+        C0="Concentration",
+        V=params["V"],
+        m=params["m"],
+        calib_params=calib_params,
+        row_notes=iso_input.get("row_issues"),
+    )
+    frame = uptake_results_frame(table, include_c0=True, include_signal=True, sort_by="C0_mgL")
+    return uptake_calculation_result(frame)
 
 
 @st.cache_data
 def _calculate_isotherm_results_direct(iso_input):
     """
-    Calculate isotherm equilibrium data from direct C0/Ce input.
+    Calculate isotherm equilibrium data from direct C0/Ce input with per-row status.
 
     This function bypasses calibration and uses Ce values directly from published data.
-    Useful for validating the application with literature datasets.
+    Rows with Ce > C0, negative or missing values are kept and marked as excluded with
+    the reason; they are never skipped silently.
     """
-    df = iso_input["data"].copy()
     params = iso_input["params"]
-
-    m = params["m"]
-    V = params["V"]
-
-    results = []
-    for _, row in df.iterrows():
-        C0 = row["C0"]
-        Ce = row["Ce"]
-
-        # Validate Ce <= C0
-        if Ce > C0:
-            continue  # Skip invalid data points
-
-        qe = calculate_adsorption_capacity(C0, Ce, V, m)
-        removal = calculate_removal_percentage(C0, Ce)
-
-        results.append(
-            {
-                "C0_mgL": C0,
-                "Ce_mgL": Ce,
-                "Ce_error": 0.0,  # No calibration uncertainty in direct mode
-                "qe_mg_g": qe,
-                "qe_error": 0.0,  # No propagated error in direct mode
-                "removal_%": removal,
-            }
-        )
-
-    if not results:
-        return CalculationResult(
-            success=False, error="No valid data points. Ensure Ce ≤ C0 for all rows."
-        )
-    results_df = pd.DataFrame(results).sort_values("C0_mgL")
-    return CalculationResult(success=True, data=results_df)
+    table = build_uptake_table(
+        iso_input["data"],
+        mode="direct",
+        signal_col="Ce",
+        C0="C0",
+        V=params["V"],
+        m=params["m"],
+        row_notes=iso_input.get("row_issues"),
+    )
+    frame = uptake_results_frame(table, include_c0=True, sort_by="C0_mgL")
+    return uptake_calculation_result(frame)
 
 
 # =============================================================================
@@ -942,8 +961,11 @@ def _display_langmuir(Ce, qe, C0, results):
                     f"({ci.get('qm', (np.nan, np.nan))[0]:.4f}, {ci.get('qm', (np.nan, np.nan))[1]:.4f})",
                     f"({ci.get('KL', (np.nan, np.nan))[0]:.6f}, {ci.get('KL', (np.nan, np.nan))[1]:.6f})",
                 ],
+                "Status": parameter_status_column(results, ["qm", "KL"]),
             }
         )
+        display_fit_diagnostics(results)
+        display_bootstrap_intervals(results)
 
         # Statistics
         col1, col2, col3, col4 = st.columns(4)
@@ -954,7 +976,7 @@ def _display_langmuir(Ce, qe, C0, results):
         with col3:
             st.metric("RMSE", f"{results['rmse']:.4f}")
         with col4:
-            st.metric("AIC", f"{results.get('aicc', results['aic']):.2f}")
+            st.metric("AICc", format_criterion(results.get("aicc")))
 
         # Separation factor
         if "RL" in results:
@@ -970,7 +992,7 @@ def _display_langmuir(Ce, qe, C0, results):
             # If lengths don't match, use only valid C0 values (same filtering as model fitting)
             if len(RL_arr) != len(C0_arr):
                 # Filter to match - use first n values where n = len(RL)
-                valid_mask = (np.atleast_1d(Ce) > EPSILON_DIV) & (np.atleast_1d(qe) > EPSILON_DIV)
+                valid_mask = np.isfinite(np.atleast_1d(Ce)) & (np.atleast_1d(Ce) >= 0)
                 C0_filtered = C0_arr[valid_mask] if len(C0_arr) > 1 else C0_arr
                 if len(C0_filtered) == len(RL_arr):
                     C0_arr = C0_filtered
@@ -1044,8 +1066,11 @@ def _display_freundlich(Ce, qe, results):
                     f"({ci.get('n_inv', (np.nan, np.nan))[0]:.4f}, {ci.get('n_inv', (np.nan, np.nan))[1]:.4f})",
                     "—",
                 ],
+                "Status": parameter_status_column(results, ["KF", "n_inv", None]),
             }
         )
+        display_fit_diagnostics(results)
+        display_bootstrap_intervals(results)
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -1055,7 +1080,7 @@ def _display_freundlich(Ce, qe, results):
         with col3:
             st.metric("RMSE", f"{results['rmse']:.4f}")
         with col4:
-            st.metric("AIC", f"{results.get('aicc', results['aic']):.2f}")
+            st.metric("AICc", format_criterion(results.get("aicc")))
 
         # Interpretation
         n = params.get("n", 1)
@@ -1119,8 +1144,18 @@ def _display_temkin(Ce, qe, results):
                     f"({ci.get('B1', (np.nan, np.nan))[0]:.4f}, {ci.get('B1', (np.nan, np.nan))[1]:.4f})",
                     f"({ci.get('KT', (np.nan, np.nan))[0]:.6f}, {ci.get('KT', (np.nan, np.nan))[1]:.6f})",
                 ],
+                "Status": parameter_status_column(results, ["B1", "KT"]),
             }
         )
+        display_fit_diagnostics(
+            results,
+            {
+                "KT": "KT's lower limit is 1/min(Ce), the smallest value for which the Temkin "
+                "equation gives qe ≥ 0 at every observation; the low-concentration data are "
+                "not described by this model."
+            },
+        )
+        display_bootstrap_intervals(results)
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -1130,17 +1165,13 @@ def _display_temkin(Ce, qe, results):
         with col3:
             st.metric("RMSE", f"{results['rmse']:.4f}")
         with col4:
-            st.metric("AIC", f"{results.get('aicc', results['aic']):.2f}")
+            st.metric("AICc", format_criterion(results.get("aicc")))
 
-        # Plot
-        Ce_line = np.linspace(0.01, Ce.max() * 1.1, 100)
-        qe_pred = temkin_model(Ce_line, params["B1"], params["KT"])
-        if results.get("temkin_domain_warning"):
-            st.warning(
-                "⚠️ **Temkin model validity concern:** KT × Ce < 1 for some data points, "
-                "producing negative predicted qe values (clamped to 0). This indicates the "
-                "Temkin model may not be appropriate for the low-concentration range of your data."
-            )
+        # Plot over the range where the equation is defined (KT·Ce ≥ 1, qe ≥ 0)
+        Ce_line = np.linspace(1.0 / params["KT"], Ce.max() * 1.1, 100)
+        qe_pred = temkin_curve(Ce_line, params["B1"], params["KT"])
+        if results.get("domain_note"):
+            st.info(f"ℹ️ {results['domain_note']}")
 
         fig = create_isotherm_plot(
             Ce,
@@ -1153,11 +1184,14 @@ def _display_temkin(Ce, qe, results):
         )
         st.plotly_chart(fig, use_container_width=True, key="temkin_plot")
 
-        # Diagnostics
-        qe_pred_exp = temkin_model(Ce, params["B1"], params["KT"])
+        # Diagnostics (on the observations Temkin was fitted to)
+        qe_fit = np.asarray(results.get("y_data", qe), dtype=float)
+        qe_pred_exp = temkin_curve(
+            np.asarray(results.get("x_data", Ce), dtype=float), params["B1"], params["KT"]
+        )
         with st.expander("Temkin diagnostics", expanded=False):
             fig_parity = create_parity_plot(
-                y_obs=np.asarray(qe, dtype=float),
+                y_obs=qe_fit,
                 y_pred=np.asarray(qe_pred_exp, dtype=float),
                 model_name="Temkin",
                 r_squared=results.get("r_squared"),
@@ -1196,8 +1230,11 @@ def _display_sips(Ce, qe, results):
                     f"({ci.get('Ks', (np.nan, np.nan))[0]:.6f}, {ci.get('Ks', (np.nan, np.nan))[1]:.6f})",
                     f"({ci.get('ns', (np.nan, np.nan))[0]:.4f}, {ci.get('ns', (np.nan, np.nan))[1]:.4f})",
                 ],
+                "Status": parameter_status_column(results, ["qm", "Ks", "ns"]),
             }
         )
+        display_fit_diagnostics(results)
+        display_bootstrap_intervals(results)
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -1207,7 +1244,7 @@ def _display_sips(Ce, qe, results):
         with col3:
             st.metric("RMSE", f"{results['rmse']:.4f}")
         with col4:
-            st.metric("AIC", f"{results.get('aicc', results['aic']):.2f}")
+            st.metric("AICc", format_criterion(results.get("aicc")))
 
         # Interpretation
         ns = params["ns"]
@@ -1246,7 +1283,7 @@ def _display_sips(Ce, qe, results):
 
 
 def _display_model_comparison(fitted_models, Ce, qe, T_K: float = 298.15):
-    """Display comprehensive model comparison with standard error functions."""
+    """Display model comparison; criteria are ranked only among comparable fits."""
     st.markdown("**📊 Model Comparison**")
 
     # Check if PRESS was calculated
@@ -1254,113 +1291,61 @@ def _display_model_comparison(fitted_models, Ce, qe, T_K: float = 298.15):
         results.get("press") is not None for results in fitted_models.values() if results
     )
 
-    # Build comparison table with extended error functions
-    comparison_data = []
-    for name, results in fitted_models.items():
-        if results and results.get("converged"):
-            row = {
-                "Model": name,
-                "R²": results["r_squared"],
-                "Adj-R²": results["adj_r_squared"],
-                "RMSE": results["rmse"],
-                "Relative SSE": results.get("normalized_sse", results.get("chi_squared", np.nan)),
-                "AIC": results.get("aicc", results["aic"]),
-                "BIC": results.get("bic", np.nan),
-            }
-            # Add PRESS/Q² if available
-            if has_press:
-                row["PRESS"] = results.get("press", np.nan)
-                row["Q²"] = results.get("q2", np.nan)
-            comparison_data.append(row)
-
-    if not comparison_data:
+    comparison_df, comparison = model_comparison_table(fitted_models, include_press=has_press)
+    if comparison_df.empty:
         st.warning("No models converged successfully.")
         return
-
-    comparison_df = pd.DataFrame(comparison_data)
-
-    # Calculate Akaike weights
-    aicc_values = [fitted_models[row["Model"]].get("aicc", row["AIC"]) for row in comparison_data]
-    aic_weights = calculate_akaike_weights(aicc_values)
-    comparison_df["AIC Weight"] = aic_weights
-
-    # Sort by Adj-R²
-    comparison_df = comparison_df.sort_values("Adj-R²", ascending=False)
 
     # Error function explanation expander
     with st.expander("📖 Error Function Definitions", expanded=False):
         definitions = """
         | Error Function | Formula | Best For |
         |----------------|---------|----------|
-        | **R²** | 1 - SSE/SST | Overall fit quality |
-        | **Adj-R²** | Penalizes extra parameters | Model comparison |
+        | **R²** | 1 - SSE/SST | Overall fit quality (descriptive) |
+        | **Adj-R²** | Penalizes extra parameters | Descriptive comparison |
         | **RMSE** | √(SSE/n) | Absolute error magnitude |
         | **Relative SSE** | Σ(residual²/|predicted|) | Descriptive relative error |
-        | **AIC/BIC** | Information criteria | Model selection |
+        | **AIC / AICc / BIC** | Gaussian likelihood, k = p + 1 | Model selection within the same observations |
         """
         if has_press:
             definitions += """| **PRESS** | Leave-one-out CV error | Predictive ability |
         | **Q²** | 1 - PRESS/SS_tot | Predictive R² |
         """
         definitions += """
+        AICc is undefined when n ≤ k + 1 and is then shown as —. ΔAICc and AICc weights
+        are computed only among fits to the same observations (same *Set*).
+
         *References: Kumar et al. (2008) J Hazard Mater 151:794-804; Foo & Hameed (2010) Chem Eng J 156:2-10*
         """
         st.markdown(definitions)
 
-    # Display main comparison table
-    highlight_max_cols = ["R²", "Adj-R²", "AIC Weight"]
-    highlight_min_cols = ["RMSE", "AIC", "BIC", "Relative SSE"]
-
+    formats = {
+        "R²": "{:.4f}",
+        "Adj-R²": "{:.4f}",
+        "RMSE": "{:.4f}",
+        "Relative SSE": "{:.2f}",
+        "AIC": "{:.2f}",
+        "AICc": "{:.2f}",
+        "BIC": "{:.2f}",
+        "ΔAICc": "{:.2f}",
+        "AICc weight": "{:.1%}",
+    }
     if has_press:
-        highlight_max_cols.append("Q²")
-        highlight_min_cols.append("PRESS")
-
+        formats.update({"PRESS": "{:.4f}", "Q²": "{:.4f}"})
     st.dataframe(
-        comparison_df.style.format(
-            {
-                "R²": "{:.4f}",
-                "Adj-R²": "{:.4f}",
-                "RMSE": "{:.4f}",
-                "Relative SSE": "{:.2f}",
-                "AIC": "{:.2f}",
-                "BIC": "{:.2f}",
-                "AIC Weight": "{:.1%}",
-            }
-        )
-        .highlight_max(subset=highlight_max_cols, color="lightgreen")
-        .highlight_min(subset=highlight_min_cols, color="lightblue"),
+        comparison_df.style.format(formats, na_rep="—"),
         use_container_width=True,
         hide_index=True,
     )
 
-    # Best model recommendation based on multiple criteria
-    # Handle NaN values safely to avoid KeyError
-    try:
-        if comparison_df["Adj-R²"].notna().any():
-            adj_r2_idx = comparison_df["Adj-R²"].idxmax()
-            best_adj_r2 = comparison_df.loc[adj_r2_idx, "Model"]
-        else:
-            best_adj_r2 = None
-    except (KeyError, ValueError):
-        best_adj_r2 = None
-
-    try:
-        aic_idx = comparison_df["AIC"].idxmin()
-        best_aic = comparison_df.loc[aic_idx, "Model"] if pd.notna(aic_idx) else None
-    except (KeyError, ValueError):
-        best_aic = None
-
-    if best_adj_r2 and best_aic:
-        if best_adj_r2 == best_aic:
-            st.success(f"**🎯 Best Model: {best_adj_r2}** (highest Adj-R² and lowest AIC)")
-        else:
-            st.info(
-                f"**📊 Model Selection:** Adj-R² favors **{best_adj_r2}**, AIC favors **{best_aic}**"
-            )
-    elif best_adj_r2:
-        st.success(f"**🎯 Best Model: {best_adj_r2}** (highest Adj-R²)")
-    elif best_aic:
-        st.success(f"**🎯 Best Model: {best_aic}** (lowest AIC)")
+    if comparison["status"] == "ranked":
+        st.success(f"**🎯 {comparison['message']}**")
+    else:
+        st.info(f"**📊 {comparison['message']}**")
+    st.caption(
+        f"Fits: {FIT_ERROR_MODEL}. A lower AICc indicates a better trade-off between fit "
+        "and complexity for these observations; it does not identify a mechanism."
+    )
 
     # All models plot
     st.markdown("**📈 All Models Overlay**")
@@ -1368,7 +1353,7 @@ def _display_model_comparison(fitted_models, Ce, qe, T_K: float = 298.15):
     model_functions = {
         "Langmuir": lambda x, p: langmuir_model(x, p["qm"], p["KL"]),
         "Freundlich": lambda x, p: freundlich_model(x, p["KF"], p["n_inv"]),
-        "Temkin": lambda x, p: temkin_model(x, p["B1"], p["KT"]),
+        "Temkin": lambda x, p: temkin_curve(x, p["B1"], p["KT"]),
         "Sips": lambda x, p: sips_model(x, p["qm"], p["Ks"], p["ns"]),
     }
 
@@ -1396,7 +1381,7 @@ def _display_guidelines():
 4. **Replicates:** Triplicates for error estimation
 5. **Report:**
    - All parameters with 95% CI
-   - R-squared, Adj-R-squared, RMSE, AIC for each model
-   - Akaike weights for model selection
+   - R-squared, Adj-R-squared, RMSE, AIC/AICc/BIC for each model
+   - AICc weights among fits to the same observations
    - Separation factor (RL) for Langmuir
         """)

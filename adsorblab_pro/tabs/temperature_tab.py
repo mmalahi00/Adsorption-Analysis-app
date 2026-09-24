@@ -21,7 +21,9 @@ from ..utils import (
     calculate_temperature_results,
     calculate_temperature_results_direct,
     display_results_table,
+    eligible_observations,
     get_current_study_state,
+    observation_notice,
     validate_required_params,
 )
 
@@ -62,12 +64,16 @@ def render():
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Quality", f"{quality['quality_score']}/100")
+            st.metric(
+                "Data checks",
+                f"{quality['quality_score']}/100",
+                help="Heuristic points for the number of rows, outliers and negative values; not a statistical confidence and not a measure of fit quality.",
+            )
         with col2:
             st.metric("Points", len(temp_input["data"]))
         with col3:
-            status = "✅ Good" if quality["quality_score"] >= 70 else "⚠️ Review"
-            st.metric("Status", status)
+            status = "✅ No major flags" if quality["quality_score"] >= 70 else "⚠️ Review"
+            st.metric("Data flags", status)
 
         # Calculate results based on input mode
         if input_mode == "direct":
@@ -77,8 +83,10 @@ def render():
             results_obj = calculate_temperature_results(temp_input, calib_params)
 
         if results_obj.success:
-            results = results_obj.data
-            current_study_state["temp_effect_results"] = results
+            all_results = results_obj.data
+            # The stored/exported table keeps every row with its status and reason.
+            current_study_state["temp_effect_results"] = all_results
+            results = eligible_observations(all_results)
 
             min_temp_c = results["Temperature_C"].min()
             if min_temp_c > 100:  # Threshold to detect possible Kelvin input
@@ -92,7 +100,10 @@ def render():
 
             st.markdown("---")
             st.markdown("### 📊 Temperature Effect Data")
-            display_results_table(results.round(4), hide_index=False)
+            notice = observation_notice(all_results)
+            if notice:
+                st.warning(f"⚠️ {notice}")
+            display_results_table(all_results.round(4), hide_index=True)
 
             st.markdown("---")
             st.markdown("### 📈 Visualization")
@@ -136,15 +147,24 @@ def render():
             st.markdown("---")
             st.markdown("### 🔍 Temperature Trend")
 
-            slope = np.polyfit(results["Temperature_C"], results["qe_mg_g"], 1)[0]
-
-            if slope > 0:
-                st.info("📈 **Endothermic tendency:** qe increases with temperature")
+            if len(results) >= 2 and results["Temperature_C"].nunique() >= 2:
+                slope = np.polyfit(results["Temperature_C"], results["qe_mg_g"], 1)[0]
+                if slope > 0:
+                    st.info("📈 **Endothermic tendency:** qe increases with temperature")
+                elif slope < 0:
+                    st.info("📉 **Exothermic tendency:** qe decreases with temperature")
+                else:
+                    st.info("qe shows no linear trend with temperature")
             else:
-                st.info("📉 **Exothermic tendency:** qe decreases with temperature")
+                st.info("At least two distinct temperatures are needed to describe a trend.")
 
             st.success("💡 **Tip:** Go to **Thermodynamics** tab for ΔH°, ΔS°, ΔG° analysis")
             st.info("💡 **To download:** Go to **📦 Export All** tab")
+        else:
+            st.warning(f"Could not process temperature data: {results_obj.error}")
+            if results_obj.data is not None and not results_obj.data.empty:
+                display_results_table(results_obj.data.round(4), hide_index=True)
+            current_study_state["temp_effect_results"] = None
 
     elif temp_input and input_mode == "absorbance" and not calib_params:
         st.warning(

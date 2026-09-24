@@ -47,6 +47,27 @@ def render():
 
     calib_df = current_study_state.get("calib_df_input")
     calib_params = current_study_state.get("calibration_params")
+    if calib_df is not None and {"Concentration", "Absorbance"} <= set(calib_df.columns):
+        # Standards with missing/non-finite values are excluded visibly (see below).
+        finite = np.isfinite(
+            calib_df[["Concentration", "Absorbance"]].apply(pd.to_numeric, errors="coerce")
+        ).all(axis=1)
+        if not finite.all():
+            rows = calib_df.loc[~finite, "source_row"] if "source_row" in calib_df else None
+            issues = (current_study_state.get("calib_source") or {}).get("row_issues") or {}
+            listed = (
+                ", ".join(
+                    f"{row}" + (f" ({'; '.join(issues[row])})" if row in issues else "")
+                    for row in map(int, rows.tolist())
+                )
+                if rows is not None
+                else "some rows"
+            )
+            st.warning(
+                f"⚠️ Calibration standard row(s) {listed} have missing or non-numeric values "
+                "and are excluded from the calibration (kept in the stored data)."
+            )
+        calib_df = calib_df[finite]
 
     if calib_df is not None and len(calib_df) >= 3:
         # NEW: Validate calibration data before processing
@@ -99,9 +120,9 @@ def render():
             else:
                 st.warning(f"⚠ Limited data: {len(calib_df)} points (recommend ≥5)")
 
-            # Duplicates check
-            if not calib_df.duplicated().any():
-                st.success("✓ No duplicate values detected")
+            # Repeated values are reported factually (replicate standards are normal)
+            for notice in quality_report.get("notices", []):
+                st.info(f"ℹ {notice}")
 
             # Show any issues from quality report
             if quality_report["issues"]:
@@ -418,9 +439,16 @@ def render():
             st.info("💡 **Export:** Go to **📦 Export All** tab for high-resolution figures.")
 
         else:
-            st.warning("⚠️ Calibration calculation failed. Check your data.")
+            reason = current_study_state.get("calibration_error") or "check your data."
+            st.error(
+                f"⚠️ Calibration not active: {reason} The previous calibration (if any) "
+                "has been deactivated; absorbance-mode results are unavailable."
+            )
 
     else:
+        calibration_error = current_study_state.get("calibration_error")
+        if calib_df is not None and calibration_error:
+            st.error(f"⚠️ Calibration not active: {calibration_error}")
         st.info("📥 Enter calibration data in the sidebar to begin analysis.")
 
         with st.expander("📖 Calibration Guidelines", expanded=True):

@@ -130,12 +130,14 @@ class TestIsothermArraysToTuples:
     def test_precision_rounding(self):
         from adsorblab_pro.tabs.isotherm_tab import _arrays_to_tuples
 
-        Ce = np.array([1.123456789012345])
-        qe = np.array([2.0])
-        C0 = np.array([50.0])
+        Ce = np.array([1.123456789012345, 1.23456789e-10])
+        qe = np.array([2.0, 1.0])
+        C0 = np.array([50.0, 50.0])
         result = _arrays_to_tuples(Ce, qe, C0)
-        # Should be rounded to 8 decimal places
-        assert result[0][0] == round(1.123456789012345, 8)
+        # Rounded to 12 significant digits (not 8 decimals, which turned
+        # concentrations below 1e-8 mg/L into zero before fitting; R13)
+        assert result[0][0] == float(f"{1.123456789012345:.11e}")
+        assert result[0][1] == 1.23456789e-10
 
 
 # =============================================================================
@@ -269,8 +271,9 @@ class TestCalculateIsothermResults:
             "std_err_intercept": 0.002,
         }
         result = _calculate_isotherm_results(iso_input, calib)
-        # Should handle m=0 gracefully (qe_error = 0)
-        assert result.success is True
+        # R04: m = 0 cannot give an uptake; the row is kept and excluded with the reason.
+        assert result.success is False
+        assert "mass must be positive" in result.data["note"].iloc[0]
 
 
 class TestCalculateIsothermResultsDirect:
@@ -304,7 +307,8 @@ class TestCalculateIsothermResultsDirect:
         }
         result = _calculate_isotherm_results_direct(iso_input)
         assert result.success is True
-        assert len(result.data) == 1
+        assert len(result.data) == 2  # R04: invalid row kept, excluded
+        assert (result.data["status"] == "ok").sum() == 1
 
     def test_all_invalid(self):
         from adsorblab_pro.tabs.isotherm_tab import _calculate_isotherm_results_direct
@@ -394,7 +398,8 @@ class TestCalculateKineticResultsDirect:
         }
         result = _calculate_kinetic_results_direct(kin_input)
         assert result.success is True
-        assert len(result.data) == 1
+        assert len(result.data) == 2  # R04: invalid row kept, excluded
+        assert (result.data["status"] == "ok").sum() == 1
 
     def test_all_invalid(self):
         from adsorblab_pro.tabs.kinetic_tab import _calculate_kinetic_results_direct

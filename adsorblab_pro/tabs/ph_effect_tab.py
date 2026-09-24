@@ -17,14 +17,14 @@ from adsorblab_pro.streamlit_compat import st
 
 from ..plot_style import create_effect_plot, create_dual_axis_effect_plot
 from ..utils import (
-    CalculationResult,
     assess_data_quality,
-    calculate_adsorption_capacity,
-    calculate_Ce_from_absorbance,
-    calculate_removal_percentage,
+    build_uptake_table,
     display_results_table,
+    eligible_observations,
     get_current_study_state,
-    propagate_calibration_uncertainty,
+    observation_notice,
+    uptake_calculation_result,
+    uptake_results_frame,
     validate_required_params,
 )
 
@@ -64,12 +64,16 @@ def render():
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Quality", f"{quality['quality_score']}/100")
+            st.metric(
+                "Data checks",
+                f"{quality['quality_score']}/100",
+                help="Heuristic points for the number of rows, outliers and negative values; not a statistical confidence and not a measure of fit quality.",
+            )
         with col2:
             st.metric("Points", len(ph_input["data"]))
         with col3:
-            status = "✅ Good" if quality["quality_score"] >= 70 else "⚠️ Review"
-            st.metric("Status", status)
+            status = "✅ No major flags" if quality["quality_score"] >= 70 else "⚠️ Review"
+            st.metric("Data flags", status)
 
         # Calculate results based on input mode
         if input_mode == "direct":
@@ -79,12 +83,17 @@ def render():
             results_obj = _calculate_ph_results(ph_input, calib_params)
 
         if results_obj.success:
-            results = results_obj.data
-            current_study_state["ph_effect_results"] = results
+            all_results = results_obj.data
+            # The stored/exported table keeps every row with its status and reason.
+            current_study_state["ph_effect_results"] = all_results
+            results = eligible_observations(all_results)
 
             st.markdown("---")
             st.markdown("### 📊 pH Effect Data")
-            display_results_table(results.round(4), hide_index=False)
+            notice = observation_notice(all_results)
+            if notice:
+                st.warning(f"⚠️ {notice}")
+            display_results_table(all_results.round(4), hide_index=True)
 
             st.markdown("---")
             st.markdown("### 📈 Visualization")
@@ -155,6 +164,9 @@ def render():
             st.info("💡 **To download:** Go to **📦 Export All** tab")
         else:
             st.warning(f"Could not process pH data: {results_obj.error}")
+            if results_obj.data is not None and not results_obj.data.empty:
+                display_results_table(results_obj.data.round(4), hide_index=True)
+            current_study_state["ph_effect_results"] = None
             return
 
     elif ph_input and input_mode == "absorbance" and not calib_params:
@@ -165,84 +177,37 @@ def render():
         st.info("📥 Enter pH data in sidebar")
 
 
+def _ph_frame(ph_input, mode, calib_params=None):
+    """Shared pH calculation: every row kept with its source row and status."""
+    params = ph_input["params"]
+    data = ph_input["data"]
+    table = build_uptake_table(
+        data,
+        mode=mode,
+        signal_col="Absorbance" if mode != "direct" else "Ce",
+        C0=params["C0"],
+        V=params["V"],
+        m=params["m"],
+        calib_params=calib_params,
+        extra_numeric={"pH": "pH"},
+        row_notes=ph_input.get("row_issues"),
+    )
+    frame = uptake_results_frame(
+        table,
+        leading={"pH": pd.to_numeric(data["pH"], errors="coerce").to_numpy(dtype=float)},
+        include_signal=mode != "direct",
+        sort_by="pH",
+    )
+    return uptake_calculation_result(frame)
+
+
 @st.cache_data
 def _calculate_ph_results(ph_input, calib_params):
-    df = ph_input["data"].copy()
-    params = ph_input["params"]
-
-    slope = calib_params["slope"]
-    intercept = calib_params["intercept"]
-    C0 = params["C0"]
-    m = params["m"]
-    V = params["V"]
-
-    # Get calibration uncertainties
-    slope_se = calib_params.get("std_err_slope", 0)
-    intercept_se = calib_params.get("std_err_intercept", 0)
-
-    results = []
-    for _, row in df.iterrows():
-        pH = row["pH"]
-        abs_val = row["Absorbance"]
-
-        Ce = calculate_Ce_from_absorbance(abs_val, slope, intercept)
-        qe = calculate_adsorption_capacity(C0, Ce, V, m)
-        removal = calculate_removal_percentage(C0, Ce)
-
-        # Calculate propagated uncertainty (returns tuple: Ce_calc, Ce_se)
-        _, Ce_se = propagate_calibration_uncertainty(
-            abs_val, slope, intercept, slope_se, intercept_se
-        )
-        qe_error = (V / m) * Ce_se if m > 0 else 0
-
-        results.append(
-            {
-                "pH": pH,
-                "Ce_mgL": Ce,
-                "Ce_error": Ce_se,
-                "qe_mg_g": qe,
-                "qe_error": qe_error,
-                "removal_%": removal,
-            }
-        )
-
-    if not results:
-        return CalculationResult(success=False, error="No valid data points to calculate results.")
-    results_df = pd.DataFrame(results).sort_values("pH")
-    return CalculationResult(success=True, data=results_df)
+    """pH results from absorbance with per-row status (nothing clipped)."""
+    return _ph_frame(ph_input, "absorbance", calib_params)
 
 
 @st.cache_data
 def _calculate_ph_results_direct(ph_input):
-    """Calculate pH effect results from direct Ce input."""
-    df = ph_input["data"].copy()
-    params = ph_input["params"]
-
-    C0 = params["C0"]
-    m = params["m"]
-    V = params["V"]
-
-    results = []
-    for _, row in df.iterrows():
-        pH = row["pH"]
-        Ce = row["Ce"]
-
-        if Ce <= C0:
-            qe = calculate_adsorption_capacity(C0, Ce, V, m)
-            removal = calculate_removal_percentage(C0, Ce)
-
-            results.append(
-                {
-                    "pH": pH,
-                    "Ce_mgL": Ce,
-                    "Ce_error": 0.0,
-                    "qe_mg_g": qe,
-                    "qe_error": 0.0,
-                    "removal_%": removal,
-                }
-            )
-
-    if not results:
-        return CalculationResult(success=False, error="No valid data points. Ensure Ce ≤ C0.")
-    results_df = pd.DataFrame(results).sort_values("pH")
-    return CalculationResult(success=True, data=results_df)
+    """pH results from direct Ce input; rows with Ce > C0 are kept and excluded."""
+    return _ph_frame(ph_input, "direct")

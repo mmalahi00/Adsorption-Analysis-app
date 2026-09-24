@@ -24,8 +24,10 @@ from ..utils import (
     calculate_temperature_results_direct,
     calculate_thermodynamic_parameters,
     display_results_table,
+    eligible_observations,
     get_current_study_state,
     interpret_thermodynamics,
+    observation_notice,
     propagate_kd_uncertainty,
     validate_required_params,
 )
@@ -196,9 +198,17 @@ def render():
             )
 
         if temp_results_obj.success:
-            temp_results = temp_results_obj.data
+            all_temp_results = temp_results_obj.data
+            notice = observation_notice(all_temp_results)
+            if notice:
+                st.warning(f"⚠️ {notice}")
+            # Kd and the Van't Hoff regression use quantified observations only.
+            temp_results = eligible_observations(all_temp_results).copy()
             if len(temp_results) < 3:
-                st.warning("⚠️ Need at least 3 temperature points for thermodynamic analysis.")
+                st.warning(
+                    "⚠️ Need at least 3 usable temperature points for thermodynamic analysis "
+                    f"({len(temp_results)} available)."
+                )
                 return
 
             min_temp_c = temp_results["Temperature_C"].min()
@@ -279,25 +289,19 @@ def render():
                 st.info("Check that every observation satisfies 0 < Ce < C₀ and qe > 0.")
                 return
 
-            # ----- Propagate uncertainty to Kd (Phase 1.3) -----
+            # ----- Propagate uncertainty to Kd (calibration-derived SEs only) -----
             Kd_se_arr = None
-            has_uncertainty = (
-                "Ce_error" in temp_results.columns and temp_results["Ce_error"].sum() > 0
+            Ce_se_vals = (
+                pd.to_numeric(temp_results["Ce_error"], errors="coerce").to_numpy(dtype=float)
+                if "Ce_error" in temp_results.columns
+                else np.full(len(temp_results), np.nan)
             )
+            has_uncertainty = bool(np.any(np.isfinite(Ce_se_vals) & (Ce_se_vals > 0)))
             if has_uncertainty:
-                Ce_se_vals = temp_results["Ce_error"].values
-                qe_se_vals = (
-                    temp_results["qe_error"].values if "qe_error" in temp_results.columns else None
-                )
+                # qe is computed from Ce by mass balance, so it is not an
+                # independent measurement: qe_se=None propagates the correlation.
                 Kd_se_arr = propagate_kd_uncertainty(
-                    method_id,
-                    C0,
-                    Ce,
-                    qe,
-                    m,
-                    V,
-                    Ce_se=Ce_se_vals,
-                    qe_se=qe_se_vals,
+                    method_id, C0, Ce, qe, m, V, Ce_se=Ce_se_vals, qe_se=None
                 )
 
             temp_results["Kd"] = Kd
@@ -472,13 +476,16 @@ def render():
                 # =============================================================
                 if "wls_delta_H" in thermo_params:
                     st.markdown("---")
-                    st.markdown("### 4.1 🔗 Propagated Uncertainty (WLS vs OLS)")
+                    st.markdown("### 4.1 🔗 Calibration-weighted fit (WLS vs OLS)")
                     st.markdown(
-                        "*When calibration uncertainty is provided, a weighted "
-                        "least-squares (WLS) Van't Hoff regression is performed "
-                        "using propagated σ(ln Kd) as weights, completing the "
-                        "uncertainty chain from calibration to thermodynamic "
-                        "parameters.*"
+                        "*The weighted (WLS) Van't Hoff regression uses 1/σ²(ln Kd) as "
+                        "relative weights, where σ(ln Kd) is propagated from the "
+                        "calibration only (slope, intercept and their covariance, plus one "
+                        "reading at the calibration residual SD). Mass, volume, C₀, "
+                        "temperature and replicate variability are not included, and the "
+                        "correlation between points that share one calibration is ignored. "
+                        "Its standard errors are scaled by the residual scatter; this is "
+                        "not a complete uncertainty budget.*"
                     )
 
                     wls_H = thermo_params["wls_delta_H"]
@@ -496,7 +503,7 @@ def render():
                                 f"{ci_pct}% CI half-width",
                                 "R²",
                             ],
-                            "OLS (regression-only)": [
+                            "OLS (unweighted)": [
                                 f"{delta_H:.4f}",
                                 f"{thermo_params.get('delta_H_se', 0):.4f}",
                                 f"{thermo_params.get('delta_H_ci', 0):.4f}",
@@ -505,7 +512,7 @@ def render():
                                 f"{thermo_params.get('delta_S_ci', 0):.4f}",
                                 f"{thermo_params.get('r_squared', 0):.6f}",
                             ],
-                            "WLS (propagated)": [
+                            "WLS (calibration-weighted)": [
                                 f"{wls_H:.4f}",
                                 f"{thermo_params.get('wls_delta_H_se', 0):.4f}",
                                 f"{thermo_params.get('wls_delta_H_ci', 0):.4f}",
@@ -529,11 +536,11 @@ def render():
                     display_results_table(dG_cmp.round(4))
 
                     st.caption(
-                        "**OLS** uses only the residual scatter of the Van't Hoff "
-                        "fit.  **WLS** additionally accounts for the propagated "
-                        "measurement uncertainty in each ln(Kd) point, giving "
-                        "more weight to data points with smaller experimental "
-                        "error."
+                        "**OLS** weights every ln(Kd) point equally; its uncertainties come "
+                        "from the residual scatter of the Van't Hoff fit. **WLS** gives more "
+                        "weight to points with a smaller calibration-propagated σ(ln Kd); "
+                        f"{thermo_params.get('wls_n_points', 0)} of {len(T_K)} points had a "
+                        "propagated uncertainty. The headline values above are the OLS results."
                     )
 
                 # Summary metrics
@@ -651,7 +658,7 @@ the Van't Hoff plot (ln Kd vs 1/T, R² = {thermo_params["r_squared"]:.4f}).
                 )
 
         else:
-            st.warning("⚠️ Need at least 3 temperature points for thermodynamic analysis")
+            st.warning(f"⚠️ Could not process temperature data: {temp_results_obj.error}")
 
     elif temp_input and input_mode == "absorbance" and not calib_params:
         st.warning(

@@ -10,6 +10,7 @@ Features:
 - European decimal format support (comma as decimal separator)
 """
 
+import hashlib
 import io
 import logging
 from typing import Any
@@ -19,9 +20,10 @@ import pandas as pd
 from adsorblab_pro.streamlit_compat import st
 
 from .utils import (
+    CANONICAL_UNITS,
     assess_data_quality,
-    standardize_column_name,
-    validate_data_editor,
+    load_uploaded_table,
+    parse_uploaded_table,
 )
 from .validation import format_validation_errors, validate_uploaded_file
 
@@ -37,101 +39,17 @@ def _parse_uploaded_file(file_content: bytes, file_name: str, required_cols: lis
     Parse uploaded file content into a DataFrame.
 
     This is a pure data processing function (no Streamlit UI calls) to enable caching.
+    Column headers are interpreted as quantity + unit and the required columns are
+    converted to the canonical units (see ``utils.CANONICAL_UNITS``).
 
     Returns:
         tuple: (DataFrame or None, status_dict with messages and status)
     """
-    import io as io_module
-
-    status = {"messages": [], "status": "success", "quality_report": None}
-
-    try:
-        # Read file based on extension
-        if file_name.endswith(".csv"):
-            try:
-                # Try reading with common European separator first
-                df = pd.read_csv(io_module.BytesIO(file_content), sep=";", decimal=",")
-                if len(df.columns) == 1:  # If that fails, might be comma-separated
-                    df = pd.read_csv(io_module.BytesIO(file_content), sep=",", decimal=".")
-            except (pd.errors.ParserError, UnicodeDecodeError, ValueError):
-                df = pd.read_csv(io_module.BytesIO(file_content), sep=",", decimal=".")
-        else:  # For Excel files
-            df = pd.read_excel(io_module.BytesIO(file_content))
-
-        # Standardize column names
-        col_map = {col: standardize_column_name(col) for col in df.columns}
-        df.rename(columns=col_map, inplace=True)
-
-        # Check for required columns
-        if not all(col in df.columns for col in required_cols):
-            missing = [col for col in required_cols if col not in df.columns]
-            status["messages"].append(("error", f"Missing columns: {', '.join(missing)}"))
-            status["messages"].append(("info", f"Found columns: {', '.join(df.columns.tolist())}"))
-            status["status"] = "error"
-            return None, status
-
-        # Handle comma decimals
-        comma_was_replaced = False
-        for col in required_cols:
-            if not pd.api.types.is_numeric_dtype(df[col]):
-                str_col = df[col].astype(str)
-                has_commas = str_col.str.contains(",", regex=False).any()
-
-                if has_commas:
-                    df[col] = str_col.str.replace(",", ".", regex=False)
-                    comma_was_replaced = True
-
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-
-        if comma_was_replaced:
-            status["messages"].append(
-                (
-                    "info",
-                    "💡 Detected European decimal format. Replaced commas (,) with periods (.) as decimal separators.",
-                )
-            )
-
-        # Quality assessment
-        quality_report = assess_data_quality(df, study_type)
-        status["quality_report"] = quality_report
-
-        return df[required_cols].reset_index(drop=True), status
-
-    except (
-        pd.errors.ParserError,
-        pd.errors.EmptyDataError,
-        UnicodeDecodeError,
-        ValueError,
-        KeyError,
-        OSError,
-    ) as e:
-        status["messages"].append(("error", f"Error reading file: {e}"))
-        status["status"] = "error"
-        return None, status
+    return parse_uploaded_table(file_content, file_name, list(required_cols), study_type)
 
 
-def _read_uploaded_file(uploaded_file, required_cols, study_type):
-    """Enhanced file reader with validation and comma decimal handling."""
-    if uploaded_file is None:
-        return None
-
-    # Validate file size and type FIRST
-    file_validation = validate_uploaded_file(
-        file_size=uploaded_file.size, file_name=uploaded_file.name
-    )
-    if not file_validation.is_valid:
-        st.error(format_validation_errors(file_validation))
-        return None
-
-    # Read file content for caching (file objects aren't hashable)
-    file_content = uploaded_file.read()
-    uploaded_file.seek(0)  # Reset for potential re-reading
-
-    # Call cached parsing function
-    df, status = _parse_uploaded_file(file_content, uploaded_file.name, required_cols, study_type)
-
-    # Display messages (UI calls must be outside cached function)
-    for msg_type, msg in status.get("messages", []):
+def _show_messages(messages: list[tuple[str, str]]) -> None:
+    for msg_type, msg in messages:
         if msg_type == "error":
             st.error(msg)
         elif msg_type == "warning":
@@ -141,62 +59,236 @@ def _read_uploaded_file(uploaded_file, required_cols, study_type):
         elif msg_type == "success":
             st.success(msg)
 
+
+def _read_uploaded_file(uploaded_file, content: bytes, required_cols, study_type):
+    """
+    Validate, parse and prepare an uploaded file (see ``utils.load_uploaded_table``)
+    and show its messages.  Returns ``(analysis view or None, upload record)``.
+    """
+    # Validate file size and type FIRST
+    file_validation = validate_uploaded_file(
+        file_size=uploaded_file.size, file_name=uploaded_file.name
+    )
+    if not file_validation.is_valid:
+        st.error(format_validation_errors(file_validation))
+        return None, None
+
+    prepared, upload = load_uploaded_table(
+        content, uploaded_file.name, list(required_cols), study_type, parse=_parse_uploaded_file
+    )
+
+    # Display messages (UI calls must be outside cached function)
+    _show_messages(upload["messages"])
+
     # Display quality report
-    quality_report = status.get("quality_report")
+    quality_report = upload.get("quality_report")
     if quality_report:
         if quality_report["status"] == "success":
-            st.success(f"✅ Loaded: {quality_report['quality_score']}/100 quality")
+            st.success(f"✅ Loaded: {quality_report['quality_score']}/100 data checks (heuristic)")
         elif quality_report["status"] == "warning":
-            st.warning(f"⚠️ Loaded: {quality_report['quality_score']}/100 quality")
+            st.warning(f"⚠️ Loaded: {quality_report['quality_score']}/100 data checks (heuristic)")
         else:
-            st.error(f"❌ Loaded: {quality_report['quality_score']}/100 quality")
+            st.error(f"❌ Loaded: {quality_report['quality_score']}/100 data checks (heuristic)")
+        for notice in quality_report.get("notices", []):
+            st.info(f"ℹ️ {notice}")
 
-    return df
+    if prepared is not None and upload["metadata_columns"]:
+        st.caption(
+            "Kept with each row (not used in calculations): "
+            + ", ".join(map(str, upload["metadata_columns"]))
+        )
+    _show_messages(upload["row_messages"])
+    return prepared, upload
+
+
+# =============================================================================
+# PER-STUDY INPUT STATE
+# =============================================================================
+# The stored inputs of each study (st.session_state.studies[name]) are the single
+# authoritative copy of its data and experimental conditions.  Widgets are keyed
+# per study and hydrated from that state, and an upload widget that is empty
+# ("no new upload") never changes stored data; only a new upload or the explicit
+# clear action does.  These helpers take the study dict explicitly so they can be
+# tested without a Streamlit runtime.
+
+
+def study_widget_suffix(study_name: str) -> str:
+    """Stable, key-safe suffix that keeps widget state separate for each study."""
+    return hashlib.sha1(str(study_name).encode("utf-8")).hexdigest()[:10]
+
+
+def upload_signature(file_name: str, content: bytes) -> str:
+    """Identity of an uploaded file, used to detect a genuinely new upload."""
+    return f"{file_name}:{len(content)}:{hashlib.md5(content).hexdigest()}"
+
+
+def _invalidate_dependents(study_state: dict[str, Any], dependent_keys: list[str]) -> None:
+    for key in dependent_keys:
+        if key in study_state:
+            value = study_state[key]
+            if isinstance(value, dict):
+                study_state[key] = {}
+            elif isinstance(value, list):
+                study_state[key] = []
+            else:
+                study_state[key] = None
+
+
+def _same_analysis_input(new_input: dict[str, Any], current: dict[str, Any]) -> bool:
+    """True when two stored inputs give the same results (data, conditions, mode, reasons)."""
+    try:
+        return bool(
+            new_input["data"].equals(current.get("data"))
+            and new_input["params"] == current.get("params", {})
+            and new_input.get("input_mode") == current.get("input_mode")
+            and (new_input.get("row_issues") or {}) == (current.get("row_issues") or {})
+            and new_input.get("temperature_unit") == current.get("temperature_unit")
+        )
+    except (AttributeError, KeyError, TypeError):
+        return False
+
+
+def store_study_input(
+    study_state: dict[str, Any],
+    state_key: str,
+    new_input: dict[str, Any] | None,
+    dependent_keys: list[str],
+) -> bool:
+    """
+    Store (or explicitly clear, with ``None``) one input of one study.
+
+    The new input always replaces the stored one as a whole, so its data and its
+    source record (raw table, unit mapping, file name, row issues) always come
+    from the same, latest accepted upload.  Dependent results are invalidated
+    only when the analysis input changes: data, conditions, input mode, row
+    reasons or temperature unit.  An equivalent upload (e.g. the same values in
+    µg/L instead of mg/L) keeps the results valid.  Returns True when the
+    analysis input changed (dependents were invalidated).
+    """
+    current = study_state.get(state_key)
+    if new_input is None:
+        changed = current is not None
+    elif current is None:
+        changed = True
+    else:
+        changed = not _same_analysis_input(new_input, current)
+
+    study_state[state_key] = new_input
+    if changed:
+        _invalidate_dependents(study_state, dependent_keys)
+        reports = study_state.setdefault("data_quality_reports", {})
+        if new_input and "data" in new_input:
+            study_type = state_key.replace("_input", "").replace("_", " ")
+            reports[state_key] = assess_data_quality(new_input["data"], study_type)
+        else:
+            reports.pop(state_key, None)
+    return changed
+
+
+def upload_source(upload: dict[str, Any]) -> dict[str, Any]:
+    """Source record of an accepted upload, stored with the data it produced."""
+    return {
+        "source_file": upload["source_file"],
+        # The uploaded table as read (all columns, source rows).
+        "raw_data": upload["raw_data"],
+        # Source header, unit and conversion of each required column.
+        "column_map": upload["column_map"],
+        "metadata_columns": upload["metadata_columns"],
+        # Import problems per source row, shown as exclusion reasons.
+        "row_issues": upload["row_issues"],
+        "ignored_empty_rows": upload["ignored_empty_rows"],
+    }
+
+
+def study_input_from_upload(
+    prepared,
+    upload: dict[str, Any],
+    *,
+    params: dict[str, Any],
+    input_mode: str,
+    required_cols: list[str],
+    study_type: str,
+) -> dict[str, Any]:
+    """The stored input of one analysis built from an accepted upload."""
+    new_input = {
+        "data": prepared,
+        "params": dict(params),
+        "input_mode": input_mode,
+        # Uploaded values are converted to these units on import.
+        "units": {col: CANONICAL_UNITS.get(col, "") for col in required_cols},
+        **upload_source(upload),
+    }
+    if study_type == "temperature":
+        new_input["temperature_unit"] = CANONICAL_UNITS["Temperature"]
+    return new_input
+
+
+def store_calibration_upload(study_state: dict[str, Any], prepared, upload: dict[str, Any]) -> None:
+    """
+    Store accepted calibration data together with their source record.
+
+    Both are replaced on every accepted upload (never one without the other); the
+    calibration step then decides whether the calibration itself changed.
+    """
+    study_state["calib_df_input"] = prepared
+    study_state["calib_source"] = upload_source(upload)
+
+
+def stored_conditions(study_state: dict[str, Any], state_key: str) -> dict[str, Any]:
+    """Experimental conditions stored for one input of one study (may be empty)."""
+    current = study_state.get(state_key)
+    if isinstance(current, dict) and isinstance(current.get("params"), dict):
+        return current["params"]
+    return study_state.get("input_conditions", {}).get(state_key, {})
+
+
+def update_study_conditions(
+    study_state: dict[str, Any],
+    state_key: str,
+    params: dict[str, Any],
+    dependent_keys: list[str],
+) -> bool:
+    """
+    Record the conditions shown in the widgets for one study.
+
+    When stored data exist and the conditions differ, the stored input is updated
+    and its dependents are invalidated.  Returns True when stored data changed.
+    """
+    study_state.setdefault("input_conditions", {})[state_key] = dict(params)
+    current = study_state.get(state_key)
+    if isinstance(current, dict) and current.get("params") != params:
+        study_state[state_key] = {**current, "params": dict(params)}
+        _invalidate_dependents(study_state, dependent_keys)
+        return True
+    return False
+
+
+def _clear_study_input(study_name: str, state_key: str, dependent_keys: list[str]) -> None:
+    """Callback for the explicit clear action: affects one input of one study only."""
+    study_state = st.session_state.get("studies", {}).get(study_name)
+    if study_state is None:
+        return
+    if state_key == "calib_df_input":
+        study_state["calib_df_input"] = None
+        study_state["calib_source"] = None
+    else:
+        store_study_input(study_state, state_key, None, dependent_keys)
+    study_state.setdefault("upload_signatures", {}).pop(state_key, None)
+    nonces = study_state.setdefault("uploader_nonce", {})
+    nonces[state_key] = nonces.get(state_key, 0) + 1  # resets the upload widget
 
 
 def _handle_input_change(
     state_key: str, new_input_dict: dict[str, Any] | None, dependent_keys: list[str]
 ) -> None:
-    """State management with quality tracking for the active study."""
+    """Store an input for the active study (see :func:`store_study_input`)."""
     active_study_name = st.session_state.get("current_study")
     if not active_study_name:
         st.sidebar.error("Please add or select a study first.")
         return
-
-    current_study_state = st.session_state.studies[active_study_name]
-
-    current_input = current_study_state.get(state_key)
-    needs_update = False
-
-    if new_input_dict is None:
-        if current_input is not None:
-            needs_update = True
-    elif current_input is None:
-        needs_update = True
-    else:
-        try:
-            data_equal = new_input_dict["data"].equals(current_input.get("data"))
-            params_equal = new_input_dict["params"] == current_input.get("params", {})
-            if not data_equal or not params_equal:
-                needs_update = True
-        except (AttributeError, KeyError, TypeError):
-            needs_update = True
-
-    if needs_update:
-        current_study_state[state_key] = new_input_dict
-        for key in dependent_keys:
-            if key in current_study_state:
-                if isinstance(current_study_state[key], dict):
-                    current_study_state[key] = {}
-                elif isinstance(current_study_state[key], list):
-                    current_study_state[key] = []
-                else:
-                    current_study_state[key] = None
-
-        if new_input_dict and "data" in new_input_dict:
-            study_type = state_key.replace("_input", "").replace("_", " ")
-            quality_report = assess_data_quality(new_input_dict["data"], study_type)
-            current_study_state.setdefault("data_quality_reports", {})[state_key] = quality_report
+    store_study_input(
+        st.session_state.studies[active_study_name], state_key, new_input_dict, dependent_keys
+    )
 
 
 def _get_global_input_mode() -> str:
@@ -274,11 +366,21 @@ def _generate_excel_template(columns: list[str], study_type: str) -> io.BytesIO:
         df.to_excel(writer, index=False, sheet_name="Data")
 
         # Instructions sheet
+        unit_convention = "; ".join(
+            f"{col} in {CANONICAL_UNITS[col]}" if CANONICAL_UNITS.get(col) else f"{col} (no unit)"
+            for col in columns
+        )
         instructions_df = pd.DataFrame(
             [
                 {
                     "Study Type": study_type.replace("_", " ").title(),
                     "Required Columns": ", ".join(columns),
+                    "Units (headers without a unit)": unit_convention,
+                    "Other units": (
+                        "State the unit in the header to have it converted, e.g. "
+                        "'Ce (µg/L)', 'Time (h)', 'Mass (mg)', 'Temperature (K)'. "
+                        "Ambiguous units (ppm, molar units) are refused."
+                    ),
                     "Source": source_info,
                     "Instructions": "Replace example data with your experimental values",
                     "Note": "Include replicates for error estimation and quality validation",
@@ -314,48 +416,114 @@ def _render_enhanced_study_input(config):
         elif study_type == "temperature":
             config["required_cols"] = ["Temperature", "Ce"]
 
+    study_name = st.session_state.get("current_study")
+    study_state = st.session_state.studies[study_name]
+    suffix = study_widget_suffix(study_name)
+    state_key = config["state_key"]
+    dependent_keys = config["dependent_keys"]
+    conditions = stored_conditions(study_state, state_key)
+
     with st.sidebar.container(border=True):
         st.markdown(f"#### {config['expander_title']}")
         st.markdown(f"*{config['description']}*")
 
-        # --- Fixed Experimental Conditions ---
+        # --- Fixed Experimental Conditions (hydrated from this study's state) ---
         st.markdown(f"**{config['intro_text']}**")
         fixed_params = {}
         cols = st.columns(len(config["fixed_params"]))
         for i, (param_key, param_config) in enumerate(config["fixed_params"].items()):
+            stored_value = conditions.get(param_key)
+            initial = float(stored_value) if stored_value is not None else param_config["value"]
             with cols[i % len(cols)]:
                 fixed_params[param_key] = st.number_input(
                     param_config["label"],
-                    value=param_config["value"],
+                    value=initial,
                     min_value=param_config["min_value"],
                     step=param_config["step"],
                     help=param_config["help"],
-                    key=f"{config['key_prefix']}{param_key}",
+                    key=f"{config['key_prefix']}{param_key}__{suffix}",
                     format="%.3f",
                 )
         # Convert temperature to Kelvin if provided
         if "T_C" in fixed_params and fixed_params["T_C"] is not None:
             fixed_params["T_K"] = float(fixed_params["T_C"]) + 273.15
+        update_study_conditions(study_state, state_key, fixed_params, dependent_keys)
 
         st.markdown("---")
 
         # --- Data Input Section (File Upload Only) ---
-        uploaded_data_key = config.get("uploaded_data_key")
+        stored_input = study_state.get(state_key)
+        stored_mode = stored_input.get("input_mode", "absorbance") if stored_input else None
+        if stored_input is not None and stored_mode != input_mode:
+            st.info(
+                f"Stored {config['study_name'].lower()} data were entered in {stored_mode} mode "
+                f"and are still analysed as {stored_mode} data. Upload {input_mode}-mode data to "
+                "replace them, or clear them."
+            )
 
         template_study_type = f"{study_type}_direct" if input_mode == "direct" else study_type
-
+        nonce = study_state.get("uploader_nonce", {}).get(state_key, 0)
         uploaded_file = st.file_uploader(
             f"📁 Upload {config['study_name']} Data",
             type=["xlsx", "xls", "csv"],
-            key=f"{config['key_prefix']}file_{input_mode}",
-            help="Upload Excel or CSV file",
+            key=f"{config['key_prefix']}file_{input_mode}__{suffix}_{nonce}",
+            help="Upload Excel or CSV file. Replaces this study's stored data only.",
         )
 
-        if uploaded_file:
-            uploaded_df = _read_uploaded_file(uploaded_file, config["required_cols"], study_type)
-            if uploaded_df is not None and not uploaded_df.empty:
-                st.session_state[uploaded_data_key] = uploaded_df.copy()
-                st.success(f"✅ {len(uploaded_df)} data points loaded.")
+        # Only a *new* upload changes stored data; an empty widget means "no new
+        # upload", not "clear the study".
+        if uploaded_file is not None:
+            content = uploaded_file.getvalue()
+            signature = upload_signature(uploaded_file.name, content)
+            if signature != study_state.get("upload_signatures", {}).get(state_key):
+                df_for_analysis, upload = _read_uploaded_file(
+                    uploaded_file, content, config["required_cols"], study_type
+                )
+                if df_for_analysis is not None:
+                    new_input = study_input_from_upload(
+                        df_for_analysis,
+                        upload,
+                        params=fixed_params,
+                        input_mode=input_mode,
+                        required_cols=config["required_cols"],
+                        study_type=study_type,
+                    )
+                    store_study_input(study_state, state_key, new_input, dependent_keys)
+                    study_state.setdefault("upload_signatures", {})[state_key] = signature
+                    excluded = len(upload["row_issues"])
+                    st.success(
+                        f"✅ {len(df_for_analysis)} rows loaded into '{study_name}'"
+                        + (
+                            f"; {excluded} of them kept as excluded (reasons above)."
+                            if excluded
+                            else "."
+                        )
+                    )
+                else:
+                    st.error(
+                        "This upload was not applied. "
+                        + (
+                            "The previously stored data for this study are unchanged."
+                            if stored_input is not None
+                            else "No data are stored for this analysis."
+                        )
+                    )
+
+        stored_input = study_state.get(state_key)
+        if stored_input is not None:
+            source = stored_input.get("source_file")
+            st.caption(
+                f"Stored for '{study_name}': {len(stored_input['data'])} rows"
+                + (f" from {source}" if source else "")
+                + f" ({stored_input.get('input_mode', 'absorbance')} mode)."
+            )
+            st.button(
+                "🗑️ Clear stored data",
+                key=f"{config['key_prefix']}clear__{suffix}",
+                help="Removes this analysis' data and derived results for this study only.",
+                on_click=_clear_study_input,
+                args=(study_name, state_key, dependent_keys),
+            )
 
         template_buffer = _generate_excel_template(config["required_cols"], template_study_type)
         st.download_button(
@@ -363,18 +531,8 @@ def _render_enhanced_study_input(config):
             template_buffer,
             f"{config['study_type']}_template.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"{config['key_prefix']}template_{input_mode}",
+            key=f"{config['key_prefix']}template_{input_mode}__{suffix}",
         )
-
-        df_for_analysis = validate_data_editor(
-            st.session_state.get(uploaded_data_key), config["required_cols"]
-        )
-
-        if df_for_analysis is not None and not df_for_analysis.empty:
-            new_input = {"data": df_for_analysis, "params": fixed_params, "input_mode": input_mode}
-            _handle_input_change(config["state_key"], new_input, config["dependent_keys"])
-        else:
-            _handle_input_change(config["state_key"], None, config["dependent_keys"])
 
 
 # =============================================================================
@@ -457,20 +615,59 @@ def render_sidebar_content():
 
     # 1. CALIBRATION
     if global_mode != "direct" and active_expander == "calibration":
+        study_state = studies[active_study_name]
+        suffix = study_widget_suffix(active_study_name)
         with st.sidebar.container(border=True):
             st.markdown("#### 📊 Calibration Curve")
             st.markdown("*Establish Absorbance-Concentration relationship*")
 
+            nonce = study_state.get("uploader_nonce", {}).get("calib_df_input", 0)
             uploaded_file = st.file_uploader(
-                "📁 Upload Calibration Data", type=["xlsx", "xls", "csv"], key="calib_file"
+                "📁 Upload Calibration Data",
+                type=["xlsx", "xls", "csv"],
+                key=f"calib_file__{suffix}_{nonce}",
+                help="Replaces this study's calibration data only.",
             )
-            if uploaded_file:
-                uploaded_calib = _read_uploaded_file(
-                    uploaded_file, ["Concentration", "Absorbance"], "calibration"
+            # Only a new upload replaces the stored calibration data.
+            if uploaded_file is not None:
+                content = uploaded_file.getvalue()
+                signature = upload_signature(uploaded_file.name, content)
+                if signature != study_state.get("upload_signatures", {}).get("calib_df_input"):
+                    # Stored even if too small or flawed: the calibration step then
+                    # rejects it with the reason instead of reusing an older curve.
+                    validated_calib, upload = _read_uploaded_file(
+                        uploaded_file, content, ["Concentration", "Absorbance"], "calibration"
+                    )
+                    if validated_calib is not None:
+                        store_calibration_upload(study_state, validated_calib, upload)
+                        study_state.setdefault("upload_signatures", {})["calib_df_input"] = (
+                            signature
+                        )
+                        excluded = len(upload["row_issues"])
+                        st.success(
+                            f"✅ {len(validated_calib)} standards loaded into '{active_study_name}'"
+                            + (
+                                f"; {excluded} of them kept as excluded (reasons above)."
+                                if excluded
+                                else "."
+                            )
+                        )
+                    else:
+                        st.error(
+                            "This calibration upload was not applied; the stored calibration "
+                            "data (if any) are unchanged."
+                        )
+
+            stored_calib = study_state.get("calib_df_input")
+            if stored_calib is not None:
+                st.caption(f"Stored for '{active_study_name}': {len(stored_calib)} standards.")
+                st.button(
+                    "🗑️ Clear stored calibration",
+                    key=f"calib_clear__{suffix}",
+                    help="Removes this study's calibration data and the calibration built from it.",
+                    on_click=_clear_study_input,
+                    args=(active_study_name, "calib_df_input", []),
                 )
-                if uploaded_calib is not None and not uploaded_calib.empty:
-                    st.session_state["uploaded_calib_data"] = uploaded_calib.copy()
-                    st.success(f"✅ {len(uploaded_calib)} points loaded.")
 
             template_buffer = _generate_excel_template(
                 ["Concentration", "Absorbance"], "calibration"
@@ -480,22 +677,8 @@ def render_sidebar_content():
                 template_buffer,
                 "calibration_template.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="calib_template",
+                key=f"calib_template__{suffix}",
             )
-
-            # --- Final validation and state update ---
-            validated_calib = validate_data_editor(
-                st.session_state.get("uploaded_calib_data"), ["Concentration", "Absorbance"]
-            )
-
-            active_study_name = st.session_state.get("current_study")
-            if active_study_name:
-                if validated_calib is not None and not validated_calib.empty:
-                    st.session_state.studies[active_study_name]["calib_df_input"] = validated_calib
-                else:
-                    st.session_state.studies[active_study_name]["calib_df_input"] = None
-            elif validated_calib is not None:
-                st.error("Please add a study first before entering data.")
 
     # 2. ISOTHERM
     if active_expander == "isotherm":
@@ -508,7 +691,6 @@ def render_sidebar_content():
             "key_prefix": "iso_",
             "state_key": "isotherm_input",
             "required_cols": ["Concentration", "Absorbance"],
-            "uploaded_data_key": "uploaded_iso_data",
             "fixed_params": {
                 "m": {
                     "label": "Mass (g)",
@@ -547,7 +729,6 @@ def render_sidebar_content():
             "key_prefix": "kin_",
             "state_key": "kinetic_input",
             "required_cols": ["Time", "Absorbance"],
-            "uploaded_data_key": "uploaded_kin_data",
             "fixed_params": {
                 "C0": {
                     "label": "C₀ (mg/L)",
@@ -586,7 +767,6 @@ def render_sidebar_content():
             "key_prefix": "dos_",
             "state_key": "dosage_input",
             "required_cols": ["Mass", "Absorbance"],
-            "uploaded_data_key": "uploaded_dos_data",
             "fixed_params": {
                 "C0": {
                     "label": "C₀ (mg/L)",
@@ -618,7 +798,6 @@ def render_sidebar_content():
             "key_prefix": "ph_",
             "state_key": "ph_effect_input",
             "required_cols": ["pH", "Absorbance"],
-            "uploaded_data_key": "uploaded_ph_data",
             "fixed_params": {
                 "C0": {
                     "label": "C₀ (mg/L)",
@@ -657,7 +836,6 @@ def render_sidebar_content():
             "key_prefix": "temp_",
             "state_key": "temp_effect_input",
             "required_cols": ["Temperature", "Absorbance"],
-            "uploaded_data_key": "uploaded_temp_data",
             "fixed_params": {
                 "C0": {
                     "label": "C₀ (mg/L)",

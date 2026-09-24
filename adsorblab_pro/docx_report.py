@@ -26,6 +26,7 @@ from datetime import datetime
 from io import BytesIO
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 Document: Any
@@ -684,24 +685,36 @@ def _add_figure(
 
 
 def _best_model_line(models: Any, label: str) -> str | None:
-    """Return a short 'best model' summary line if possible."""
+    """Return the model-comparison statement for the report, if any model converged.
+
+    Uses the same AICc comparison as the analysis screens: models are ranked only
+    among fits to the same observations whose AICc is defined; otherwise the line
+    says that no ranking is supported (a highest R² is never reported as "best").
+    """
     if not isinstance(models, dict):
         return None
-    candidates = []
-    for name, payload in models.items():
-        if isinstance(payload, dict) and payload.get("converged"):
-            r2 = payload.get("r_squared")
-            try:
-                r2v = float(r2) if r2 is not None else float("-inf")
-            except (ValueError, TypeError):
-                r2v = float("-inf")
-            candidates.append((r2v, name))
-    if not candidates:
+    from .utils import compare_information_criteria
+
+    comparison = compare_information_criteria(models, "aicc")
+    if comparison["status"] == "none":
         return None
-    best_r2, best_name = max(candidates, key=lambda x: x[0])
-    if best_r2 == float("-inf"):
-        return None
-    return f"{label}: {best_name} (R²={best_r2:.4f})"
+    return f"{label}: {comparison['message']}"
+
+
+def _thermo_summary_line(thermo: dict[str, Any]) -> str:
+    """Apparent van't Hoff results with units, Kd definition and qualification."""
+    from .utils import APPARENT_THERMO_NOTE, delta_g_series, kd_definition, thermo_value
+
+    def fmt(value: float, unit: str) -> str:
+        return f"{value:.4g} {unit}" if np.isfinite(value) else "unavailable"
+
+    temps, values = delta_g_series(thermo)
+    dg = ", ".join(f"{fmt(g, 'kJ/mol')} at {T:.2f} K" for T, g in zip(temps, values, strict=True))
+    return (
+        f"Thermodynamics (apparent): ΔH = {fmt(thermo_value(thermo, 'delta_H'), 'kJ/mol')}, "
+        f"ΔS = {fmt(thermo_value(thermo, 'delta_S'), 'J/(mol·K)')}, "
+        f"ΔG = {dg or 'unavailable'}; {kd_definition(thermo)}. {APPARENT_THERMO_NOTE}."
+    )
 
 
 def _recommended_docx_figure_width_in(
@@ -801,28 +814,16 @@ def create_docx_report(
 
     # Best-model summaries (if available)
     summary_lines = []
-    bm = _best_model_line(study_state.get("isotherm_models_fitted"), "Best isotherm model")
+    bm = _best_model_line(study_state.get("isotherm_models_fitted"), "Isotherm models")
     if bm:
         summary_lines.append(bm)
-    bm = _best_model_line(study_state.get("kinetic_models_fitted"), "Best kinetic model")
+    bm = _best_model_line(study_state.get("kinetic_models_fitted"), "Kinetic models")
     if bm:
         summary_lines.append(bm)
 
     thermo = study_state.get("thermo_params")
     if isinstance(thermo, dict) and thermo.get("success"):
-        try:
-            dH = thermo.get("delta_H")
-            dS = thermo.get("delta_S")
-            dG = thermo.get("delta_G")
-            summary_lines.append(
-                "Thermodynamics: ΔH={:.4g}, ΔS={:.4g}, ΔG={}".format(
-                    float(dH) if dH is not None else float("nan"),
-                    float(dS) if dS is not None else float("nan"),
-                    str(dG),
-                )
-            )
-        except (TypeError, ValueError, KeyError):
-            summary_lines.append("Thermodynamics: (computed; see tables section)")
+        summary_lines.append(_thermo_summary_line(thermo))
 
     if summary_lines:
         doc.add_paragraph(" ")

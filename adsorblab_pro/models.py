@@ -54,6 +54,20 @@ EPSILON = EPSILON_LOG  # Use most conservative epsilon for model calculations
 R_GAS = R_GAS_CONSTANT
 MAX_ITER = MAX_FIT_ITERATIONS
 
+# Fit limits (see docs/SCIENTIFIC_INTEGRATION.md).  Physical constraints are kept
+# as lower bounds or plausibility ranges; an upper limit on a scale-dependent
+# parameter is a numerical search guard placed this many times beyond the natural
+# scale of the data (e.g. KL ≤ SEARCH_RANGE / smallest positive Ce), never a fixed
+# number.  A parameter that stops at any limit is reported as limited, not as
+# determined by the data.
+SEARCH_RANGE = 1e6
+
+# A parameter whose confidence-interval half-width reaches its own magnitude
+# (the interval includes zero or changes sign) is reported as poorly identified;
+# pairs with |correlation| at or above STRONG_CORRELATION are reported as
+# determined only in combination.
+STRONG_CORRELATION = 0.99
+
 # =============================================================================
 # OPTIONAL STREAMLIT IMPORT (enables caching when available)
 # =============================================================================
@@ -184,6 +198,20 @@ def temkin_model(Ce: NDArray[np.floating[Any]], B1: float, KT: float) -> NDArray
         )
 
     return result
+
+
+def temkin_curve(Ce: Any, B1: float, KT: float) -> NDArray[np.floating[Any]]:
+    """
+    Temkin qe for plotting: B1·ln(KT·Ce) where KT·Ce ≥ 1, NaN elsewhere.
+
+    ``temkin_model`` raises for negative predictions (used while fitting); a
+    plotted curve must instead stop where the equation leaves its qe ≥ 0 domain.
+    """
+    Ce = np.asarray(Ce, dtype=float)
+    out = np.full(Ce.shape, np.nan)
+    inside = np.isfinite(Ce) & (KT * Ce >= 1)
+    out[inside] = B1 * np.log(KT * Ce[inside])
+    return out
 
 
 @register_model("Sips")
@@ -1075,6 +1103,67 @@ def identify_rate_limiting_step(
 # =============================================================================
 
 
+def relative_sse(
+    residuals: NDArray[np.floating[Any]], y_pred: NDArray[np.floating[Any]], eps: float
+) -> float:
+    """
+    Σ residual² / |prediction| (descriptive "relative SSE").
+
+    A point predicted as zero contributes nothing when its residual is also zero
+    (e.g. q = 0 at t = 0); if it has a residual, the quantity is undefined and NaN
+    is returned instead of dividing by a tiny number (which produced values such as
+    2e13 for fits at a limit).
+    """
+    residuals = np.asarray(residuals, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    zero = np.abs(y_pred) < eps
+    if np.any(zero & (np.abs(residuals) >= eps)):
+        return float("nan")
+    safe = np.where(zero, 1.0, np.abs(y_pred))
+    return float(np.sum(np.where(zero, 0.0, residuals**2 / safe)))
+
+
+def _parameter_diagnostics(
+    names: list[str],
+    popt: NDArray[np.floating[Any]],
+    perr: NDArray[np.floating[Any]],
+    pcov: NDArray[np.floating[Any]],
+    at_limit: list[str],
+    t_val: float,
+) -> tuple[dict[str, str], list[tuple[str, str, float]]]:
+    """
+    Identifiability of each fitted parameter, separate from numerical convergence.
+
+    Status is 'at limit' (stopped on a bound: the value is set by the limit and its
+    SE/CI are not valid), 'poorly identified' (the confidence-interval half-width
+    reaches the estimate's magnitude), 'strongly correlated' (otherwise identified,
+    but |r| ≥ STRONG_CORRELATION with another parameter, where the linearised CI
+    can understate the uncertainty) or 'identified'.  Strongly correlated pairs are
+    also returned as (name, name, r).
+    """
+    status: dict[str, str] = {}
+    for i, name in enumerate(names):
+        if name in at_limit:
+            status[name] = "at limit"
+        elif not np.isfinite(perr[i]) or t_val * perr[i] >= abs(popt[i]):
+            status[name] = "poorly identified"
+        else:
+            status[name] = "identified"
+    correlated: list[tuple[str, str, float]] = []
+    sd = np.sqrt(np.clip(np.diag(pcov), 0, None))
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            if sd[i] > 0 and sd[j] > 0:
+                r = float(pcov[i, j] / (sd[i] * sd[j]))
+                if abs(r) >= STRONG_CORRELATION:
+                    correlated.append((names[i], names[j], r))
+    for a, b, _ in correlated:
+        for name in (a, b):
+            if status[name] == "identified":
+                status[name] = "strongly correlated"
+    return status, correlated
+
+
 def _fit_model_core(
     model_func: Callable[..., NDArray[np.floating[Any]]],
     x_data: NDArray[np.floating[Any]],
@@ -1141,14 +1230,17 @@ def _fit_model_core(
         # parameters lets callers say which, and lets them treat a bound-limited
         # fit as the diagnostic it is rather than as a result.
         bounds_hit: list[str] = []
+        at_limit: list[str] = []
+        _names = param_names or [f"p{i}" for i in range(n_params)]
         if bounds:
-            _names = param_names or [f"p{i}" for i in range(n_params)]
             for i, value in enumerate(popt):
                 lo, hi = bounds[0][i], bounds[1][i]
                 if np.isfinite(lo) and np.isclose(value, lo, rtol=1e-6, atol=1e-9):
                     bounds_hit.append(f"{_names[i]} (lower bound {lo:.6g})")
+                    at_limit.append(_names[i])
                 elif np.isfinite(hi) and np.isclose(value, hi, rtol=1e-6, atol=1e-9):
                     bounds_hit.append(f"{_names[i]} (upper bound {hi:.6g})")
+                    at_limit.append(_names[i])
 
         # Predictions and residuals
         y_pred = model_func(x_data, *popt)
@@ -1177,8 +1269,7 @@ def _fit_model_core(
 
         # Relative SSE (legacy key: chi_squared).  Without independently known
         # observation variances this is not an inferential chi-square statistic.
-        y_pred_safe = np.where(np.abs(y_pred) < EPSILON, EPSILON, y_pred)
-        normalized_sse = np.sum(residuals**2 / np.abs(y_pred_safe))
+        normalized_sse = relative_sse(residuals, y_pred, EPSILON)
 
         from .statistical_criteria import information_criteria
 
@@ -1211,7 +1302,10 @@ def _fit_model_core(
         ci_95 = {}
         params_dict = {}
         if param_names is None:
-            param_names = [f"p{i}" for i in range(n_params)]
+            param_names = _names
+        param_status, correlated = _parameter_diagnostics(
+            param_names, popt, perr, pcov, at_limit, float(t_val)
+        )
 
         for i, name in enumerate(param_names):
             params_dict[name] = popt[i]
@@ -1242,6 +1336,16 @@ def _fit_model_core(
             "num_params": n_params,
             "dof": dof,
             "bounds_hit": bounds_hit,
+            "param_status": param_status,
+            "correlated_params": correlated,
+            # The estimator configuration, so that refits (cross-validation,
+            # bootstrap) can reuse exactly the same starting point and limits.
+            "fit_config": {
+                "p0": [float(v) for v in p0],
+                "bounds": None
+                if not bounds
+                else ([float(v) for v in bounds[0]], [float(v) for v in bounds[1]]),
+            },
             "converged": True,
         }
 
@@ -1287,6 +1391,124 @@ if _STREAMLIT_AVAILABLE:
     fit_model_with_ci_cached = st.cache_data(show_spinner=False)(_fit_model_cached_impl)
 else:
     fit_model_with_ci_cached = _fit_model_cached_impl
+
+
+def _positive_scale(values: NDArray[np.floating[Any]]) -> tuple[float, float, float]:
+    """Smallest, median and largest positive finite value (1.0 each when none)."""
+    pos = values[np.isfinite(values) & (values > 0)]
+    if not len(pos):
+        return 1.0, 1.0, 1.0
+    return float(pos.min()), float(np.median(pos)), float(pos.max())
+
+
+def isotherm_fit_setup(Ce: Any, qe: Any) -> dict[str, dict[str, Any]]:
+    """
+    Starting values and limits for the isotherm fits, derived from the data scale.
+
+    Physical constraints: capacities and affinities ≥ 0; Freundlich 1/n in
+    [0.01, 5] and Sips ns in [0.1, 5] (plausibility ranges); Temkin B1 ≥ 0 and
+    KT ≥ 1/min(Ce), so that predicted qe ≥ 0 at every observation.  Upper limits
+    on scale-dependent parameters are search guards SEARCH_RANGE beyond the data
+    scale: qm ≤ SEARCH_RANGE × max qe, KL and Ks ≤ SEARCH_RANGE / min positive Ce.
+    KF, B1 and KT have no upper limit (they cannot run away once the other limits
+    hold).  Starting values come from the data (median Ce, log–log and
+    semi-log regressions), so fits do not depend on the concentration units.
+    ``Ce`` and ``qe`` are the observations of the model being fitted (Temkin:
+    Ce > 0 only).
+    """
+    Ce = np.asarray(Ce, dtype=float)
+    qe = np.asarray(qe, dtype=float)
+    q_scale = float(np.nanmax(qe)) if len(qe) and np.nanmax(qe) > 0 else 1.0
+    c_min, c_mid, c_max = _positive_scale(Ce)
+
+    # Langmuir / Sips: affinity starts at 1/median(Ce); capacity such that the
+    # starting curve passes through the largest observation.
+    k0 = 1.0 / c_mid
+    qm0 = q_scale * (1 + k0 * c_max) / (k0 * c_max)
+    q_hi = SEARCH_RANGE * q_scale
+    k_hi = SEARCH_RANGE / c_min
+
+    # Freundlich: log–log regression ln qe = ln KF + (1/n) ln Ce.
+    n_inv0, kf0 = 0.5, q_scale / np.sqrt(c_mid)
+    loglog = (Ce > 0) & (qe > 0) & np.isfinite(Ce) & np.isfinite(qe)
+    if loglog.sum() >= 2 and np.ptp(np.log(Ce[loglog])) > 0:
+        slope, _ = np.polyfit(np.log(Ce[loglog]), np.log(qe[loglog]), 1)
+        if np.isfinite(slope):
+            n_inv0 = float(np.clip(slope, 0.02, 4.9))
+            kf0 = float(np.exp(np.mean(np.log(qe[loglog])) - n_inv0 * np.mean(np.log(Ce[loglog]))))
+
+    # Temkin: semi-log regression qe = B1 ln KT + B1 ln Ce.
+    kt_lo = 1.0 / c_min
+    b10, kt0 = q_scale / 5, kt_lo * np.e
+    semilog = (Ce > 0) & np.isfinite(Ce) & np.isfinite(qe)
+    if semilog.sum() >= 2 and np.ptp(np.log(Ce[semilog])) > 0:
+        b, a = np.polyfit(np.log(Ce[semilog]), qe[semilog], 1)
+        if np.isfinite(b) and b > 0 and np.isfinite(a):
+            b10 = float(b)
+            kt0 = float(np.exp(min(a / b, 700.0)))
+    kt0 = max(kt0, kt_lo * 1.001)
+    if not np.isfinite(kf0) or kf0 <= 0:
+        kf0 = q_scale / np.sqrt(c_mid)
+
+    return {
+        "Langmuir": {"p0": [qm0, k0], "bounds": ([0.0, 0.0], [q_hi, k_hi])},
+        "Freundlich": {"p0": [kf0, n_inv0], "bounds": ([0.0, 0.01], [np.inf, 5.0])},
+        "Temkin": {"p0": [b10, kt0], "bounds": ([0.0, kt_lo], [np.inf, np.inf])},
+        "Sips": {"p0": [qm0, k0, 1.0], "bounds": ([0.0, 0.0, 0.1], [q_hi, k_hi, 5.0])},
+    }
+
+
+def kinetic_fit_setup(t: Any, qt: Any) -> dict[str, dict[str, Any]]:
+    """
+    Starting values and limits for the PFO, PSO and Elovich fits, from the data scale.
+
+    Physical constraints: all parameters ≥ 0.  Upper limits are search guards
+    SEARCH_RANGE beyond the data scale: qe ≤ SEARCH_RANGE × max qt,
+    k1 ≤ SEARCH_RANGE / first positive time, k2 ≤ SEARCH_RANGE / (max qt × first
+    positive time), β ≤ SEARCH_RANGE / max qt; α has no upper limit (the data
+    determine ln α).  Starting values use the time to half the largest uptake and,
+    for Elovich, the regression of qt on ln t.
+    """
+    t = np.asarray(t, dtype=float)
+    qt = np.asarray(qt, dtype=float)
+    q_scale = float(np.nanmax(qt)) if len(qt) and np.nanmax(qt) > 0 else 1.0
+    t_min, t_mid, _ = _positive_scale(t)
+    reached = t[(t > 0) & (qt >= q_scale / 2)]
+    t_half = float(reached.min()) if len(reached) else t_mid
+
+    alpha0, beta0 = q_scale / t_min, 1.0 / q_scale
+    semilog = (t > 0) & (qt > 0) & np.isfinite(t) & np.isfinite(qt)
+    if semilog.sum() >= 2 and np.ptp(np.log(t[semilog])) > 0:
+        slope, intercept = np.polyfit(np.log(t[semilog]), qt[semilog], 1)
+        if np.isfinite(slope) and slope > 0 and np.isfinite(intercept):
+            beta0 = float(1.0 / slope)
+            alpha0 = float(np.exp(min(intercept * beta0, 700.0)) / beta0)
+    if not np.isfinite(alpha0) or alpha0 <= 0:
+        alpha0, beta0 = q_scale / t_min, 1.0 / q_scale
+    beta0 = min(beta0, 0.5 * SEARCH_RANGE / q_scale)
+
+    q_hi = SEARCH_RANGE * q_scale
+    return {
+        "PFO": {
+            "p0": [q_scale, np.log(2) / t_half],
+            "bounds": ([0.0, 0.0], [q_hi, SEARCH_RANGE / t_min]),
+        },
+        "PSO": {
+            "p0": [q_scale, 1.0 / (q_scale * t_half)],
+            "bounds": ([0.0, 0.0], [q_hi, SEARCH_RANGE / (q_scale * t_min)]),
+        },
+        "Elovich": {
+            "p0": [alpha0, beta0],
+            "bounds": ([0.0, 0.0], [np.inf, SEARCH_RANGE / q_scale]),
+        },
+    }
+
+
+def round_significant(values: Any, digits: int = 12) -> NDArray[np.floating[Any]]:
+    """Round to ``digits`` significant figures (idempotent; NaN/inf unchanged)."""
+    arr = np.asarray(values, dtype=float)
+    flat = [float(f"{v:.{digits - 1}e}") if np.isfinite(v) else v for v in arr.ravel()]
+    return np.asarray(flat, dtype=float).reshape(arr.shape) + 0.0
 
 
 def fit_model_with_ci(
@@ -1351,8 +1573,10 @@ def fit_model_with_ci(
 
     # Use cached version if model is registered
     if model_name is not None:
-        x_tuple = tuple(np.asarray(x_data).round(10).tolist())
-        y_tuple = tuple(np.asarray(y_data).round(10).tolist())
+        # Rounded to 12 significant digits (not decimals) so that the cache key is
+        # stable against float noise at any scale without altering small values.
+        x_tuple = tuple(round_significant(x_data).tolist())
+        y_tuple = tuple(round_significant(y_data).tolist())
         p0_tuple = tuple(p0)
         bounds_lower = tuple(bounds[0]) if bounds else None
         bounds_upper = tuple(bounds[1]) if bounds else None

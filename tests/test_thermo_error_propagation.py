@@ -157,7 +157,8 @@ class TestPropagateKdUncertainty:
             expt_data["V"],
             expt_data["Ce_se"],
         )
-        assert_allclose(Kd_se, 0.0)
+        # An unknown Kd definition has no propagated uncertainty: unavailable, not 0 (R09).
+        assert np.isnan(Kd_se).all()
 
     def test_very_small_Ce_no_crash(self):
         """Near-zero Ce should not produce inf/nan due to EPSILON clamping."""

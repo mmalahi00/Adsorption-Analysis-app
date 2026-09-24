@@ -22,12 +22,38 @@ from adsorblab_pro.streamlit_compat import st
 
 from ..plot_style import (
     apply_professional_style,
-    apply_professional_polar_style,
     get_study_color,
-    hex_to_rgba,
     style_study_trace,
 )
-from ..utils import display_results_table, sign_label
+from ..utils import (
+    APPARENT_THERMO_NOTE,
+    CAPACITY_CRITERION,
+    CAPACITY_CRITERION_NOTE,
+    apparent_delta_g,
+    capacity_comparison,
+    compare_information_criteria,
+    display_results_table,
+    eligible_observations,
+    kd_definition,
+    sign_label,
+)
+
+
+def _finite(value):
+    """Float value, or NaN when missing/non-finite (shown as '—')."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return np.nan
+    return number if np.isfinite(number) else np.nan
+
+
+def _usable(results):
+    """Quantified rows of a stored results table (excluded rows are not plotted)."""
+    if results is None:
+        return None
+    usable = eligible_observations(results)
+    return usable if not usable.empty else None
 
 
 def style_dataframe(df, format_dict=None, highlight_max_cols=None, highlight_min_cols=None):
@@ -164,132 +190,6 @@ def _render_summary_metrics(studies_data: dict, study_names: list):
 
 
 # =============================================================================
-# KEY INSIGHTS (AUTO-GENERATED)
-# =============================================================================
-def _render_key_insights(studies_data: dict, study_names: list):
-    """Generate automatic key insights from comparison data."""
-    st.markdown("### 💡 Key Insights")
-
-    insights = []
-
-    # --- Capacity Comparison ---
-    qm_values = {}
-    for name in study_names:
-        data = studies_data[name]
-        langmuir = data.get("isotherm_models_fitted", {}).get("Langmuir", {})
-        if langmuir.get("converged"):
-            qm_values[name] = langmuir["params"].get("qm", 0)
-
-    if len(qm_values) >= 2:
-        best_qm = max(qm_values, key=qm_values.get)
-        worst_qm = min(qm_values, key=qm_values.get)
-        ratio = qm_values[best_qm] / qm_values[worst_qm] if qm_values[worst_qm] > 0 else 0
-
-        if ratio > 1.5:
-            insights.append(
-                f"🏆 **{best_qm}** has {ratio:.1f}× higher adsorption capacity than {worst_qm} (qm = {qm_values[best_qm]:.1f} vs {qm_values[worst_qm]:.1f} mg/g)"
-            )
-        else:
-            insights.append(
-                f"📊 Adsorption capacities are similar: {best_qm} ({qm_values[best_qm]:.1f} mg/g) vs {worst_qm} ({qm_values[worst_qm]:.1f} mg/g)"
-            )
-
-    # --- Kinetic Speed Comparison ---
-    k2_values = {}
-    qe_values = {}
-    for name in study_names:
-        data = studies_data[name]
-        pso = data.get("kinetic_models_fitted", {}).get("PSO", {})
-        if pso.get("converged"):
-            k2_values[name] = pso["params"].get("k2", 0)
-            qe_values[name] = pso["params"].get("qe", 0)
-
-    if len(k2_values) >= 2:
-        fastest = max(k2_values, key=k2_values.get)
-        slowest = min(k2_values, key=k2_values.get)
-
-        # Estimate time to 90% equilibrium: t_90 ≈ 9/(k2*qe)
-        if k2_values[fastest] > 0 and qe_values.get(fastest, 0) > 0:
-            t90_fast = 9 / (k2_values[fastest] * qe_values[fastest])
-            t90_slow = (
-                9 / (k2_values[slowest] * qe_values[slowest])
-                if k2_values[slowest] > 0 and qe_values.get(slowest, 0) > 0
-                else float("inf")
-            )
-
-            if t90_fast < t90_slow * 0.7:
-                insights.append(
-                    f"⚡ **{fastest}** reaches equilibrium fastest (~{t90_fast:.0f} min to 90% vs ~{t90_slow:.0f} min for {slowest})"
-                )
-
-    # --- Thermodynamic Comparison ---
-    negative_delta_g = []
-    endothermic = []
-    exothermic = []
-
-    for name in study_names:
-        data = studies_data[name]
-        thermo = data.get("thermo_params")
-        if thermo:
-            # A study with an incomplete thermodynamic fit contributes to no
-            # bucket at all.  Counting it as "positive ΔG" or "exothermic"
-            # would let a missing value become a stated insight below.
-            delta_G = _apparent_delta_g_298(thermo)
-            if np.isfinite(delta_G) and delta_G < 0:
-                negative_delta_g.append(name)
-
-            delta_H = thermo.get("delta_H")
-            if delta_H is not None and np.isfinite(delta_H):
-                if delta_H > 0:
-                    endothermic.append(name)
-                else:
-                    exothermic.append(name)
-
-    if negative_delta_g:
-        if len(negative_delta_g) == len(study_names):
-            insights.append(
-                "All studies have **negative apparent ΔG** under the reported Kd convention"
-            )
-        else:
-            insights.append(f"Negative apparent ΔG: {', '.join(negative_delta_g)}")
-
-    if endothermic and exothermic:
-        insights.append(
-            f"🌡️ Enthalpy sign differs: {', '.join(endothermic)} (endothermic) vs {', '.join(exothermic)} (exothermic)"
-        )
-    elif endothermic:
-        insights.append(
-            "🌡️ All studies show **endothermic** adsorption (ΔH° > 0) - higher temperature favors adsorption"
-        )
-    elif exothermic:
-        insights.append(
-            "🌡️ All studies show **exothermic** adsorption (ΔH° < 0) - lower temperature favors adsorption"
-        )
-
-    # --- Model Fit Quality ---
-    r2_values = {}
-    for name in study_names:
-        data = studies_data[name]
-        langmuir = data.get("isotherm_models_fitted", {}).get("Langmuir", {})
-        if langmuir.get("converged"):
-            r2_values[name] = langmuir.get("r_squared", 0)
-
-    if r2_values:
-        avg_r2 = sum(r2_values.values()) / len(r2_values)
-        if avg_r2 >= 0.99:
-            insights.append(f"📈 Excellent model fits across all studies (avg R² = {avg_r2:.4f})")
-        elif avg_r2 >= 0.95:
-            insights.append(f"📈 Good model fits (avg R² = {avg_r2:.4f})")
-
-    # --- Display insights ---
-    if insights:
-        for insight in insights:
-            st.markdown(f"- {insight}")
-    else:
-        st.info("Complete more analyses to generate comparative insights.")
-
-
-# =============================================================================
 # ISOTHERM COMPARISON
 # =============================================================================
 def _render_isotherm_comparison(studies_data: dict, study_names: list):
@@ -314,8 +214,8 @@ def _render_isotherm_comparison(studies_data: dict, study_names: list):
                         "R²": results.get("r_squared", np.nan),
                         "Adj-R²": results.get("adj_r_squared", np.nan),
                         "RMSE": results.get("rmse", np.nan),
-                        "AIC": results.get("aicc", results.get("aic", np.nan)),
-                        "BIC": results.get("bic", np.nan),
+                        "AICc": _finite(results.get("aicc")),
+                        "BIC": _finite(results.get("bic")),
                         "Relative SSE": results.get(
                             "normalized_sse", results.get("chi_squared", np.nan)
                         ),
@@ -347,15 +247,15 @@ def _render_isotherm_comparison(studies_data: dict, study_names: list):
     st.markdown("#### 1. Parameter Summary Table")
 
     # Pivot table for key parameters
-    pivot_cols = ["Study", "Model", "R²", "Adj-R²", "RMSE", "AIC"]
+    pivot_cols = ["Study", "Model", "R²", "Adj-R²", "RMSE", "AICc"]
     display_df = iso_df[pivot_cols].copy()
 
+    # Criteria are not comparable between studies (different observations), so
+    # nothing is highlighted across the combined table.
     st.dataframe(
         style_dataframe(
             display_df,
-            format_dict={"R²": "{:.4f}", "Adj-R²": "{:.4f}", "RMSE": "{:.4f}", "AIC": "{:.2f}"},
-            highlight_max_cols=["R²", "Adj-R²"],
-            highlight_min_cols=["RMSE", "AIC"],
+            format_dict={"R²": "{:.4f}", "Adj-R²": "{:.4f}", "RMSE": "{:.4f}", "AICc": "{:.2f}"},
         ),
         use_container_width=True,
         hide_index=True,
@@ -364,22 +264,12 @@ def _render_isotherm_comparison(studies_data: dict, study_names: list):
     # --- Section 2: Langmuir qm Comparison ---
     st.markdown("#### 2. Maximum Adsorption Capacity (qm) Comparison")
 
-    qm_data = []
-    for name in study_names:
-        data = studies_data[name]
-        langmuir = data.get("isotherm_models_fitted", {}).get("Langmuir", {})
-        if langmuir.get("converged"):
-            qm_data.append(
-                {
-                    "Study": name,
-                    "qm (mg/g)": langmuir["params"].get("qm", 0),
-                    "KL (L/mg)": langmuir["params"].get("KL", 0),
-                    "R²": langmuir.get("r_squared", 0),
-                }
-            )
-
-    if qm_data:
-        qm_df = pd.DataFrame(qm_data).sort_values("qm (mg/g)", ascending=False)
+    # The same capacity comparison (order and quantity) as the exports.
+    capacity = capacity_comparison({name: studies_data[name] for name in study_names})
+    if not capacity.empty and capacity[CAPACITY_CRITERION].notna().any():
+        qm_df = capacity[capacity[CAPACITY_CRITERION].notna()].rename(
+            columns={CAPACITY_CRITERION: "qm (mg/g)"}
+        )
 
         col1, col2 = st.columns([2, 1])
 
@@ -411,13 +301,16 @@ def _render_isotherm_comparison(studies_data: dict, study_names: list):
             st.plotly_chart(fig_qm, use_container_width=True)
 
         with col2:
-            st.markdown("**Ranking by qm:**")
-            for i, row in qm_df.iterrows():
-                rank = qm_df.index.get_loc(i) + 1
-                medal = (
-                    "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"{rank}."
+            st.markdown("**Order by fitted Langmuir qm:**")
+            for _, row in qm_df.iterrows():
+                flag = "" if row["qm status"] in ("identified", "—") else f" ({row['qm status']})"
+                st.markdown(
+                    f"{int(row['Order by qm'])}. **{row['Study']}**: "
+                    f"{row['qm (mg/g)']:.2f} mg/g{flag} — R² {row['Langmuir R² (fit quality)']:.4f}"
                 )
-                st.markdown(f"{medal} **{row['Study']}**: {row['qm (mg/g)']:.2f} mg/g")
+            for _, row in capacity[capacity[CAPACITY_CRITERION].isna()].iterrows():
+                st.markdown(f"– **{row['Study']}**: {row['Note']}")
+            st.caption(CAPACITY_CRITERION_NOTE)
 
     # --- Section 3: Model Comparison Grouped Bar Chart ---
     st.markdown("#### 3. R² Comparison Across Models")
@@ -451,31 +344,37 @@ def _render_isotherm_comparison(studies_data: dict, study_names: list):
 
     st.plotly_chart(fig_r2, use_container_width=True)
 
-    # --- Section 4: Best Model Selection ---
-    st.markdown("#### 4. Best Model Selection (by AIC)")
+    # --- Section 4: Model Selection within each study ---
+    st.markdown("#### 4. Model Selection within Each Study (by AICc)")
 
     best_models = []
     for name in study_names:
-        study_data = iso_df[iso_df["Study"] == name]
-        if not study_data.empty:
-            try:
-                best_idx = study_data["AIC"].idxmin()
-                if pd.notna(best_idx):
-                    best_row = study_data.loc[best_idx]
-                    best_models.append(
-                        {
-                            "Study": name,
-                            "Best Model": best_row["Model"],
-                            "AIC": best_row["AIC"],
-                            "R²": best_row["R²"],
-                        }
-                    )
-            except (KeyError, ValueError):
-                st.caption(f"⚠️ Could not determine best model for {name} (missing AIC values).")
+        comparison = compare_information_criteria(
+            studies_data[name].get("isotherm_models_fitted", {}), "aicc"
+        )
+        if comparison["status"] == "none":
+            continue
+        best = comparison["best"]
+        best_models.append(
+            {
+                "Study": name,
+                "Lowest AICc (same observations)": best or "—",
+                "AICc weight": comparison["per_model"][best]["weight"] if best else np.nan,
+                "Note": "" if best else comparison["message"],
+            }
+        )
 
     if best_models:
         best_df = pd.DataFrame(best_models)
-        display_results_table(best_df)
+        st.dataframe(
+            best_df.style.format({"AICc weight": "{:.1%}"}, na_rep="—"),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.caption(
+            "AICc ranks models only within one study's observations; it does not rank "
+            "materials or identify mechanisms."
+        )
 
     # --- Section 5: Isotherm Curves Overlay ---
     st.markdown("#### 5. Isotherm Curves Overlay")
@@ -484,7 +383,7 @@ def _render_isotherm_comparison(studies_data: dict, study_names: list):
 
     for i, name in enumerate(study_names):
         data = studies_data[name]
-        iso_results = data.get("isotherm_results")
+        iso_results = _usable(data.get("isotherm_results"))
 
         if iso_results is not None and hasattr(iso_results, "shape") and not iso_results.empty:
             Ce = iso_results["Ce_mgL"].values
@@ -557,7 +456,7 @@ def _render_kinetic_comparison(studies_data: dict, study_names: list):
                         "R²": results.get("r_squared", np.nan),
                         "Adj-R²": results.get("adj_r_squared", np.nan),
                         "RMSE": results.get("rmse", np.nan),
-                        "AIC": results.get("aicc", results.get("aic", np.nan)),
+                        "AICc": _finite(results.get("aicc")),
                     }
                     # Add model-specific parameters
                     params = results.get("params", {})
@@ -596,7 +495,7 @@ def _render_kinetic_comparison(studies_data: dict, study_names: list):
                 "R²": "{:.4f}",
                 "Adj-R²": "{:.4f}",
                 "RMSE": "{:.4f}",
-                "AIC": "{:.2f}",
+                "AICc": "{:.2f}",
                 "qe (mg/g)": "{:.2f}",
                 "k1 (1/min)": "{:.4f}",
                 "k2 (g/mg·min)": "{:.6f}",
@@ -700,7 +599,7 @@ def _render_kinetic_comparison(studies_data: dict, study_names: list):
 
     for i, name in enumerate(study_names):
         data = studies_data[name]
-        kin_results = data.get("kinetic_results_df")
+        kin_results = _usable(data.get("kinetic_results_df"))
 
         if kin_results is not None and hasattr(kin_results, "shape") and not kin_results.empty:
             t = kin_results["Time"].values
@@ -753,26 +652,10 @@ def _render_kinetic_comparison(studies_data: dict, study_names: list):
 # =============================================================================
 def _apparent_delta_g_298(thermo: dict) -> float:
     """
-    Apparent ΔG at 298.15 K from the fitted ΔH and ΔS, in kJ/mol.
-
-    Returns ``nan`` when either input is missing or non-finite.  Defaulting an
-    absent ΔH or ΔS to zero, as the previous inline expression did, silently
-    manufactures a ΔG of 0.0 kJ/mol for a study that has no thermodynamic fit
-    at all, and that value then propagates into the comparison table, the bar
-    chart and the ranking.
+    Apparent ΔG at 298.15 K from the fitted ΔH and ΔS, in kJ/mol (shared with the
+    exports); ``nan`` when either input is missing or non-finite, never 0.
     """
-    delta_H = thermo.get("delta_H")
-    delta_S = thermo.get("delta_S")
-    if delta_H is None or delta_S is None:
-        return float("nan")
-    try:
-        delta_H = float(delta_H)
-        delta_S = float(delta_S)
-    except (TypeError, ValueError):
-        return float("nan")
-    if not (np.isfinite(delta_H) and np.isfinite(delta_S)):
-        return float("nan")
-    return delta_H - 298.15 * delta_S / 1000
+    return apparent_delta_g(thermo)
 
 
 def _render_thermodynamic_comparison(studies_data: dict, study_names: list):
@@ -795,6 +678,7 @@ def _render_thermodynamic_comparison(studies_data: dict, study_names: list):
                     "R² (Van't Hoff)": thermo.get("r_squared", np.nan),
                     "Process": sign_label(thermo.get("delta_H"), "Exothermic", "Endothermic"),
                     "ΔG sign": sign_label(_apparent_delta_g_298(thermo), "Negative", "Positive"),
+                    "Kd definition": kd_definition(thermo),
                 }
             )
 
@@ -808,6 +692,7 @@ def _render_thermodynamic_comparison(studies_data: dict, study_names: list):
 
     # --- Table ---
     st.markdown("#### 1. Thermodynamic Parameters Table")
+    st.caption(f"{APPARENT_THERMO_NOTE}. Compare studies only when their Kd definitions match.")
     st.dataframe(
         thermo_df.style.format(
             {
@@ -927,7 +812,7 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
 
         for i, name in enumerate(study_names):
             data = studies_data.get(name, {})
-            ph_results = data.get("ph_effect_results")
+            ph_results = _usable(data.get("ph_effect_results"))
             if ph_results is None or getattr(ph_results, "empty", True):
                 skipped_ph.append(f"{name} (no pH data)")
                 continue
@@ -955,7 +840,7 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
             opt_ph_data = []
             for name in study_names:
                 data = studies_data.get(name, {})
-                ph_results = data.get("ph_effect_results")
+                ph_results = _usable(data.get("ph_effect_results"))
                 if ph_results is None or getattr(ph_results, "empty", True):
                     continue
                 if "pH" not in ph_results.columns or "qe_mg_g" not in ph_results.columns:
@@ -985,7 +870,7 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
 
         for i, name in enumerate(study_names):
             data = studies_data.get(name, {})
-            temp_results = data.get("temp_effect_results")
+            temp_results = _usable(data.get("temp_effect_results"))
             if temp_results is None or getattr(temp_results, "empty", True):
                 skipped_temp.append(f"{name} (no temperature data)")
                 continue
@@ -1029,7 +914,7 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
 
         for i, name in enumerate(study_names):
             data = studies_data.get(name, {})
-            dos_results = data.get("dosage_results")
+            dos_results = _usable(data.get("dosage_results"))
             if dos_results is None or getattr(dos_results, "empty", True):
                 skipped_dos.append(f"{name} (no dosage data)")
                 continue
@@ -1078,286 +963,6 @@ def _render_effect_studies_comparison(studies_data: dict, study_names: list):
             st.info("No dosage effect data available.")
         if skipped_dos:
             st.caption(f"Studies skipped: {', '.join(skipped_dos)}")
-
-
-def _render_overall_ranking(studies_data: dict, study_names: list):
-    """Render overall study ranking with radar chart."""
-    st.markdown("### 📊 Overall Study Ranking")
-
-    # Collect scores for each material
-    ranking_data = []
-
-    for name in study_names:
-        data = studies_data[name]
-
-        scores = {"Study": name}
-
-        # Langmuir qm (higher is better)
-        langmuir = data.get("isotherm_models_fitted", {}).get("Langmuir", {})
-        scores["qm (mg/g)"] = langmuir["params"].get("qm", 0) if langmuir.get("converged") else 0
-
-        # PSO qe (higher is better)
-        pso = data.get("kinetic_models_fitted", {}).get("PSO", {})
-        scores["qe (mg/g)"] = pso["params"].get("qe", 0) if pso.get("converged") else 0
-
-        # PSO k2 (higher = faster kinetics)
-        scores["k2 (g/mg·min)"] = pso["params"].get("k2", 0) if pso.get("converged") else 0
-
-        # Model fit quality (R²)
-        scores["Isotherm R²"] = langmuir.get("r_squared", 0) if langmuir.get("converged") else 0
-        scores["Kinetic R²"] = pso.get("r_squared", 0) if pso.get("converged") else 0
-
-        # Apparent ΔG sign (reported, but excluded from radar ranking).
-        # A study without a thermodynamic fit gets nan, not 0.0 — a ΔG of zero
-        # is a meaningful result and must not stand in for "not measured".
-        thermo = data.get("thermo_params")
-        delta_G = _apparent_delta_g_298(thermo) if thermo else float("nan")
-        scores["Apparent ΔG (kJ/mol)"] = delta_G
-        scores["Negative apparent ΔG"] = sign_label(delta_G, "Yes", "No")
-
-        ranking_data.append(scores)
-
-    ranking_df = pd.DataFrame(ranking_data)
-
-    # --- Summary Table ---
-    st.markdown("#### 1. Performance Summary Table")
-    st.dataframe(
-        style_dataframe(
-            ranking_df,
-            format_dict={
-                "qm (mg/g)": "{:.2f}",
-                "qe (mg/g)": "{:.2f}",
-                "k2 (g/mg·min)": "{:.6f}",
-                "Isotherm R²": "{:.4f}",
-                "Kinetic R²": "{:.4f}",
-                "Apparent ΔG (kJ/mol)": "{:.2f}",
-            },
-            highlight_max_cols=["qm (mg/g)", "qe (mg/g)", "Isotherm R²", "Kinetic R²"],
-        ),
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    # --- Radar Chart ---
-    st.markdown("#### 2. Multi-Dimensional Performance Comparison (Radar Chart)")
-
-    # Normalize scores for radar chart (0-1 scale)
-    radar_metrics = ["qm (mg/g)", "qe (mg/g)", "Isotherm R²", "Kinetic R²"]
-
-    # Check if we have data for radar
-    has_radar_data = any(ranking_df[radar_metrics].sum(axis=1) > 0)
-
-    if has_radar_data:
-        normalized_df = ranking_df.copy()
-        for col in radar_metrics:
-            max_val = normalized_df[col].max()
-            if max_val > 0:
-                normalized_df[col + "_norm"] = normalized_df[col] / max_val
-            else:
-                normalized_df[col + "_norm"] = 0
-
-        fig_radar = go.Figure()
-
-        for i, name in enumerate(study_names):
-            row = normalized_df[normalized_df["Study"] == name].iloc[0]
-            values = [row[col + "_norm"] for col in radar_metrics]
-            values.append(values[0])  # Close the radar
-
-            fig_radar.add_trace(
-                go.Scatterpolar(
-                    r=values,
-                    theta=radar_metrics + [radar_metrics[0]],
-                    fill="toself",
-                    name=name,
-                    line={"color": get_study_color(i), "width": 2},
-                    fillcolor=hex_to_rgba(get_study_color(i), 0.25),  # 25% opacity
-                )
-            )
-
-        fig_radar = apply_professional_polar_style(
-            fig_radar,
-            title="Normalized Performance Comparison",
-            height=500,
-            show_legend=True,
-            legend_position="upper left",
-            radial_range=(0.0, 1.0),
-        )
-
-        st.plotly_chart(fig_radar, use_container_width=True)
-
-    # --- Consolidated Summary Table ---
-    st.markdown("#### 3. Consolidated Summary Table")
-    st.markdown("*All key parameters in one table*")
-
-    pub_table_data = []
-    for name in study_names:
-        data = studies_data[name]
-
-        row = {"Study/Adsorbent": name}
-
-        # Isotherm parameters
-        langmuir = data.get("isotherm_models_fitted", {}).get("Langmuir", {})
-        freundlich = data.get("isotherm_models_fitted", {}).get("Freundlich", {})
-
-        if langmuir.get("converged"):
-            row["qm (mg/g)"] = langmuir["params"].get("qm", np.nan)
-            row["KL (L/mg)"] = langmuir["params"].get("KL", np.nan)
-            row["R²_L"] = langmuir.get("r_squared", np.nan)
-        else:
-            row["qm (mg/g)"] = np.nan
-            row["KL (L/mg)"] = np.nan
-            row["R²_L"] = np.nan
-
-        if freundlich.get("converged"):
-            row["KF"] = freundlich["params"].get("KF", np.nan)
-            row["n"] = freundlich["params"].get("n", np.nan)
-        else:
-            row["KF"] = np.nan
-            row["n"] = np.nan
-
-        # Kinetic parameters
-        pso = data.get("kinetic_models_fitted", {}).get("PSO", {})
-        if pso.get("converged"):
-            row["qe (mg/g)"] = pso["params"].get("qe", np.nan)
-            row["k2 (g/mg·min)"] = pso["params"].get("k2", np.nan)
-            row["R²_PSO"] = pso.get("r_squared", np.nan)
-        else:
-            row["qe (mg/g)"] = np.nan
-            row["k2 (g/mg·min)"] = np.nan
-            row["R²_PSO"] = np.nan
-
-        # Thermodynamic parameters
-        thermo = data.get("thermo_params")
-        if thermo:
-            row["ΔH° (kJ/mol)"] = thermo.get("delta_H", np.nan)
-            row["ΔS° (J/mol·K)"] = thermo.get("delta_S", np.nan)
-            delta_G_vals = thermo.get("delta_G_values", [])
-            row["Apparent ΔG (kJ/mol)"] = delta_G_vals[0] if delta_G_vals else np.nan
-        else:
-            row["ΔH° (kJ/mol)"] = np.nan
-            row["ΔS° (J/mol·K)"] = np.nan
-            row["Apparent ΔG (kJ/mol)"] = np.nan
-
-        pub_table_data.append(row)
-
-    pub_df = pd.DataFrame(pub_table_data)
-
-    st.dataframe(
-        style_dataframe(
-            pub_df,
-            format_dict={
-                "qm (mg/g)": "{:.2f}",
-                "KL (L/mg)": "{:.4f}",
-                "R²_L": "{:.4f}",
-                "KF": "{:.2f}",
-                "n": "{:.2f}",
-                "qe (mg/g)": "{:.2f}",
-                "k2 (g/mg·min)": "{:.6f}",
-                "R²_PSO": "{:.4f}",
-                "ΔH° (kJ/mol)": "{:.2f}",
-                "ΔS° (J/mol·K)": "{:.2f}",
-                "Apparent ΔG (kJ/mol)": "{:.2f}",
-            },
-            highlight_max_cols=["qm (mg/g)", "qe (mg/g)", "R²_L", "R²_PSO"],
-        ),
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    # --- Descriptor summary ---
-    st.markdown("#### 4. Descriptor Summary")
-
-    mechanism_data = []
-    for name in study_names:
-        data = studies_data[name]
-
-        row = {"Study": name}
-        interpretations = []
-
-        # Freundlich n - favorability
-        freundlich = data.get("isotherm_models_fitted", {}).get("Freundlich", {})
-        if freundlich.get("converged"):
-            n = freundlich["params"].get("n", 0)
-            row["n (Freundlich)"] = n
-            if n > 1:
-                row["Favorability"] = "Favorable"
-                interpretations.append("n > 1 → favorable adsorption")
-            elif n == 1:
-                row["Favorability"] = "Linear"
-                interpretations.append("n = 1 → linear isotherm")
-            else:
-                row["Favorability"] = "Unfavorable"
-                interpretations.append("n < 1 → unfavorable adsorption")
-        else:
-            row["n (Freundlich)"] = np.nan
-            row["Favorability"] = "—"
-
-        # Thermodynamics
-        thermo = data.get("thermo_params")
-        if thermo:
-            delta_H = thermo.get("delta_H", 0)
-            delta_S = thermo.get("delta_S", 0)
-
-            if delta_H > 0:
-                row["Process"] = "Endothermic"
-                interpretations.append("ΔH° > 0 → endothermic")
-            else:
-                row["Process"] = "Exothermic"
-                interpretations.append("ΔH° < 0 → exothermic")
-
-            row["Mechanism"] = "Not determined"
-
-            if delta_S > 0:
-                interpretations.append("ΔS° > 0 → increased randomness at interface")
-        else:
-            row["Process"] = "—"
-            row["Mechanism"] = "Not determined"
-
-        row["Interpretation"] = "; ".join(interpretations) if interpretations else "—"
-        mechanism_data.append(row)
-
-    mech_df = pd.DataFrame(mechanism_data)
-
-    # Display mechanism table
-    display_cols = ["Study", "n (Freundlich)", "Favorability", "Process", "Mechanism"]
-    if all(col in mech_df.columns for col in display_cols):
-        display_results_table(mech_df[display_cols])
-
-    # Show detailed interpretations in expander
-    with st.expander("📖 Detailed Descriptor Interpretations", expanded=False):
-        for row in mechanism_data:
-            if row.get("Interpretation") and row["Interpretation"] != "—":
-                st.markdown(f"**{row['Study']}:** {row['Interpretation']}")
-
-    # Mechanistic interpretation guidance
-    st.caption("""
-    **⚠️ Note on Mechanistic Interpretation:**
-    Thermodynamic signs and empirical isotherm/kinetic fits are descriptive, not mechanism tests.
-    For robust mechanistic evidence, combine controlled transport experiments, particle-size and
-    hydrodynamic variation, and appropriate spectroscopic/chemical characterization.
-
-    *Reference: Hubbe et al. (2019). BioResources, 14(3), 7582-7626.*
-    """)
-
-    # --- Final Ranking ---
-    st.markdown("#### 5. Final Ranking (by qm)")
-
-    if ranking_df["qm (mg/g)"].sum() > 0:
-        final_ranking = ranking_df.sort_values("qm (mg/g)", ascending=False)[
-            ["Study", "qm (mg/g)", "qe (mg/g)", "Isotherm R²"]
-        ]
-
-        for i, (_, row) in enumerate(final_ranking.iterrows()):
-            medal = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else f"{i + 1}."
-            st.markdown(f"""
-            {medal} **{row["Study"]}** — qm = {row["qm (mg/g)"]:.2f} mg/g | R² = {row["Isotherm R²"]:.4f}
-            """)
-    else:
-        st.info("Complete isotherm analysis to see the final ranking.")
-
-    # --- Export info ---
-    st.markdown("---")
-    st.info("💡 **To download all comparison data:** Go to **📦 Export All** tab")
 
 
 # =============================================================================

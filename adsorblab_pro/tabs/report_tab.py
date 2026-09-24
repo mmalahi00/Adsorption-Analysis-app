@@ -47,7 +47,7 @@ from ..models import (
     predict_revised_pso,
     pso_model,
     sips_model,
-    temkin_model,
+    temkin_curve,
 )
 from ..plot_style import (
     COLORS,
@@ -66,7 +66,22 @@ from ..plot_style import (
     style_experimental_trace,
 )
 
-from ..utils import get_current_study_state, sign_label
+from ..utils import (
+    APPARENT_THERMO_NOTE,
+    CAPACITY_CRITERION,
+    CAPACITY_CRITERION_NOTE,
+    bootstrap_summary_text,
+    apparent_delta_g,
+    capacity_comparison,
+    delta_g_series,
+    eligible_observations,
+    fit_diagnostics_text,
+    get_current_study_state,
+    kd_definition,
+    model_comparison_table,
+    sign_label,
+    thermo_value,
+)
 
 # Check for kaleido (used by Plotly for static image export)
 try:
@@ -369,9 +384,17 @@ FIGURE_CATEGORIES = {
         "icon": "🆚",
         "items": [
             ("multi_iso_qm_bar", "qm Comparison Bar Chart", "Langmuir qm across studies"),
-            ("multi_iso_radar", "Isotherm Radar Chart", "Multi-criteria isotherm comparison"),
+            (
+                "multi_iso_radar",
+                "Isotherm Radar Chart",
+                "Langmuir fit quality and relative qm (not a score)",
+            ),
             ("multi_kin_qe_bar", "qe Comparison Bar Chart", "PSO qe across studies"),
-            ("multi_kin_radar", "Kinetic Radar Chart", "Multi-criteria kinetic comparison"),
+            (
+                "multi_kin_radar",
+                "Kinetic Radar Chart",
+                "PSO fit quality and relative qe (not a score)",
+            ),
             ("multi_thermo_bar", "Thermodynamic Bar Chart", "ΔH°, ΔS°, ΔG° comparison"),
         ],
     },
@@ -390,7 +413,7 @@ TABLE_CATEGORIES = {
         "items": [
             ("tbl_iso_data", "Isotherm Data", "Ce, qe, removal"),
             ("tbl_iso_params", "Isotherm Parameters", "All model parameters with CI"),
-            ("tbl_iso_comparison", "Model Comparison", "R2, AIC, RMSE comparison"),
+            ("tbl_iso_comparison", "Model Comparison", "R², RMSE, AIC, AICc, BIC; AICc ranking"),
         ],
     },
     "kinetic": {
@@ -398,7 +421,7 @@ TABLE_CATEGORIES = {
         "items": [
             ("tbl_kin_data", "Kinetic Data", "Time, qt, removal"),
             ("tbl_kin_params", "Kinetic Parameters", "All model parameters with CI"),
-            ("tbl_kin_comparison", "Model Comparison", "R2, AIC, RMSE comparison"),
+            ("tbl_kin_comparison", "Model Comparison", "R², RMSE, AIC, AICc, BIC; AICc ranking"),
         ],
     },
     "thermodynamic": {
@@ -530,6 +553,31 @@ def generate_figure(fig_id: str, study_state: dict) -> go.Figure | None:
     return None
 
 
+def _criterion(value: Any) -> float:
+    """Information-criterion value for export; NaN (unavailable) when not finite."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+    return number if np.isfinite(number) else float("nan")
+
+
+def _usable(results: pd.DataFrame | None) -> pd.DataFrame | None:
+    """Rows usable for figures (status 'ok'); tables export every row with its reason."""
+    if results is None:
+        return None
+    usable = eligible_observations(results)
+    return None if usable.empty else usable
+
+
+def _usable_standards(calib_df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    """Standards with finite values (the ones the calibration was built from)."""
+    conc = pd.to_numeric(calib_df["Concentration"], errors="coerce").to_numpy(dtype=float)
+    absb = pd.to_numeric(calib_df["Absorbance"], errors="coerce").to_numpy(dtype=float)
+    finite = np.isfinite(conc) & np.isfinite(absb)
+    return conc[finite], absb[finite]
+
+
 def _gen_calibration_curve(study_state: dict) -> go.Figure | None:
     """Generate calibration curve figure."""
     calib_params = study_state.get("calibration_params")
@@ -538,8 +586,7 @@ def _gen_calibration_curve(study_state: dict) -> go.Figure | None:
     if calib_df is None or calib_params is None:
         return None
 
-    conc = calib_df["Concentration"].values
-    abs_val = calib_df["Absorbance"].values
+    conc, abs_val = _usable_standards(calib_df)
 
     x_line = np.linspace(0, conc.max() * 1.1, 100)
     y_line = calib_params["slope"] * x_line + calib_params["intercept"]
@@ -586,8 +633,7 @@ def _gen_calibration_residuals(study_state: dict) -> go.Figure | None:
     if calib_df is None or calib_params is None:
         return None
 
-    conc = calib_df["Concentration"].values
-    abs_val = calib_df["Absorbance"].values
+    conc, abs_val = _usable_standards(calib_df)
     predicted = calib_params["slope"] * conc + calib_params["intercept"]
     residuals = abs_val - predicted
 
@@ -596,7 +642,7 @@ def _gen_calibration_residuals(study_state: dict) -> go.Figure | None:
 
 def _gen_isotherm_overview(study_state: dict) -> go.Figure | None:
     """Generate isotherm overview figure (dual-axis export, house style)."""
-    iso_data = study_state.get("isotherm_results")
+    iso_data = _usable(study_state.get("isotherm_results"))
 
     if iso_data is None:
         return None
@@ -623,7 +669,7 @@ def _gen_isotherm_overview(study_state: dict) -> go.Figure | None:
 def _gen_isotherm_model(study_state: dict, model_name: str) -> go.Figure | None:
     """Generate individual isotherm model figure (case-study consistent)."""
     iso_results = study_state.get("isotherm_models_fitted", {})
-    iso_data = study_state.get("isotherm_results")
+    iso_data = _usable(study_state.get("isotherm_results"))
 
     if iso_data is None or model_name not in iso_results:
         return None
@@ -644,7 +690,11 @@ def _gen_isotherm_model(study_state: dict, model_name: str) -> go.Figure | None:
     elif model_name == "Freundlich" and "KF" in params and "n_inv" in params:
         qe_pred = freundlich_model(Ce_line, params["KF"], params["n_inv"])
     elif model_name == "Temkin" and "B1" in params and "KT" in params:
-        qe_pred = temkin_model(Ce_line, params["B1"], params["KT"])
+        # Only where the equation is defined (KT·Ce ≥ 1, qe ≥ 0)
+        Ce_line = np.linspace(
+            max(1.0 / params["KT"], float(Ce_line[0])), float(Ce_line[-1]), len(Ce_line)
+        )
+        qe_pred = temkin_curve(Ce_line, params["B1"], params["KT"])
     elif model_name == "Sips" and "qm" in params and "Ks" in params and "ns" in params:
         qe_pred = sips_model(Ce_line, params["qm"], params["Ks"], params["ns"])
 
@@ -669,7 +719,7 @@ def _gen_isotherm_model(study_state: dict, model_name: str) -> go.Figure | None:
 def _gen_isotherm_comparison(study_state: dict) -> go.Figure | None:
     """Generate isotherm model comparison figure (case-study consistent)."""
     iso_results = study_state.get("isotherm_models_fitted", {})
-    iso_data = study_state.get("isotherm_results")
+    iso_data = _usable(study_state.get("isotherm_results"))
 
     if iso_data is None or not iso_results:
         return None
@@ -680,7 +730,7 @@ def _gen_isotherm_comparison(study_state: dict) -> go.Figure | None:
     model_functions = {
         "Langmuir": lambda x, p: langmuir_model(x, p["qm"], p["KL"]),
         "Freundlich": lambda x, p: freundlich_model(x, p["KF"], p["n_inv"]),
-        "Temkin": lambda x, p: temkin_model(x, p["B1"], p["KT"]),
+        "Temkin": lambda x, p: temkin_curve(x, p["B1"], p["KT"]),
         "Sips": lambda x, p: sips_model(x, p["qm"], p["Ks"], p["ns"]),
     }
 
@@ -700,7 +750,7 @@ def _gen_isotherm_comparison(study_state: dict) -> go.Figure | None:
 def _gen_separation_factor(study_state: dict) -> go.Figure | None:
     """Generate RL separation factor plot (case-study consistent)."""
     iso_results = study_state.get("isotherm_models_fitted", {})
-    iso_data = study_state.get("isotherm_results")
+    iso_data = _usable(study_state.get("isotherm_results"))
 
     langmuir = iso_results.get("Langmuir", {})
     if not langmuir.get("converged") or iso_data is None:
@@ -762,7 +812,7 @@ def _gen_separation_factor(study_state: dict) -> go.Figure | None:
 
 def _gen_kinetic_overview(study_state: dict) -> go.Figure | None:
     """Generate kinetic overview figure (dual-axis export, house style)."""
-    kin_data = study_state.get("kinetic_results_df")
+    kin_data = _usable(study_state.get("kinetic_results_df"))
     if kin_data is None:
         return None
 
@@ -788,7 +838,7 @@ def _gen_kinetic_overview(study_state: dict) -> go.Figure | None:
 def _gen_kinetic_model(study_state: dict, model_name: str) -> go.Figure | None:
     """Generate individual kinetic model figure (house style)."""
     kin_results = study_state.get("kinetic_models_fitted", {})
-    kin_data = study_state.get("kinetic_results_df")
+    kin_data = _usable(study_state.get("kinetic_results_df"))
 
     if kin_data is None or model_name not in kin_results:
         return None
@@ -838,7 +888,7 @@ def _gen_kinetic_model(study_state: dict, model_name: str) -> go.Figure | None:
 def _gen_kinetic_comparison(study_state: dict) -> go.Figure | None:
     """Generate kinetic model comparison figure (house style)."""
     kin_results = study_state.get("kinetic_models_fitted", {})
-    kin_data = study_state.get("kinetic_results_df")
+    kin_data = _usable(study_state.get("kinetic_results_df"))
 
     if kin_data is None or not kin_results:
         return None
@@ -893,11 +943,11 @@ def _gen_vant_hoff_plot(study_state: dict) -> go.Figure | None:
     x = 1 / T_K
     y = np.log(Kd)
 
-    slope = thermo_params.get("slope", 0)
-    intercept = thermo_params.get("intercept", 0)
+    slope = thermo_value(thermo_params, "slope")
+    intercept = thermo_value(thermo_params, "intercept")
 
     x_line = np.linspace(x.min() * 0.98, x.max() * 1.02, 100)
-    y_line = slope * x_line + intercept
+    y_line = slope * x_line + intercept  # NaN (no line) when the fit is missing
 
     fig = go.Figure()
     fig.add_trace(
@@ -919,8 +969,10 @@ def _gen_vant_hoff_plot(study_state: dict) -> go.Figure | None:
         )
     )
 
-    delta_H = thermo_params.get("delta_H", 0)
-    delta_S = thermo_params.get("delta_S", 0)
+    delta_H = thermo_value(thermo_params, "delta_H")
+    delta_S = thermo_value(thermo_params, "delta_S")
+    dh_text = f"{delta_H:.2f} kJ/mol" if np.isfinite(delta_H) else "unavailable"
+    ds_text = f"{delta_S:.2f} J/(mol·K)" if np.isfinite(delta_S) else "unavailable"
     fig.add_annotation(
         x=0.98,
         y=0.95,
@@ -928,14 +980,16 @@ def _gen_vant_hoff_plot(study_state: dict) -> go.Figure | None:
         yref="paper",
         xanchor="right",
         yanchor="top",
-        text=f"ΔH° = {delta_H:.2f} kJ/mol<br>ΔS° = {delta_S:.2f} J/(mol·K)",
+        text=f"Apparent ΔH = {dh_text}<br>Apparent ΔS = {ds_text}<br>{kd_definition(thermo_params)}",
         showarrow=False,
         font={"size": 12},
         bgcolor="white",
         borderpad=4,
     )
 
-    fig = apply_professional_style(fig, "Van't Hoff Plot", "1000/T (1/K)", "ln(Kd)")
+    fig = apply_professional_style(
+        fig, "Van't Hoff Plot (apparent values)", "1000/T (1/K)", "ln(Kd)"
+    )
 
     # Reposition legend to upper left to avoid overlap with data points
     fig.update_layout(
@@ -956,25 +1010,22 @@ _gen_vanthoff_plot = _gen_vant_hoff_plot  # Backward-compatible legacy alias
 
 
 def _gen_gibbs_plot(study_state: dict) -> go.Figure | None:
-    """Generate Gibbs free energy plot."""
+    """Apparent ΔG against temperature; only temperatures with a ΔG value are drawn."""
     thermo_params = study_state.get("thermo_params")
 
     if not thermo_params:
         return None
 
-    T_K = np.array(thermo_params.get("temperatures", []))
-    delta_G = thermo_params.get("delta_G", {})
-
-    if len(T_K) < 2 or not delta_G:
+    T_K, G_values = delta_g_series(thermo_params)
+    available = np.isfinite(T_K) & np.isfinite(G_values)
+    if available.sum() < 1:
         return None
-
-    G_values = [delta_G.get(T, 0) for T in T_K]
 
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
-            x=T_K - 273.15,
-            y=G_values,
+            x=T_K[available] - 273.15,
+            y=G_values[available],
             mode="markers+lines",
             marker=MARKERS["experimental"],
             line={"width": 2},
@@ -984,14 +1035,17 @@ def _gen_gibbs_plot(study_state: dict) -> go.Figure | None:
     fig.add_hline(y=0, line_dash="dash", line_color="red")
 
     fig = apply_professional_style(
-        fig, "Gibbs Free Energy vs Temperature", "Temperature (°C)", "ΔG° (kJ/mol)"
+        fig,
+        f"Apparent ΔG vs Temperature — {kd_definition(thermo_params)}",
+        "Temperature (°C)",
+        "Apparent ΔG (kJ/mol)",
     )
     return fig
 
 
 def _gen_ph_effect(study_state: dict) -> go.Figure | None:
     """Generate pH effect figure (dual-axis export, house style)."""
-    ph_results = study_state.get("ph_effect_results")
+    ph_results = _usable(study_state.get("ph_effect_results"))
     if ph_results is None or getattr(ph_results, "empty", False):
         return None
 
@@ -1019,7 +1073,7 @@ def _gen_ph_effect(study_state: dict) -> go.Figure | None:
 
 def _gen_temperature_effect(study_state: dict) -> go.Figure | None:
     """Generate temperature effect figure (dual-axis export, house style)."""
-    temp_results = study_state.get("temp_effect_results")
+    temp_results = _usable(study_state.get("temp_effect_results"))
     if temp_results is None or getattr(temp_results, "empty", False):
         return None
 
@@ -1048,7 +1102,7 @@ def _gen_temperature_effect(study_state: dict) -> go.Figure | None:
 
 def _gen_dosage_effect(study_state: dict) -> go.Figure | None:
     """Generate dosage effect figure (dual-axis export, house style)."""
-    dos_results = study_state.get("dosage_effect_results")
+    dos_results = _usable(study_state.get("dosage_results"))
     if dos_results is None or getattr(dos_results, "empty", False):
         return None
 
@@ -1087,93 +1141,82 @@ def _get_all_studies() -> tuple[dict, list[str]]:
 
 
 def _gen_multi_iso_qm_bar(study_state: dict) -> go.Figure | None:
-    """Generate multi-study Langmuir qm comparison bar chart."""
+    """Langmuir qm across studies, in the order used on the comparison page."""
     studies, study_names = _get_all_studies()
 
     if len(study_names) < 2:
         return None
 
-    qm_data = []
-    for name in study_names:
-        data = studies[name]
-        langmuir = data.get("isotherm_models_fitted", {}).get("Langmuir", {})
-        if langmuir.get("converged"):
-            qm_data.append(
-                {
-                    "Study": name,
-                    "qm": langmuir["params"].get("qm", 0),
-                    "R²": langmuir.get("r_squared", 0),
-                }
-            )
-
-    if not qm_data:
+    capacity = capacity_comparison({name: studies[name] for name in study_names})
+    if capacity.empty:
         return None
-
-    df = pd.DataFrame(qm_data).sort_values("qm", ascending=False)
-    colors = [STUDY_COLORS[i % len(STUDY_COLORS)] for i in range(len(df))]
+    df = capacity[capacity[CAPACITY_CRITERION].notna()]
+    if df.empty:
+        return None
+    colors = [STUDY_COLORS[study_names.index(name) % len(STUDY_COLORS)] for name in df["Study"]]
 
     fig = go.Figure(
         data=[
             go.Bar(
                 x=df["Study"],
-                y=df["qm"],
+                y=df[CAPACITY_CRITERION],
                 marker_color=colors,
-                text=df["qm"].round(2),
+                text=df[CAPACITY_CRITERION].round(2),
                 textposition="outside",
             )
         ]
     )
-
-    fig = apply_professional_style(
-        fig, "Maximum Adsorption Capacity (qm) Comparison", "Study", "qm (mg/g)", height=500
-    )
+    missing = capacity.loc[capacity[CAPACITY_CRITERION].isna(), "Study"].tolist()
+    title = "Maximum Adsorption Capacity (Langmuir qm) Comparison"
+    if missing:
+        title += f" — no Langmuir fit: {', '.join(map(str, missing))}"
+    fig = apply_professional_style(fig, title, "Study", "qm (mg/g)", height=500)
     return fig
 
 
 def _gen_multi_iso_radar(study_state: dict) -> go.Figure | None:
-    """Generate multi-study isotherm radar chart."""
+    """Langmuir fit quality (R², Adj-R²) beside relative qm — separate quantities.
+
+    Every axis comes from the Langmuir fit; studies without a converged Langmuir fit
+    are omitted (named in the title), never drawn as zero.  No combined score.
+    """
     studies, study_names = _get_all_studies()
 
     if len(study_names) < 2:
         return None
 
     metrics_data = []
+    missing = []
     for name in study_names:
-        data = studies[name]
-        iso = data.get("isotherm_models_fitted", {})
-
-        best_r2 = 0
-        best_model = None
-        for _model_name, results in iso.items():
-            if results and results.get("converged"):
-                r2 = results.get("r_squared", 0)
-                if r2 > best_r2:
-                    best_r2 = r2
-                    best_model = results
-
-        if best_model:
-            metrics_data.append(
-                {
-                    "Study": name,
-                    "R²": best_r2,
-                    "Adj-R²": best_model.get("adj_r_squared", best_r2),
-                    "qm": iso.get("Langmuir", {}).get("params", {}).get("qm", 0)
-                    if iso.get("Langmuir", {}).get("converged")
-                    else 0,
-                }
-            )
+        langmuir = studies[name].get("isotherm_models_fitted", {}).get("Langmuir", {})
+        qm = langmuir.get("params", {}).get("qm") if langmuir.get("converged") else None
+        if qm is None or not np.isfinite(qm):
+            missing.append(name)
+            continue
+        metrics_data.append(
+            {
+                "Study": name,
+                "R²": langmuir.get("r_squared", np.nan),
+                "Adj-R²": langmuir.get("adj_r_squared", np.nan),
+                "qm": qm,
+            }
+        )
 
     if len(metrics_data) < 2:
         return None
 
     df = pd.DataFrame(metrics_data)
-    categories = ["R²", "Adj-R²", "qm (norm)"]
+    categories = ["Langmuir R²", "Langmuir Adj-R²", "qm / largest qm"]
+    title = "Langmuir fit quality and relative qm (separate quantities, not a score)"
+    measured = "qm"
+    if missing:
+        title += f" — omitted (no fit): {', '.join(map(str, missing))}"
 
     fig = go.Figure()
-
+    largest = df[measured].max()
     for i, row in df.iterrows():
-        qm_max = df["qm"].max() if df["qm"].max() > 0 else 1
-        values = [row["R²"], row["Adj-R²"], row["qm"] / qm_max]
+        relative = row[measured] / largest if largest > 0 else np.nan
+        values = [row["R²"], row["Adj-R²"], relative]
         values.append(values[0])
 
         fig.add_trace(
@@ -1181,13 +1224,13 @@ def _gen_multi_iso_radar(study_state: dict) -> go.Figure | None:
                 r=values,
                 theta=categories + [categories[0]],
                 name=row["Study"],
-                line={"color": STUDY_COLORS[i % len(STUDY_COLORS)]},
+                line={"color": STUDY_COLORS[study_names.index(row["Study"]) % len(STUDY_COLORS)]},
             )
         )
 
     fig = apply_professional_polar_style(
         fig,
-        title="Isotherm Performance Comparison",
+        title=title,
         height=500,
         show_legend=True,
         legend_position="upper left",
@@ -1239,50 +1282,48 @@ def _gen_multi_kin_qe_bar(study_state: dict) -> go.Figure | None:
 
 
 def _gen_multi_kin_radar(study_state: dict) -> go.Figure | None:
-    """Generate multi-study kinetic radar chart."""
+    """PSO fit quality (R², Adj-R²) beside relative PSO qe — separate quantities.
+
+    Every axis comes from the PSO fit; studies without a converged PSO fit are
+    omitted (named in the title), never drawn as zero.  No combined score.
+    """
     studies, study_names = _get_all_studies()
 
     if len(study_names) < 2:
         return None
 
     metrics_data = []
+    missing = []
     for name in study_names:
-        data = studies[name]
-        kin = data.get("kinetic_models_fitted", {})
-
-        best_r2 = 0
-        best_model = None
-        for _model_name, results in kin.items():
-            if results and results.get("converged"):
-                r2 = results.get("r_squared", 0)
-                if r2 > best_r2:
-                    best_r2 = r2
-                    best_model = results
-
-        if best_model:
-            pso = kin.get("PSO", {})
-            if not pso.get("converged"):
-                pso = kin.get("rPSO", {})
-            metrics_data.append(
-                {
-                    "Study": name,
-                    "R²": best_r2,
-                    "Adj-R²": best_model.get("adj_r_squared", best_r2),
-                    "qe": pso.get("params", {}).get("qe", 0) if pso.get("converged") else 0,
-                }
-            )
+        pso = studies[name].get("kinetic_models_fitted", {}).get("PSO", {})
+        qe = pso.get("params", {}).get("qe") if pso.get("converged") else None
+        if qe is None or not np.isfinite(qe):
+            missing.append(name)
+            continue
+        metrics_data.append(
+            {
+                "Study": name,
+                "R²": pso.get("r_squared", np.nan),
+                "Adj-R²": pso.get("adj_r_squared", np.nan),
+                "qe": qe,
+            }
+        )
 
     if len(metrics_data) < 2:
         return None
 
     df = pd.DataFrame(metrics_data)
-    categories = ["R²", "Adj-R²", "qe (norm)"]
+    categories = ["PSO R²", "PSO Adj-R²", "qe / largest qe"]
+    title = "PSO fit quality and relative qe (separate quantities, not a score)"
+    measured = "qe"
+    if missing:
+        title += f" — omitted (no fit): {', '.join(map(str, missing))}"
 
     fig = go.Figure()
-
+    largest = df[measured].max()
     for i, row in df.iterrows():
-        qe_max = df["qe"].max() if df["qe"].max() > 0 else 1
-        values = [row["R²"], row["Adj-R²"], row["qe"] / qe_max]
+        relative = row[measured] / largest if largest > 0 else np.nan
+        values = [row["R²"], row["Adj-R²"], relative]
         values.append(values[0])
 
         fig.add_trace(
@@ -1290,13 +1331,13 @@ def _gen_multi_kin_radar(study_state: dict) -> go.Figure | None:
                 r=values,
                 theta=categories + [categories[0]],
                 name=row["Study"],
-                line={"color": STUDY_COLORS[i % len(STUDY_COLORS)]},
+                line={"color": STUDY_COLORS[study_names.index(row["Study"]) % len(STUDY_COLORS)]},
             )
         )
 
     fig = apply_professional_polar_style(
         fig,
-        title="Kinetic Performance Comparison",
+        title=title,
         height=500,
         show_legend=True,
         legend_position="upper left",
@@ -1306,7 +1347,7 @@ def _gen_multi_kin_radar(study_state: dict) -> go.Figure | None:
 
 
 def _gen_multi_thermo_bar(study_state: dict) -> go.Figure | None:
-    """Generate multi-study thermodynamic parameters comparison."""
+    """Apparent ΔH, ΔS and ΔG(298.15 K) across studies; missing values are not drawn."""
     studies, study_names = _get_all_studies()
 
     if len(study_names) < 2:
@@ -1314,17 +1355,15 @@ def _gen_multi_thermo_bar(study_state: dict) -> go.Figure | None:
 
     thermo_data = []
     for name in study_names:
-        data = studies[name]
-        thermo = data.get("thermo_params", {})
+        thermo = studies[name].get("thermo_params") or {}
         if thermo:
             thermo_data.append(
                 {
                     "Study": name,
-                    "ΔH° (kJ/mol)": thermo.get("delta_H", 0),
-                    "ΔS° (J/mol·K)": thermo.get("delta_S", 0),
-                    "ΔG° (kJ/mol)": thermo.get("delta_G_values", [0])[0]
-                    if isinstance(thermo.get("delta_G_values"), list)
-                    else thermo.get("delta_G", 0),
+                    "ΔH": thermo_value(thermo, "delta_H"),
+                    "ΔS": thermo_value(thermo, "delta_S"),
+                    "ΔG": apparent_delta_g(thermo),
+                    "Kd": kd_definition(thermo),
                 }
             )
 
@@ -1334,37 +1373,41 @@ def _gen_multi_thermo_bar(study_state: dict) -> go.Figure | None:
     df = pd.DataFrame(thermo_data)
 
     fig = make_subplots(
-        rows=1, cols=3, subplot_titles=["ΔH° (kJ/mol)", "ΔS° (J/mol·K)", "ΔG° (kJ/mol)"]
+        rows=1,
+        cols=3,
+        subplot_titles=[
+            "Apparent ΔH (kJ/mol)",
+            "Apparent ΔS (J/mol·K)",
+            "Apparent ΔG at 298.15 K (kJ/mol)",
+        ],
     )
 
-    colors = [STUDY_COLORS[i % len(STUDY_COLORS)] for i in range(len(df))]
+    colors = [STUDY_COLORS[study_names.index(n) % len(STUDY_COLORS)] for n in df["Study"]]
+    for col, key in enumerate(("ΔH", "ΔS", "ΔG"), start=1):
+        # NaN bars are not drawn: a missing value is never shown as zero.
+        fig.add_trace(
+            go.Bar(x=df["Study"], y=df[key], marker_color=colors, showlegend=False),
+            row=1,
+            col=col,
+        )
 
-    fig.add_trace(
-        go.Bar(x=df["Study"], y=df["ΔH° (kJ/mol)"], marker_color=colors, showlegend=False),
-        row=1,
-        col=1,
-    )
-    fig.add_trace(
-        go.Bar(x=df["Study"], y=df["ΔS° (J/mol·K)"], marker_color=colors, showlegend=False),
-        row=1,
-        col=2,
-    )
-    fig.add_trace(
-        go.Bar(x=df["Study"], y=df["ΔG° (kJ/mol)"], marker_color=colors, showlegend=False),
-        row=1,
-        col=3,
-    )
+    definitions = sorted(set(df["Kd"]))
+    title = "<b>Apparent Thermodynamic Parameters</b>"
+    if len(definitions) == 1:
+        title += f" — {definitions[0]}"
+    else:
+        title += " — Kd definitions differ between studies (not comparable)"
+    missing = [row["Study"] for _, row in df.iterrows() if not np.isfinite(row["ΔG"])]
+    if missing:
+        title += f"<br><sup>Unavailable values are not drawn ({', '.join(missing)})</sup>"
 
     fig.update_layout(
-        title={
-            "text": "<b>Thermodynamic Parameters Comparison</b>",
-            "font": {"size": 16, "family": FONT_FAMILY},
-        },
+        title={"text": title, "font": {"size": 16, "family": FONT_FAMILY}},
         height=400,
         plot_bgcolor="white",
         paper_bgcolor="white",
         font={"family": FONT_FAMILY, "size": 12},
-        margin={"l": 70, "r": 40, "t": 60, "b": 60},
+        margin={"l": 70, "r": 40, "t": 80, "b": 60},
     )
 
     # Style all subplots via centralized helper
@@ -1383,60 +1426,12 @@ def _gen_multi_thermo_bar(study_state: dict) -> go.Figure | None:
 
 
 def _gen_multi_ranking_bar(study_state: dict) -> go.Figure | None:
-    """Generate overall study ranking bar chart."""
-    studies, study_names = _get_all_studies()
+    """Deprecated ID: the Langmuir qm comparison (the page's criterion), not a score.
 
-    if len(study_names) < 2:
-        return None
-
-    ranking_data = []
-    for name in study_names:
-        data = studies[name]
-        score = 0
-        count = 0
-
-        iso = data.get("isotherm_models_fitted", {})
-        for results in iso.values():
-            if results and results.get("converged"):
-                score += results.get("r_squared", 0) * 100
-                count += 1
-
-        kin = data.get("kinetic_models_fitted", {})
-        for results in kin.values():
-            if results and results.get("converged"):
-                score += results.get("r_squared", 0) * 100
-                count += 1
-
-        if count > 0:
-            ranking_data.append({"Study": name, "Score": score / count})
-
-    if not ranking_data:
-        return None
-
-    df = pd.DataFrame(ranking_data).sort_values("Score", ascending=False)
-    colors = [STUDY_COLORS[i % len(STUDY_COLORS)] for i in range(len(df))]
-
-    fig = go.Figure(
-        data=[
-            go.Bar(
-                x=df["Study"],
-                y=df["Score"],
-                marker_color=colors,
-                text=df["Score"].round(1),
-                textposition="outside",
-            )
-        ]
-    )
-
-    fig = apply_professional_style(
-        fig, "Overall Study Performance Ranking", "Study", "Average R² Score (%)", height=500
-    )
-    return fig
-
-
-# =============================================================================
-# TABLE GENERATION FUNCTIONS
-# =============================================================================
+    The former "overall ranking" averaged R² across models and scored missing
+    analyses as zero; fit quality is not material performance.
+    """
+    return _gen_multi_iso_qm_bar(study_state)
 
 
 def generate_table(tbl_id: str, study_state: dict) -> pd.DataFrame | None:
@@ -1495,49 +1490,84 @@ def _gen_tbl_iso_data(s: dict) -> pd.DataFrame | None:
     return s.get("isotherm_results")
 
 
-def _gen_tbl_iso_params(s: dict) -> pd.DataFrame | None:
-    iso = s.get("isotherm_models_fitted", {})
-    if not iso:
+def _number(value: Any) -> float:
+    """Float value for export, NaN when missing or not numeric."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def _params_export(models: dict | None) -> pd.DataFrame | None:
+    """
+    One row per parameter: value, SE, CI, identifiability status and, when a
+    bootstrap was run, its percentile interval with the draw counts and seed.
+
+    Values are exported as numbers (full precision, no fixed decimals). Status is
+    'identified', 'poorly identified', 'at limit' (SE/CI not valid) or 'derived'
+    (computed from fitted parameters); the model's limit/identifiability notes are
+    repeated on each of its rows.
+    """
+    if not models:
         return None
     rows = []
-    for m, d in iso.items():
-        if not d.get("converged"):
+    for m, d in models.items():
+        if not isinstance(d, dict) or not d.get("converged"):
             continue
-        for p, v in d.get("params", {}).items():
+        params = d.get("params", {})
+        status = d.get("param_status") or {}
+        notes = fit_diagnostics_text(d)
+        boot = d.get("bootstrap") or {}
+        boot_ci = {}
+        if boot.get("status") == "available":
+            boot_ci = dict(
+                zip(boot["param_names"], zip(boot["ci_lower"], boot["ci_upper"], strict=True))
+            )
+        for p, v in params.items():
+            if p.endswith("_se") and p[:-3] in params:
+                continue
             ci = d.get("ci_95", {}).get(p, (None, None))
+            b_lo, b_hi = boot_ci.get(p, (None, None))
             rows.append(
                 {
                     "Model": m,
                     "Parameter": p,
-                    "Value": f"{v:.4f}" if isinstance(v, int | float) else str(v),
-                    "CI_Lower": f"{ci[0]:.4f}" if ci[0] else "-",
-                    "CI_Upper": f"{ci[1]:.4f}" if ci[1] else "-",
+                    "Value": _number(v),
+                    "SE": _number(params.get(f"{p}_se")),
+                    "CI_Lower": _number(ci[0]),
+                    "CI_Upper": _number(ci[1]),
+                    "Status": status.get(p, "derived" if status else "—"),
+                    "Estimator": "linear regression (OLS)"
+                    if m == "IPD"
+                    else "unweighted least squares in q; Wald CI",
+                    "Fit notes": notes,
+                    "Bootstrap_CI_Lower": _number(b_lo),
+                    "Bootstrap_CI_Upper": _number(b_hi),
+                    "Bootstrap": bootstrap_summary_text(d),
                 }
             )
     return pd.DataFrame(rows) if rows else None
 
 
-def _gen_tbl_iso_comparison(s: dict) -> pd.DataFrame | None:
-    iso = s.get("isotherm_models_fitted", {})
-    if not iso:
+def _gen_tbl_iso_params(s: dict) -> pd.DataFrame | None:
+    return _params_export(s.get("isotherm_models_fitted", {}))
+
+
+def _comparison_export(models: dict | None) -> pd.DataFrame | None:
+    """Model comparison table for export (same builder as the analysis screens)."""
+    if not models:
         return None
-    rows = []
-    for m, d in iso.items():
-        if not d.get("converged"):
-            continue
-        rows.append(
-            {
-                "Model": m,
-                "R²": d.get("r_squared", 0),
-                "Adj_R²": d.get("adj_r_squared", 0),
-                "RMSE": d.get("rmse", 0),
-                "AIC": d.get("aicc", d.get("aic", 0)),
-                "BIC": d.get("bic", 0),
-                "PRESS": d.get("press", "-"),
-                "Q²": d.get("q2", "-"),
-            }
-        )
-    return pd.DataFrame(rows) if rows else None
+    has_press = any(isinstance(d, dict) and d.get("press") is not None for d in models.values())
+    table, comparison = model_comparison_table(models, include_press=has_press)
+    if table.empty:
+        return None
+    table["Comparison statement"] = ""
+    table.loc[0, "Comparison statement"] = comparison["message"]
+    return table
+
+
+def _gen_tbl_iso_comparison(s: dict) -> pd.DataFrame | None:
+    return _comparison_export(s.get("isotherm_models_fitted", {}))
 
 
 def _gen_tbl_kin_data(s: dict) -> pd.DataFrame | None:
@@ -1545,62 +1575,68 @@ def _gen_tbl_kin_data(s: dict) -> pd.DataFrame | None:
 
 
 def _gen_tbl_kin_params(s: dict) -> pd.DataFrame | None:
-    kin = s.get("kinetic_models_fitted", {})
-    if not kin:
-        return None
-    rows = []
-    for m, d in kin.items():
-        if not d.get("converged"):
-            continue
-        for p, v in d.get("params", {}).items():
-            ci = d.get("ci_95", {}).get(p, (None, None))
-            rows.append(
-                {
-                    "Model": m,
-                    "Parameter": p,
-                    "Value": f"{v:.4f}" if isinstance(v, int | float) else str(v),
-                    "CI_Lower": f"{ci[0]:.4f}" if ci[0] else "-",
-                    "CI_Upper": f"{ci[1]:.4f}" if ci[1] else "-",
-                }
-            )
-    return pd.DataFrame(rows) if rows else None
+    return _params_export(s.get("kinetic_models_fitted", {}))
 
 
 def _gen_tbl_kin_comparison(s: dict) -> pd.DataFrame | None:
-    kin = s.get("kinetic_models_fitted", {})
-    if not kin:
-        return None
-    rows = []
-    for m, d in kin.items():
-        if not d.get("converged"):
-            continue
-        rows.append(
-            {
-                "Model": m,
-                "R²": d.get("r_squared", 0),
-                "Adj_R²": d.get("adj_r_squared", 0),
-                "RMSE": d.get("rmse", 0),
-                "AIC": d.get("aicc", d.get("aic", 0)),
-            }
-        )
-    return pd.DataFrame(rows) if rows else None
+    return _comparison_export(s.get("kinetic_models_fitted", {}))
 
 
 def _gen_tbl_thermo_params(s: dict) -> pd.DataFrame | None:
+    """Apparent ΔH, ΔS and ΔG(T) with the Kd definition; missing values stay NaN."""
     t = s.get("thermo_params")
     if not t:
         return None
+    note = f"{APPARENT_THERMO_NOTE}; {kd_definition(t)}"
     rows = [
-        {"Parameter": "ΔH°", "Value": f"{t.get('delta_H', 0):.2f}", "Unit": "kJ/mol"},
-        {"Parameter": "ΔS°", "Value": f"{t.get('delta_S', 0):.2f}", "Unit": "J/(mol·K)"},
+        {
+            "Parameter": "Apparent ΔH",
+            "Value": thermo_value(t, "delta_H"),
+            "SE": thermo_value(t, "delta_H_se"),
+            "Unit": "kJ/mol",
+            "Note": note,
+        },
+        {
+            "Parameter": "Apparent ΔS",
+            "Value": thermo_value(t, "delta_S"),
+            "SE": thermo_value(t, "delta_S_se"),
+            "Unit": "J/(mol·K)",
+            "Note": note,
+        },
     ]
-    for T, G in t.get("delta_G", {}).items():
-        rows.append({"Parameter": f"ΔG° ({T}K)", "Value": f"{G:.2f}", "Unit": "kJ/mol"})
+    for T, G in zip(*delta_g_series(t), strict=True):
+        rows.append(
+            {
+                "Parameter": f"Apparent ΔG ({T:.2f} K)",
+                "Value": G,
+                "SE": np.nan,
+                "Unit": "kJ/mol",
+                "Note": note if np.isfinite(G) else "unavailable",
+            }
+        )
     return pd.DataFrame(rows)
 
 
 def _gen_tbl_thermo_data(s: dict) -> pd.DataFrame | None:
-    return s.get("temp_effect_results")
+    """The van't Hoff points actually fitted: T, Kd, ln Kd and 1/T, with the Kd definition."""
+    t = s.get("thermo_params")
+    if not t:
+        return None
+    temps = np.atleast_1d(np.asarray(t.get("temperatures", []), dtype=float))
+    kd = np.atleast_1d(np.asarray(t.get("Kd_values", []), dtype=float))
+    if len(temps) == 0 or len(temps) != len(kd):
+        return None
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ln_kd = np.where(kd > 0, np.log(kd), np.nan)
+    return pd.DataFrame(
+        {
+            "Temperature_K": temps,
+            "Kd": kd,
+            "ln_Kd": ln_kd,
+            "1/T (1/K)": 1 / temps,
+            "Kd definition": kd_definition(t),
+        }
+    )
 
 
 def _gen_tbl_ph_data(s: dict) -> pd.DataFrame | None:
@@ -1612,7 +1648,7 @@ def _gen_tbl_temp_data(s: dict) -> pd.DataFrame | None:
 
 
 def _gen_tbl_dosage_data(s: dict) -> pd.DataFrame | None:
-    return s.get("dosage_effect_results")
+    return s.get("dosage_results")
 
 
 # =============================================================================
@@ -1640,7 +1676,7 @@ def _gen_tbl_multi_iso_params(s: dict) -> pd.DataFrame | None:
                     "R²": results.get("r_squared", np.nan),
                     "Adj-R²": results.get("adj_r_squared", np.nan),
                     "RMSE": results.get("rmse", np.nan),
-                    "AIC": results.get("aicc", results.get("aic", np.nan)),
+                    "AICc": _criterion(results.get("aicc")),
                 }
                 params = results.get("params", {})
                 if model_name == "Langmuir":
@@ -1674,7 +1710,7 @@ def _gen_tbl_multi_kin_params(s: dict) -> pd.DataFrame | None:
                     "R²": results.get("r_squared", np.nan),
                     "Adj-R²": results.get("adj_r_squared", np.nan),
                     "RMSE": results.get("rmse", np.nan),
-                    "AIC": results.get("aicc", results.get("aic", np.nan)),
+                    "AICc": _criterion(results.get("aicc")),
                 }
                 params = results.get("params", {})
                 if model_name == "PSO":
@@ -1693,7 +1729,7 @@ def _gen_tbl_multi_kin_params(s: dict) -> pd.DataFrame | None:
 
 
 def _gen_tbl_multi_thermo(s: dict) -> pd.DataFrame | None:
-    """Generate multi-study thermodynamic comparison table."""
+    """Apparent thermodynamic values across studies, with each study's Kd definition."""
     studies, study_names = _get_all_studies()
 
     if len(study_names) < 2:
@@ -1701,25 +1737,20 @@ def _gen_tbl_multi_thermo(s: dict) -> pd.DataFrame | None:
 
     rows = []
     for name in study_names:
-        data = studies[name]
-        thermo = data.get("thermo_params", {})
-
+        thermo = studies[name].get("thermo_params") or {}
         if thermo:
-            delta_G = thermo.get("delta_G_values", [])
-            if isinstance(delta_G, list) and len(delta_G) > 0:
-                delta_G_val = delta_G[0]
-            else:
-                delta_G_val = thermo.get("delta_G", np.nan)
-
+            delta_G = apparent_delta_g(thermo)
             rows.append(
                 {
                     "Study": name,
-                    "ΔH° (kJ/mol)": thermo.get("delta_H", np.nan),
-                    "ΔS° (J/mol·K)": thermo.get("delta_S", np.nan),
-                    "Apparent ΔG (kJ/mol)": delta_G_val,
-                    "R²": thermo.get("r_squared", np.nan),
-                    "ΔG sign": sign_label(delta_G_val, "Negative", "Positive"),
+                    "Apparent ΔH (kJ/mol)": thermo_value(thermo, "delta_H"),
+                    "Apparent ΔS (J/mol·K)": thermo_value(thermo, "delta_S"),
+                    "Apparent ΔG at 298.15 K (kJ/mol)": delta_G,
+                    "R²": thermo_value(thermo, "r_squared"),
+                    "ΔG sign": sign_label(delta_G, "Negative", "Positive"),
                     "Enthalpy sign": sign_label(thermo.get("delta_H"), "Exothermic", "Endothermic"),
+                    "Kd definition": kd_definition(thermo),
+                    "Qualification": APPARENT_THERMO_NOTE,
                 }
             )
 
@@ -1727,64 +1758,23 @@ def _gen_tbl_multi_thermo(s: dict) -> pd.DataFrame | None:
 
 
 def _gen_tbl_multi_ranking(s: dict) -> pd.DataFrame | None:
-    """Generate multi-study overall ranking table."""
+    """Capacity comparison ordered by Langmuir qm — the same result as the comparison page.
+
+    Replaces the former averaged-R² "overall score" (which also scored missing
+    analyses as zero). Fit quality is a separate column; missing fits are listed as
+    not available and are not ranked.
+    """
     studies, study_names = _get_all_studies()
 
     if len(study_names) < 2:
         return None
 
-    rows = []
-    for name in study_names:
-        data = studies[name]
-
-        iso_scores = []
-        kin_scores = []
-
-        iso = data.get("isotherm_models_fitted", {})
-        for results in iso.values():
-            if results and results.get("converged"):
-                iso_scores.append(results.get("r_squared", 0))
-
-        kin = data.get("kinetic_models_fitted", {})
-        for results in kin.values():
-            if results and results.get("converged"):
-                kin_scores.append(results.get("r_squared", 0))
-
-        langmuir = iso.get("Langmuir", {})
-        qm = langmuir.get("params", {}).get("qm", 0) if langmuir.get("converged") else 0
-
-        avg_iso = np.mean(iso_scores) * 100 if iso_scores else 0
-        avg_kin = np.mean(kin_scores) * 100 if kin_scores else 0
-        overall = (avg_iso + avg_kin) / 2 if (iso_scores or kin_scores) else 0
-
-        rows.append(
-            {
-                "Study": name,
-                "qm (mg/g)": qm,
-                "Isotherm Avg R² (%)": avg_iso,
-                "Kinetic Avg R² (%)": avg_kin,
-                "Overall Score (%)": overall,
-                "Models Fitted": len(iso_scores) + len(kin_scores),
-            }
-        )
-
-    df = pd.DataFrame(rows)
-    if not df.empty:
-        df = df.sort_values("Overall Score (%)", ascending=False)
-        df["Rank"] = range(1, len(df) + 1)
-        df = df[
-            [
-                "Rank",
-                "Study",
-                "qm (mg/g)",
-                "Isotherm Avg R² (%)",
-                "Kinetic Avg R² (%)",
-                "Overall Score (%)",
-                "Models Fitted",
-            ]
-        ]
-
-    return df if rows else None
+    table = capacity_comparison({name: studies[name] for name in study_names})
+    if table.empty:
+        return None
+    table["Criterion"] = ""
+    table.loc[0, "Criterion"] = CAPACITY_CRITERION_NOTE
+    return table
 
 
 def _gen_tbl_multi_pub_summary(s: dict) -> pd.DataFrame | None:
@@ -1830,16 +1820,11 @@ def _gen_tbl_multi_pub_summary(s: dict) -> pd.DataFrame | None:
             row["k2 (g/mg·min)"] = np.nan
             row["R²_PSO"] = np.nan
 
-        thermo = data.get("thermo_params")
-        if thermo:
-            row["ΔH° (kJ/mol)"] = thermo.get("delta_H", np.nan)
-            row["ΔS° (J/mol·K)"] = thermo.get("delta_S", np.nan)
-            delta_G_vals = thermo.get("delta_G_values", [])
-            row["ΔG° (kJ/mol)"] = delta_G_vals[0] if delta_G_vals else np.nan
-        else:
-            row["ΔH° (kJ/mol)"] = np.nan
-            row["ΔS° (J/mol·K)"] = np.nan
-            row["ΔG° (kJ/mol)"] = np.nan
+        thermo = data.get("thermo_params") or {}
+        row["Apparent ΔH (kJ/mol)"] = thermo_value(thermo, "delta_H")
+        row["Apparent ΔS (J/mol·K)"] = thermo_value(thermo, "delta_S")
+        row["Apparent ΔG at 298.15 K (kJ/mol)"] = apparent_delta_g(thermo)
+        row["Kd definition"] = kd_definition(thermo) if thermo else "—"
 
         rows.append(row)
 
@@ -1874,13 +1859,8 @@ def _gen_tbl_multi_mechanism(s: dict) -> pd.DataFrame | None:
 
         thermo = data.get("thermo_params")
         if thermo:
-            delta_H = thermo.get("delta_H", 0)
-
-            if delta_H > 0:
-                row["Process"] = "Endothermic"
-            else:
-                row["Process"] = "Exothermic"
-
+            # Sign of the apparent ΔH only; unavailable when ΔH is missing.
+            row["Process"] = sign_label(thermo.get("delta_H"), "Exothermic", "Endothermic")
             row["Mechanism"] = "Not determined from ΔH or model fit"
         else:
             row["Process"] = "—"

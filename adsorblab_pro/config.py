@@ -42,6 +42,9 @@ __all__ = [
     "MAX_FIT_ITERATIONS",
     "BOOTSTRAP_DEFAULT_ITERATIONS",
     "BOOTSTRAP_MIN_SUCCESS",
+    "BOOTSTRAP_MIN_SUCCESS_FRACTION",
+    "BOOTSTRAP_DEFAULT_SEED",
+    "BOOTSTRAP_EVALUATIONS_PER_DRAW",
     # Validation constants
     "TEMP_MIN_KELVIN",
     "TEMP_MAX_KELVIN",
@@ -86,6 +89,21 @@ KD_WARNING_THRESHOLD = 0.1
 FUZZY_MATCH_CUTOFF = 0.8
 MIN_DATA_POINTS = 3
 BOOTSTRAP_MIN_SUCCESS = 10
+# A bootstrap interval is reported only when at least this fraction of the requested
+# draws were refitted successfully; otherwise the successful draws are a selected
+# subset and the interval is reported as unavailable.
+BOOTSTRAP_MIN_SUCCESS_FRACTION = 0.9
+# Deterministic cap on the work of one bootstrap run: the refits may use on average
+# this many function evaluations per requested draw.  Each draw keeps the original
+# estimator's iteration limit.  The total is checked before each draw (so the last
+# refit can exceed it; this is neither an exact ceiling nor a time limit).  When it
+# is reached (typically because the parameters are not identified and every refit
+# crawls along a ridge), no further draws are attempted and the run stops early:
+# the interval is then unavailable unless enough draws had already succeeded, and
+# the summaries always state the stop and the unattempted draws.
+BOOTSTRAP_EVALUATIONS_PER_DRAW = 200
+# Explicit default seed so that bootstrap results are reproducible and reportable.
+BOOTSTRAP_DEFAULT_SEED = 12345
 # =============================================================================
 # NUMERICAL CONSTANTS
 # =============================================================================
@@ -286,6 +304,8 @@ DEFAULT_SESSION_STATE: dict[str, Any] = {
     "input_mode_global": "absorbance",  # absorbance=calibration, direct=Ce/Ct
     # Calibration
     "calib_df_input": None,
+    # Source record of the stored calibration upload (raw table, unit mapping, ...).
+    "calib_source": None,
     "calibration_params": None,
     "previous_calib_df": None,
     # Isotherm study
@@ -312,6 +332,12 @@ DEFAULT_SESSION_STATE: dict[str, Any] = {
     "data_quality_reports": {},
     # Validation
     "validation_results": None,
+    # Sidebar input bookkeeping (per study, so navigation cannot mix studies):
+    # conditions shown in the widgets, identity of the last applied upload, and a
+    # counter used to reset an upload widget after an explicit clear.
+    "input_conditions": {},
+    "upload_signatures": {},
+    "uploader_nonce": {},
 }
 
 
@@ -340,7 +366,9 @@ DEFAULT_GLOBAL_SESSION_STATE: dict[str, Any] = {
 # - Some widgets and upload/editor caches live at the root of st.session_state.
 #   These constants define exactly what should be cleared on study switch.
 
-# Root-level (global) caches used by sidebar uploads / editors (NOT per-study)
+# Root-level (global) upload caches from earlier versions (NOT per-study).  The
+# sidebar no longer reads them: each study's stored input is authoritative.  They
+# are still cleared on study switch so stale copies can never leak between studies.
 SESSION_INPUT_KEYS_TO_CLEAR: tuple[str, ...] = (
     "uploaded_calib_data",
     "uploaded_iso_data",

@@ -32,9 +32,7 @@ import sys
 from html import escape as html_escape
 from pathlib import Path
 
-import numpy as np
 import streamlit as st
-from scipy.stats import linregress
 
 # Add the parent directory to path so the package can be found
 # when running directly with streamlit
@@ -140,118 +138,33 @@ for _k, _v in DEFAULT_GLOBAL_SESSION_STATE.items():
 # CALIBRATION UPDATE FUNCTION
 # =============================================================================
 def update_calibration():
-    """Automatically recalculate calibration with full statistics for the active study."""
+    """Validate the active study's calibration data and activate it atomically.
+
+    A replacement that is flat, degenerate, non-finite or insufficient deactivates
+    the previous calibration (it is never reused for data it was not built from),
+    keeps the attempted data, and records the reason.  Results derived through the
+    calibration are invalidated; direct-concentration results are kept.
+    """
     active_study_name = st.session_state.get("current_study")
     if not active_study_name:
         return  # Do nothing if no study is active
 
     current_study_state = st.session_state.studies[active_study_name]
-
-    new_calib_df = current_study_state.get("calib_df_input")
-    old_calib_df = current_study_state.get("previous_calib_df")
-
-    if new_calib_df is not None and len(new_calib_df) >= 3:
-        data_changed = old_calib_df is None or not new_calib_df.equals(old_calib_df)
-
-        if data_changed:
-            # Reset dependent results within the current study
-            keys_to_reset = [
-                "isotherm_results",
-                "isotherm_models_fitted",
-                "kinetic_results_df",
-                "kinetic_models_fitted",
-                "dosage_results",
-                "ph_effect_results",
-                "temp_effect_results",
-                "thermo_params",
-            ]
-            for key in keys_to_reset:
-                if key in current_study_state:
-                    if isinstance(current_study_state.get(key), dict):
-                        current_study_state[key] = {}
-                    else:
-                        current_study_state[key] = None
-
-            # Calculate calibration with full statistics
-            try:
-                conc = new_calib_df["Concentration"].values
-                abs_val = new_calib_df["Absorbance"].values
-
-                slope, intercept, r_value, p_value, std_err = linregress(conc, abs_val)
-
-                n = len(conc)
-                y_pred = slope * conc + intercept
-                residuals = abs_val - y_pred
-                ss_res = np.sum(residuals**2)
-                se_estimate = np.sqrt(ss_res / (n - 2)) if n > 2 else 0
-
-                # SE of intercept
-                se_intercept = se_estimate * np.sqrt(
-                    1 / n + np.mean(conc) ** 2 / np.sum((conc - np.mean(conc)) ** 2)
-                )
-
-                # t-value using study's confidence level
-                from scipy.stats import t as t_dist
-
-                study_confidence = current_study_state.get("confidence_level", 0.95)
-                alpha = 1 - study_confidence
-                t_val = t_dist.ppf(1 - alpha / 2, n - 2) if n > 2 else 2.0
-
-                # linregress returns NaN slope (and all other stats) when the
-                # concentration column has zero variance (all identical values).
-                # abs(NaN) > 1e-9 evaluates to False under IEEE 754, so without
-                # this explicit guard the block is silently skipped: no params
-                # are saved and no feedback is shown to the user.
-                #
-                # NaN and near-zero slope are distinct failure modes and need
-                # separate messages:
-                #   NaN   → degenerate data (constant concentrations)
-                #   ~0    → calibration curve is flat (poor experimental design)
-                if not np.isfinite(slope):
-                    st.warning(
-                        "⚠️ Calibration failed: all concentration values are identical "
-                        "(zero variance). Provide at least 3 distinct concentration points."
-                    )
-                elif abs(slope) <= 1e-9:
-                    st.warning(
-                        "⚠️ Calibration slope is effectively zero — the absorbance values "
-                        "show no response to concentration. Check your calibration data."
-                    )
-                else:
-                    # Save results to the current study
-                    current_study_state["calibration_params"] = {
-                        "slope": slope,
-                        "intercept": intercept,
-                        "r_squared": r_value**2,
-                        "adj_r_squared": 1 - (1 - r_value**2) * (n - 1) / (n - 2)
-                        if n > 2
-                        else r_value**2,
-                        "p_value": p_value,
-                        "std_err_slope": std_err,
-                        "std_err_intercept": se_intercept,
-                        "std_err_estimate": se_estimate,
-                        "slope_ci_95": (slope - t_val * std_err, slope + t_val * std_err),
-                        "intercept_ci_95": (
-                            intercept - t_val * se_intercept,
-                            intercept + t_val * se_intercept,
-                        ),
-                        "confidence_level": study_confidence,
-                        "equation": f"Abs = {slope:.4f} × C + {intercept:.4f}",
-                        "n_points": n,
-                        "quality_score": get_grade_from_r_squared(r_value**2)["min_score"],
-                        "residuals": residuals.tolist(),
-                        "y_pred": y_pred.tolist(),
-                    }
-                    current_study_state["previous_calib_df"] = new_calib_df.copy()
-            except Exception as e:
-                current_study_state["calibration_params"] = None
-                st.warning(f"Calibration calculation failed: {e}")
-    else:
-        # Calibration data is missing or insufficient - clear stale parameters
-        # to prevent downstream tabs from using invalid calibration
-        if current_study_state.get("calibration_params") is not None:
-            current_study_state["calibration_params"] = None
-            current_study_state["previous_calib_df"] = None
+    outcome = utils.apply_calibration_update(current_study_state)
+    params = current_study_state.get("calibration_params")
+    if outcome["status"] == "activated" and params is not None:
+        params["quality_score"] = get_grade_from_r_squared(params["r_squared"])["min_score"]
+    if outcome["invalidated"]:
+        st.sidebar.info(
+            "Calibration changed: results derived from absorbance through the previous "
+            "calibration were cleared and will be recalculated."
+        )
+    error = current_study_state.get("calibration_error")
+    if error and current_study_state.get("calib_df_input") is not None:
+        st.sidebar.error(
+            f"⚠️ Calibration not active: {error} Absorbance-mode analyses stay unavailable "
+            "until valid calibration data are uploaded."
+        )
 
 
 # =============================================================================
@@ -347,10 +260,14 @@ def _add_new_study() -> None:
             st.session_state["new_study_input"] = ""
         return
 
-    # Create and select the new study
+    # Create and select the new study.  The selector widget keeps its own state,
+    # so it must be pointed at the new study too; otherwise it re-selects the
+    # previous study while the message claims the new one is active, and data
+    # meant for the new study would be entered into an existing one.
     st.session_state.studies[name] = copy.deepcopy(DEFAULT_SESSION_STATE)
     st.session_state.current_study = name
     st.session_state._previous_study_selection = name
+    st.session_state["study_selector"] = name
 
     # Clean up stale widget/input keys (uploads etc.)
     utils.cleanup_session_state_keys()
@@ -601,7 +518,11 @@ with col2:
         "Data Entered", f"{_metrics['active_data_count']}/{_metrics.get('active_data_total', 6)}"
     )
 with col3:
-    st.metric("Calib. Checks", f"{_metrics['calib_quality']}/100")
+    st.metric(
+        "Calib. R² grade",
+        f"{_metrics['calib_quality']}/100",
+        help="Grade derived from the calibration R² only; not a statistical confidence.",
+    )
 
 # =============================================================================
 # FOOTER

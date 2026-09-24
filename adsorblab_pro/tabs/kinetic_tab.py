@@ -20,7 +20,7 @@ import plotly.graph_objects as go
 
 from adsorblab_pro.streamlit_compat import st
 
-from ..config import BOOTSTRAP_DEFAULT_ITERATIONS
+from ..config import BOOTSTRAP_DEFAULT_ITERATIONS, BOOTSTRAP_DEFAULT_SEED
 from ..models import (
     calculate_biot_number,
     calculate_initial_rate,
@@ -28,12 +28,14 @@ from ..models import (
     fit_model_with_ci,
     identify_equilibrium_time,
     identify_rate_limiting_step,
+    kinetic_fit_setup,
     mass_balance_capacity,
     pfo_model,
     predict_revised_pso,
     pso_model,
     revised_pso_equilibrium_capacity,
     revised_pso_model_fixed_conditions,
+    round_significant,
     revised_pso_qe_parameter,
 )
 from ..plot_style import (
@@ -48,16 +50,27 @@ from ..plot_style import (
     style_fit_trace,
 )
 from ..utils import (
-    CalculationResult,
+    OBSERVATION_EXCLUDED,
+    OBSERVATION_OK,
     assess_data_quality,
-    calculate_adsorption_capacity,
-    calculate_akaike_weights,
-    calculate_Ce_from_absorbance,
+    build_uptake_table,
     calculate_error_metrics,
-    calculate_removal_percentage,
+    FIT_ERROR_MODEL,
+    display_bootstrap_intervals,
+    display_fit_diagnostics,
     display_results_table,
+    format_criterion,
+    model_comparison_table,
+    parameter_status_column,
+    BOOTSTRAP_UNAVAILABLE,
+    report_bootstrap_outcome,
+    store_bootstrap_result as _store_bootstrap,
+    eligible_observations,
     get_current_study_state,
-    propagate_calibration_uncertainty,
+    metadata_columns,
+    observation_notice,
+    uptake_calculation_result,
+    uptake_results_frame,
     validate_required_params,
 )
 from ..validation import format_validation_errors, validate_kinetic_data
@@ -115,9 +128,6 @@ def _run_bootstrap_on_fitted_models(t, qt, fitted_models, n_bootstrap, confidenc
     already been fitted, showing a progress bar for user feedback.
     """
 
-    valid = (t >= 0) & (qt >= 0)
-    t_v, qt_v = t[valid], qt[valid]
-
     # Build list of models to bootstrap
     models_to_bootstrap = [
         ("PFO", pfo_model, ["qe", "k1"]),
@@ -147,6 +157,7 @@ def _run_bootstrap_on_fitted_models(t, qt, fitted_models, n_bootstrap, confidenc
     status_text = st.empty()
 
     current_model_idx = 0
+    summaries: list[tuple[str | bool, str]] = []
 
     for model_name, model_func, param_names in models_to_bootstrap:
         if not fitted_models.get(model_name, {}).get("converged"):
@@ -161,13 +172,9 @@ def _run_bootstrap_on_fitted_models(t, qt, fitted_models, n_bootstrap, confidenc
             params = [fitted_models[model_name]["params"][p] for p in param_names]
         params = np.array(params)
 
-        # Use appropriate data for Elovich (t > 0)
-        if model_name == "Elovich":
-            t_data = t_v[t_v > 0]
-            qt_data = qt_v[t_v > 0]
-        else:
-            t_data = t_v
-            qt_data = qt_v
+        # Resample exactly the observations the fit used.
+        t_data = np.asarray(fitted_models[model_name].get("x_data", t), dtype=float)
+        qt_data = np.asarray(fitted_models[model_name].get("y_data", qt), dtype=float)
 
         # Run bootstrap with progress
         def model_progress(
@@ -184,45 +191,46 @@ def _run_bootstrap_on_fitted_models(t, qt, fitted_models, n_bootstrap, confidenc
             status_text.text(f"🔄 {_model_name}: {message}")
 
         try:
-            from ..utils import bootstrap_confidence_intervals
+            from ..utils import bootstrap_parameter_intervals
 
-            ci_lower, ci_upper = bootstrap_confidence_intervals(
+            # Every requested draw is refitted once with the full fit's start/limit
+            # policy (legacy rPSO: its stored configuration).
+            config = fitted_models[model_name].get("fit_config") or {}
+            details = bootstrap_parameter_intervals(
                 model_func,
                 t_data,
                 qt_data,
                 params,
-                n_bootstrap=n_bootstrap,
-                confidence=confidence_level,
+                n_bootstrap,
+                confidence_level,
+                bounds=config.get("bounds"),
+                fit_setup=_kinetic_fold_setup(model_name)
+                if model_name in ("PFO", "PSO", "Elovich")
+                else None,
+                seed=BOOTSTRAP_DEFAULT_SEED,
+                param_names=param_names,
                 progress_callback=model_progress,
-                early_stopping=True,
             )
-
-            # Update fitted models with bootstrap CI
-            if not np.any(np.isnan(ci_lower)):
-                fitted_models[model_name]["bootstrap_ci_95"] = {
-                    param_names[i]: (ci_lower[i], ci_upper[i]) for i in range(len(param_names))
-                }
-                fitted_models[model_name]["bootstrap_n"] = n_bootstrap
+            summaries.append(_store_bootstrap(fitted_models[model_name], details, model_name))
         except Exception as e:
-            st.warning(f"Bootstrap failed for {model_name}: {str(e)}")
+            fitted_models[model_name].pop("bootstrap", None)
+            summaries.append((BOOTSTRAP_UNAVAILABLE, f"{model_name}: bootstrap failed ({e})"))
 
     # Clean up
     progress_bar.progress(1.0)
-    status_text.text("✅ Bootstrap complete!")
+    status_text.text("Bootstrap runs finished.")
     time.sleep(0.5)
     progress_bar.empty()
     status_text.empty()
 
-    st.success(
-        f"✅ Bootstrap CI calculated for {current_model_idx} models ({n_bootstrap} iterations)"
-    )
-
+    report_bootstrap_outcome(summaries)
     return fitted_models
 
 
 def _arrays_to_tuples(t: np.ndarray, qt: np.ndarray):
     """Convert numpy arrays to tuples for cache key hashing."""
-    return (tuple(np.round(t, 8).tolist()), tuple(np.round(qt, 8).tolist()))
+    # Significant digits, not decimals (small uptakes must keep their precision).
+    return (tuple(round_significant(t).tolist()), tuple(round_significant(qt).tolist()))
 
 
 # =============================================================================
@@ -267,13 +275,18 @@ def _fit_all_kinetic_models_cached(
 
     fitted: dict[str, Any] = {}
 
-    valid = (t >= 0) & (qt >= 0)
+    # Observations reaching this function are the eligible rows of the results
+    # table (finite, t >= 0, 0 <= Ct <= C0); zero uptake is a valid observation.
+    valid = np.isfinite(t) & np.isfinite(qt) & (t >= 0)
     t_v, qt_v = t[valid], qt[valid]
 
     if len(t_v) < 4:
         return fitted
 
     qe_exp = qt_v.max()
+    # Starting values and limits scale with the data (no fixed ceilings such as
+    # k2 ≤ 10 g/(mg·min)); see kinetic_fit_setup.  rPSO keeps its own settings.
+    setup = kinetic_fit_setup(t_v, qt_v)
 
     # PFO
     try:
@@ -281,8 +294,8 @@ def _fit_all_kinetic_models_cached(
             pfo_model,
             t_v,
             qt_v,
-            p0=[qe_exp, 0.05],
-            bounds=([0, 0], [qe_exp * 3, 10]),
+            p0=setup["PFO"]["p0"],
+            bounds=setup["PFO"]["bounds"],
             param_names=["qe", "k1"],
             confidence=confidence_level,
         )
@@ -300,8 +313,8 @@ def _fit_all_kinetic_models_cached(
             pso_model,
             t_v,
             qt_v,
-            p0=[qe_exp, 0.01],
-            bounds=([0, 0], [qe_exp * 3, 10]),
+            p0=setup["PSO"]["p0"],
+            bounds=setup["PSO"]["bounds"],
             param_names=["qe", "k2"],
             confidence=confidence_level,
         )
@@ -386,16 +399,17 @@ def _fit_all_kinetic_models_cached(
         except Exception as e:
             fitted["rPSO"] = {"converged": False, "error": str(e)}
 
-    # Elovich
+    # Elovich.  The implemented form q = (1/β)·ln(1 + αβt) is defined at t = 0
+    # (q = 0), so it is fitted to the same observations as the other models and
+    # its information criteria are comparable with theirs.
     try:
-        t_pos, qt_pos = t_v[t_v > 0], qt_v[t_v > 0]
-        if len(t_pos) >= 3:
+        if len(t_v) >= 3:
             result = fit_model_with_ci(
                 elovich_model,
-                t_pos,
-                qt_pos,
-                p0=[1.0, 0.1],
-                bounds=([0, 0], [1000, 10]),
+                t_v,
+                qt_v,
+                p0=setup["Elovich"]["p0"],
+                bounds=setup["Elovich"]["bounds"],
                 param_names=["alpha", "beta"],
                 confidence=confidence_level,
             )
@@ -441,11 +455,26 @@ def _fit_all_kinetic_models_cached(
             "bic": metrics.get("bic", np.nan),
             "normalized_sse": metrics["normalized_sse"],
             "chi_squared": metrics["normalized_sse"],
+            # Same observations and residual scale (q) as the nonlinear fits.
+            "x_data": t_v,
+            "y_data": qt_v,
+            "y_pred": y_pred,
+            "residuals": qt_v - y_pred,
         }
     except Exception as e:
         fitted["IPD"] = {"converged": False, "error": str(e)}
 
     return fitted
+
+
+def _kinetic_fold_setup(model_name: str):
+    """Start/limit policy of the full kinetic fit, applied to a fold's training data."""
+
+    def setup(t_train, qt_train):
+        config = kinetic_fit_setup(t_train, qt_train)[model_name]
+        return config["p0"], config["bounds"]
+
+    return setup
 
 
 # =============================================================================
@@ -562,12 +591,16 @@ def render():
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Quality", f"{quality['quality_score']}/100")
+            st.metric(
+                "Data checks",
+                f"{quality['quality_score']}/100",
+                help="Heuristic points for the number of rows, outliers and negative values; not a statistical confidence and not a measure of fit quality.",
+            )
         with col2:
             st.metric("Points", len(kin_input["data"]))
         with col3:
-            status = "✅ Good" if quality["quality_score"] >= 70 else "⚠️ Review"
-            st.metric("Status", status)
+            status = "✅ No major flags" if quality["quality_score"] >= 70 else "⚠️ Review"
+            st.metric("Data flags", status)
 
         # Calculate kinetic data based on input mode
         if input_mode == "direct":
@@ -578,11 +611,16 @@ def render():
 
         if not kin_results_obj.success:
             st.warning(f"Could not process kinetic data: {kin_results_obj.error}")
+            if kin_results_obj.data is not None and not kin_results_obj.data.empty:
+                display_results_table(kin_results_obj.data.round(4), hide_index=True)
+            current_study_state["kinetic_results_df"] = None
             return
 
         kin_results = kin_results_obj.data
         if kin_results is not None and not kin_results.empty:
+            # The stored/exported table keeps every row with its status and reason.
             current_study_state["kinetic_results_df"] = kin_results
+            usable = eligible_observations(kin_results)
 
             # Data Section
             st.markdown("---")
@@ -590,8 +628,24 @@ def render():
 
             st.latex(r"q_t = \frac{(C_0 - C_t) \cdot V}{m}")
 
-            display_cols = ["Time", "Ct_mgL", "qt_mg_g", "removal_%"]
-            display_results_table(kin_results[display_cols].round(4), hide_index=False)
+            notice = observation_notice(kin_results)
+            if notice:
+                st.warning(f"⚠️ {notice}")
+            display_cols = [
+                c
+                for c in [
+                    "source_row",
+                    "Time",
+                    "Absorbance",
+                    "Ct_mgL",
+                    "qt_mg_g",
+                    "removal_%",
+                    "status",
+                    "note",
+                ]
+                if c in kin_results.columns
+            ] + metadata_columns(kin_results)
+            display_results_table(kin_results[display_cols].round(4), hide_index=True)
 
             params = kin_input["params"]
             st.caption(
@@ -599,8 +653,9 @@ def render():
             )
 
             # Key metrics
-            t = kin_results["Time"].values
-            qt = kin_results["qt_mg_g"].values
+            # Only usable observations enter validation, metrics and fitting.
+            t = usable["Time"].to_numpy(dtype=float)
+            qt = usable["qt_mg_g"].to_numpy(dtype=float)
 
             # NEW: Validate kinetic data before analysis
             params = kin_input["params"]
@@ -635,9 +690,9 @@ def render():
 
             if unit_system == "Both":
                 fig_kin = create_dual_axis_effect_plot(
-                    x=kin_results["Time"],
-                    y1=kin_results["qt_mg_g"],
-                    y2=kin_results["removal_%"],
+                    x=usable["Time"],
+                    y1=usable["qt_mg_g"],
+                    y2=usable["removal_%"],
                     title="Kinetic Curve",
                     x_title="Time (min)",
                     y1_title="qt (mg/g)",
@@ -659,8 +714,8 @@ def render():
 
                 fig_kin.add_trace(
                     go.Scatter(
-                        x=kin_results["Time"],
-                        y=kin_results[y_col],
+                        x=usable["Time"],
+                        y=usable[y_col],
                         **tr,
                     )
                 )
@@ -780,7 +835,7 @@ def render():
                 # Calculate PRESS/Q² if requested
                 if calculate_press:
                     with st.spinner("📊 Calculating PRESS statistics (leave-one-out CV)..."):
-                        from ..utils import calculate_press, calculate_q2
+                        from ..utils import calculate_press_details
 
                         model_funcs = {
                             "PFO": (pfo_model, ["qe", "k1"]),
@@ -801,23 +856,37 @@ def render():
                                     rpso_model = revised_pso_model_fixed_conditions(C0_r, m_r, V_r)
                                     model_funcs["rPSO"] = (rpso_model, ["qe", "k2"])
 
+                        unavailable = []
                         for model_name, (func, param_names) in model_funcs.items():
                             if fitted_models.get(model_name, {}).get("converged"):
-                                try:
-                                    params = [
-                                        fitted_models[model_name]["params"][p] for p in param_names
-                                    ]
-                                    t_data = t[t > 0] if model_name == "Elovich" else t
-                                    qt_data = qt[t > 0] if model_name == "Elovich" else qt
-                                    press = calculate_press(func, t_data, qt_data, params)
-                                    q2 = calculate_q2(press, qt_data)
-                                    fitted_models[model_name]["press"] = press
-                                    fitted_models[model_name]["q2"] = q2
-                                except Exception as e:
-                                    st.warning(f"PRESS calculation failed for {model_name}: {e}")
+                                result = fitted_models[model_name]
+                                # Each fold is refitted with the full fit's start/limit
+                                # policy (legacy rPSO: its stored configuration).
+                                fold_setup = (
+                                    _kinetic_fold_setup(model_name)
+                                    if model_name in ("PFO", "PSO", "Elovich")
+                                    else None
+                                )
+                                config = result.get("fit_config") or {}
+                                details = calculate_press_details(
+                                    func,
+                                    np.asarray(result["x_data"]),
+                                    np.asarray(result["y_data"]),
+                                    config.get("p0", [result["params"][p] for p in param_names]),
+                                    config.get("bounds"),
+                                    fit_setup=fold_setup,
+                                )
+                                result["press"] = details["press"]
+                                result["q2"] = details["q2"]
+                                result["press_details"] = details
+                                if details["status"] != "complete":
+                                    unavailable.append(f"{model_name}: {details['message']}")
 
                         current_study_state["kinetic_models_fitted"] = fitted_models
-                    st.success("✅ PRESS/Q² calculated!")
+                    if unavailable:
+                        st.warning("⚠️ " + " ".join(unavailable))
+                    else:
+                        st.success("✅ PRESS/Q² calculated (every leave-one-out refit succeeded).")
 
                 # Run bootstrap if requested
                 if run_bootstrap:
@@ -891,101 +960,53 @@ def render():
 # =============================================================================
 
 
+def _kinetic_frame(kin_input, mode, calib_params=None):
+    """Shared kinetic calculation: every row kept with its source row and status."""
+    params = kin_input["params"]
+    data = kin_input["data"]
+    table = build_uptake_table(
+        data,
+        mode=mode,
+        signal_col="Absorbance" if mode != "direct" else "Ct",
+        C0=params["C0"],
+        V=params["V"],
+        m=params["m"],
+        calib_params=calib_params,
+        extra_numeric={"Time": "time"},
+        row_notes=kin_input.get("row_issues"),
+    )
+    time = pd.to_numeric(data["Time"], errors="coerce").to_numpy(dtype=float)
+    negative = np.isfinite(time) & (time < 0) & (table["status"] == OBSERVATION_OK).to_numpy()
+    for i in np.flatnonzero(negative):
+        table.loc[i, ["C", "C_error", "q", "q_error", "removal"]] = np.nan
+        table.loc[i, "status"] = OBSERVATION_EXCLUDED
+        table.loc[i, "note"] = f"negative time ({time[i]:g} min)"
+    frame = uptake_results_frame(
+        table,
+        leading={"Time": time},
+        conc_name="Ct",
+        capacity_name="qt",
+        include_signal=mode != "direct",
+        sort_by="Time",
+    )
+    return uptake_calculation_result(frame)
+
+
 @st.cache_data
 def _calculate_kinetic_results(kin_input, calib_params):
-    """Calculate kinetic data from absorbance with error propagation."""
-    df = kin_input["data"].copy()
-    params = kin_input["params"]
-
-    slope = calib_params["slope"]
-    intercept = calib_params["intercept"]
-    C0 = params["C0"]
-    m = params["m"]
-    V = params["V"]
-
-    slope_se = calib_params.get("std_err_slope", 0)
-    intercept_se = calib_params.get("std_err_intercept", 0)
-
-    results = []
-    for _, row in df.iterrows():
-        t = row["Time"]
-        abs_val = row["Absorbance"]
-
-        Ct = calculate_Ce_from_absorbance(abs_val, slope, intercept)
-        qt = calculate_adsorption_capacity(C0, Ct, V, m)
-        removal = calculate_removal_percentage(C0, Ct)
-
-        # Returns tuple: (Ct_calc, Ct_se)
-        _, Ct_se = propagate_calibration_uncertainty(
-            abs_val, slope, intercept, slope_se, intercept_se
-        )
-        qt_error = (V / m) * Ct_se if m > 0 else 0
-
-        results.append(
-            {
-                "Time": t,
-                "Absorbance": abs_val,
-                "Ct_mgL": Ct,
-                "Ct_error": Ct_se,
-                "qt_mg_g": qt,
-                "qt_error": qt_error,
-                "removal_%": removal,
-            }
-        )
-
-    if not results:
-        return CalculationResult(success=False, error="No valid data points.")
-
-    results_df = pd.DataFrame(results).sort_values("Time")
-    return CalculationResult(success=True, data=results_df)
+    """Calculate kinetic data from absorbance with per-row status (nothing clipped)."""
+    return _kinetic_frame(kin_input, "absorbance", calib_params)
 
 
 @st.cache_data
 def _calculate_kinetic_results_direct(kin_input):
     """
-    Calculate kinetic data from direct Ct input.
+    Calculate kinetic data from direct Ct input with per-row status.
 
     This function bypasses calibration and uses Ct values directly from published data.
-    Useful for validating the application with literature datasets.
+    Rows with Ct > C0, negative or missing values are kept and marked as excluded.
     """
-    df = kin_input["data"].copy()
-    params = kin_input["params"]
-
-    C0 = params["C0"]
-    m = params["m"]
-    V = params["V"]
-
-    results = []
-    for _, row in df.iterrows():
-        t = row["Time"]
-        Ct = row["Ct"]
-
-        # Validate Ct <= C0
-        if Ct > C0:
-            continue  # Skip invalid data points
-
-        qt = calculate_adsorption_capacity(C0, Ct, V, m)
-        removal = calculate_removal_percentage(C0, Ct)
-
-        results.append(
-            {
-                "Time": t,
-                "Absorbance": Ct,  # Store Ct in Absorbance column for compatibility
-                "Ct_mgL": Ct,
-                "Ct_error": 0.0,  # No calibration uncertainty in direct mode
-                "qt_mg_g": qt,
-                "qt_error": 0.0,  # No propagated error in direct mode
-                "removal_%": removal,
-            }
-        )
-
-    if not results:
-        return CalculationResult(
-            success=False, error="No valid data points. Ensure Ct ≤ C0 for all rows."
-        )
-
-    results_df = pd.DataFrame(results).sort_values("Time")
-    return CalculationResult(success=True, data=results_df)
+    return _kinetic_frame(kin_input, "direct")
 
 
 # =============================================================================
@@ -1020,8 +1041,11 @@ def _display_pfo(t, qt, results):
                     f"({ci.get('k1', (np.nan, np.nan))[0]:.6f}, {ci.get('k1', (np.nan, np.nan))[1]:.6f})",
                     "—",
                 ],
+                "Status": parameter_status_column(results, ["qe", "k1", None]),
             }
         )
+        display_fit_diagnostics(results)
+        display_bootstrap_intervals(results)
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -1031,7 +1055,7 @@ def _display_pfo(t, qt, results):
         with col3:
             st.metric("RMSE", f"{results['rmse']:.4f}")
         with col4:
-            st.metric("AIC", f"{results.get('aicc', results['aic']):.2f}")
+            st.metric("AICc", format_criterion(results.get("aicc")))
 
         # Plot
         t_line = np.linspace(0, t.max() * 1.1, 100)
@@ -1092,8 +1116,11 @@ def _display_pso(t, qt, results):
                     "—",
                     "—",
                 ],
+                "Status": parameter_status_column(results, ["qe", "k2", None, None]),
             }
         )
+        display_fit_diagnostics(results)
+        display_bootstrap_intervals(results)
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -1103,7 +1130,7 @@ def _display_pso(t, qt, results):
         with col3:
             st.metric("RMSE", f"{results['rmse']:.4f}")
         with col4:
-            st.metric("AIC", f"{results.get('aicc', results['aic']):.2f}")
+            st.metric("AICc", format_criterion(results.get("aicc")))
 
         # CRITICAL: Mechanistic interpretation warning
         # See: Hubbe et al. (2019). BioResources, 14(3), 7582-7626.
@@ -1174,8 +1201,11 @@ def _display_elovich(t, qt, results):
                     f"({ci.get('alpha', (np.nan, np.nan))[0]:.4f}, {ci.get('alpha', (np.nan, np.nan))[1]:.4f})",
                     f"({ci.get('beta', (np.nan, np.nan))[0]:.6f}, {ci.get('beta', (np.nan, np.nan))[1]:.6f})",
                 ],
+                "Status": parameter_status_column(results, ["alpha", "beta"]),
             }
         )
+        display_fit_diagnostics(results)
+        display_bootstrap_intervals(results)
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -1185,7 +1215,7 @@ def _display_elovich(t, qt, results):
         with col3:
             st.metric("RMSE", f"{results['rmse']:.4f}")
         with col4:
-            st.metric("AIC", f"{results.get('aicc', results['aic']):.2f}")
+            st.metric("AICc", format_criterion(results.get("aicc")))
 
         st.info("""
 **Elovich model interpretation:** This empirical rate equation can describe heterogeneous-surface
@@ -1193,10 +1223,10 @@ kinetics. A good fit does not identify the controlling molecular mechanism. Use 
 transport, spectroscopic, and chemical evidence for mechanistic conclusions.
         """)
 
-        # Plot
-        t_pos = t[t > 0]
-        qt_pos = qt[t > 0]
-        t_line = np.linspace(0.1, t.max() * 1.1, 100)
+        # Plot (same observations as the fit, including t = 0 where q = 0)
+        t_pos = np.asarray(results.get("x_data", t), dtype=float)
+        qt_pos = np.asarray(results.get("y_data", qt), dtype=float)
+        t_line = np.linspace(0, t.max() * 1.1, 100)
         qt_pred = elovich_model(t_line, params["alpha"], params["beta"])
 
         fig = create_kinetic_plot(
@@ -1399,7 +1429,7 @@ def _display_rpso(t, qt, results):
         with col3:
             st.metric("RMSE", f"{results['rmse']:.4f}")
         with col4:
-            st.metric("AIC", f"{results.get('aicc', results['aic']):.2f}")
+            st.metric("AICc", format_criterion(results.get("aicc")))
 
         # Comparison note
         st.caption("""
@@ -1765,89 +1795,57 @@ def _display_diffusion_analysis(t, qt, qe_exp, experimental_conditions):
 
 
 def _display_model_comparison(fitted_models, t, qt):
-    """Display kinetic model comparison with standard error functions."""
+    """Display kinetic model comparison; criteria ranked only among comparable fits."""
     st.markdown("**📊 Model Comparison**")
 
-    comparison_data = []
-    for name, results in fitted_models.items():
-        if results and results.get("converged"):
-            comparison_data.append(
-                {
-                    "Model": name,
-                    "R²": results["r_squared"],
-                    "Adj-R²": results["adj_r_squared"],
-                    "RMSE": results["rmse"],
-                    "Relative SSE": results.get(
-                        "normalized_sse", results.get("chi_squared", np.nan)
-                    ),
-                    "AIC": results.get("aicc", results["aic"]),
-                }
-            )
-
-    if not comparison_data:
+    has_press = any(
+        results.get("press") is not None for results in fitted_models.values() if results
+    )
+    comparison_df, comparison = model_comparison_table(fitted_models, include_press=has_press)
+    if comparison_df.empty:
         st.warning("No models converged successfully.")
         return
-
-    comparison_df = pd.DataFrame(comparison_data)
-    aicc_values = [fitted_models[row["Model"]].get("aicc", row["AIC"]) for row in comparison_data]
-    aic_weights = calculate_akaike_weights(aicc_values)
-    comparison_df["AIC Weight"] = aic_weights
-    comparison_df = comparison_df.sort_values("Adj-R²", ascending=False)
 
     # Error function explanation
     with st.expander("📖 Error Function Definitions", expanded=False):
         st.markdown("""
         | Error Function | Best For | Lower = Better |
         |----------------|----------|----------------|
-        | **R²/Adj-R²** | Overall fit quality | Higher = Better |
+        | **R²/Adj-R²** | Descriptive fit quality | Higher = Better |
         | **RMSE** | Absolute error magnitude | ✓ |
         | **Relative SSE** | Σ(residual²/|predicted|); descriptive only | ✓ |
-        | **AIC** | Model selection (penalizes complexity) | ✓ |
+        | **AIC / AICc / BIC** | Model selection within the same observations (k = p + 1) | ✓ |
+
+        AICc is undefined when n ≤ k + 1 and is then shown as —. ΔAICc and AICc weights are
+        computed only among fits to the same observations (same *Set*).
 
         *Reference: Kumar et al. (2008) J Hazard Mater 151:794-804*
         """)
 
+    formats = {
+        "R²": "{:.4f}",
+        "Adj-R²": "{:.4f}",
+        "RMSE": "{:.4f}",
+        "Relative SSE": "{:.2f}",
+        "AIC": "{:.2f}",
+        "AICc": "{:.2f}",
+        "BIC": "{:.2f}",
+        "ΔAICc": "{:.2f}",
+        "AICc weight": "{:.1%}",
+    }
+    if has_press:
+        formats.update({"PRESS": "{:.4f}", "Q²": "{:.4f}"})
     st.dataframe(
-        comparison_df.style.format(
-            {
-                "R²": "{:.4f}",
-                "Adj-R²": "{:.4f}",
-                "RMSE": "{:.4f}",
-                "Relative SSE": "{:.2f}",
-                "AIC": "{:.2f}",
-                "AIC Weight": "{:.1%}",
-            }
-        )
-        .highlight_max(subset=["R²", "Adj-R²", "AIC Weight"], color="lightgreen")
-        .highlight_min(subset=["RMSE", "AIC", "Relative SSE"], color="lightblue"),
+        comparison_df.style.format(formats, na_rep="—"),
         use_container_width=True,
         hide_index=True,
     )
 
-    # Best model recommendation - handle NaN values safely
-    try:
-        adj_r2_idx = comparison_df["Adj-R²"].idxmax()
-        best_adj_r2 = comparison_df.loc[adj_r2_idx, "Model"] if pd.notna(adj_r2_idx) else None
-    except (KeyError, ValueError):
-        best_adj_r2 = None
-
-    try:
-        aic_idx = comparison_df["AIC"].idxmin()
-        best_aic = comparison_df.loc[aic_idx, "Model"] if pd.notna(aic_idx) else None
-    except (KeyError, ValueError):
-        best_aic = None
-
-    if best_adj_r2 and best_aic:
-        if best_adj_r2 == best_aic:
-            st.success(f"**🎯 Best Model: {best_adj_r2}** (highest Adj-R² and lowest AIC)")
-        else:
-            st.info(
-                f"**📊 Model Selection:** Adj-R² favors **{best_adj_r2}**, AIC favors **{best_aic}**"
-            )
-    elif best_adj_r2:
-        st.success(f"**🎯 Best Model: {best_adj_r2}** (highest Adj-R²)")
-    elif best_aic:
-        st.success(f"**🎯 Best Model: {best_aic}** (lowest AIC)")
+    if comparison["status"] == "ranked":
+        st.success(f"**🎯 {comparison['message']}**")
+    else:
+        st.info(f"**📊 {comparison['message']}**")
+    st.caption(f"Fits: {FIT_ERROR_MODEL}.")
 
     # Note on mechanistic interpretation
     st.caption("""
@@ -1890,7 +1888,7 @@ def _display_guidelines():
         3. **Initial Point:** Always include t = 0
         4. **Report:**
            - qe, k values with 95% CI
-           - R², Adj-R², RMSE, AIC
+           - R², Adj-R², RMSE, AIC/AICc/BIC
            - Initial rate (h) for PSO
            - Half-time (t₁/₂)
 
